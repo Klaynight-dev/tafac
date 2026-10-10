@@ -7,6 +7,7 @@ import lentLogo from '../assets/lent-logo.svg'
 import toutaticeLoginHero from '../assets/login/toutatice-login-hero.webp'
 import LentButton from './LentButton'
 import AboutModal from './AboutModal'
+import { APP_NAME } from '../seo'
 
 const universityLogo = universityConfig.branding.logo
 const universityLogoAlt = universityConfig.branding.logoAlt ?? universityConfig.university?.name ?? ''
@@ -74,7 +75,7 @@ function LoginPage({
           <img
             className="block h-[66px] w-auto object-contain"
             src={lentLogo}
-            alt="L'ent"
+            alt={APP_NAME}
             width="118"
             height="66"
           />
@@ -105,12 +106,12 @@ function LoginPage({
         <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[25px] px-[88px] pb-[120px] max-4xl:w-[min(640px,100%)] max-4xl:gap-6 max-4xl:px-10 max-4xl:pb-12 max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
           <header className="relative flex h-[295px] shrink-0 justify-center text-center max-md:h-[245px]">
             <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[117px] max-4xl:pt-[61px] max-md:pt-[26px]">
-              {/* The left panel (and its l'ent logo) is hidden below 4xl, so
+              {/* The left panel (and its app logo) is hidden below 4xl, so
                   show the logo above the university one there instead. */}
               <img
                 className="hidden h-11 w-auto object-contain max-4xl:block"
                 src={lentLogo}
-                alt="L'ent"
+                alt={APP_NAME}
               />
               <img
                 className="block h-[51px] w-[173px] object-contain dark:invert"

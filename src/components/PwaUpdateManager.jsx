@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import RefreshedPrompt from './RefreshedPrompt'
 import { flushAnalytics, track } from '../analytics'
+import { APP_NAME } from '../seo'
 
 const LOCAL_PWA_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1'])
 const LOCAL_PWA_RESET_KEY = 'l-ent:local-pwa-reset'
 const UPDATE_PROMPT_TITLE = 'Une nouvelle version est prête'
-const UPDATE_PROMPT_DESCRIPTION = "Une nouvelle version de l'ent est disponible. Applique-la maintenant pour récupérer les derniers changements."
+const UPDATE_PROMPT_DESCRIPTION = `Une nouvelle version de ${APP_NAME} est disponible. Applique-la maintenant pour récupérer les derniers changements.`
 
 // Updates are announced discreetly (the small "Nouvelle version" notice in the
 // sidebar / header), never with the big prompt. If the student doesn't click

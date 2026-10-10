@@ -40,7 +40,7 @@ function UniversityLockup({ variant = 'sidebar' }) {
 
   return (
     <span className={classes.row}>
-      <img src={lentLogo} alt="L'ent" className={classes.lent} />
+      <img src={lentLogo} alt={branding.appName} className={classes.lent} />
       {branding.logo ? (
         <img src={branding.logo} alt={lockupAlt} className={classes.uni} />
       ) : null}

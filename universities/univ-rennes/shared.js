@@ -12,15 +12,15 @@ export const university = {
 // Branding text (no assets here — the logo lives in client.js so this file
 // stays importable by Node).
 export const branding = {
-  appName: "l'ent",
-  defaultTitle: "l'ent | Toute ta fac, au même endroit.",
-  seoTitle: "l'ent | Client alternatif ENT Université de Rennes",
+  appName: 'Tafac',
+  defaultTitle: "Tafac | Toute ta fac, au même endroit.",
+  seoTitle: "Tafac | Client alternatif ENT Université de Rennes",
   seoDescription:
     "Client alternatif non officiel à l'ENT de l'Université de Rennes pour consulter notes, emploi du temps ADE, résultats et services universitaires depuis une interface plus lisible.",
   pwaDescription:
-    "l'ent réunit toutes vos données universitaires — cours, résultats, messagerie dans une interface lisible, rapide et agréable à utiliser.",
+    "Tafac réunit toutes vos données universitaires — cours, résultats, messagerie dans une interface lisible, rapide et agréable à utiliser.",
   logoAlt: 'Université de Rennes',
-  sidebarLogoAlt: "L'ent — Université de Rennes",
+  sidebarLogoAlt: "Tafac — Université de Rennes",
   loginFooterLine: "Client alternatif à l'ENT de l'Université de Rennes",
   about: {
     intro: "est un client alternatif aux services numériques de l'Université de Rennes.",

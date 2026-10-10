@@ -11,6 +11,7 @@ import flowerImage from '../assets/privacy/flower.webp'
 import bikeImage from '../assets/privacy/bike.webp'
 import housesImage from '../assets/privacy/houses.webp'
 import butterflyImage from '../assets/privacy/butterfly.webp'
+import { APP_NAME } from '../seo'
 
 // "Tes données restent à toi": what the anonymous audience measurement does
 // and doesn't do, in the illustrated style of the Figma presentation screens
@@ -152,7 +153,7 @@ function PrivacyModal({ open, onClose }) {
               Tes données restent à toi
             </p>
             <p className="m-0 text-[15px] font-medium leading-[1.35] opacity-90">
-              l’ent compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse. Rien de plus.
+              {APP_NAME} compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse. Rien de plus.
             </p>
           </div>
 
