@@ -76,7 +76,7 @@ function LoginPage({
             className="block h-[66px] w-auto object-contain"
             src={lentLogo}
             alt={APP_NAME}
-            width="118"
+            width="153"
             height="66"
           />
           <div className="flex w-full flex-col items-start gap-[10px] text-[#f5f3ed]">
@@ -213,7 +213,7 @@ function LoginPage({
               aria-label="Autres universités disponibles"
             >
               <p className="m-0 text-[13px] font-medium leading-[1.1] text-text-muted font-body">
-                l&apos;ent est aussi disponible pour
+                {APP_NAME} est aussi disponible pour
               </p>
               <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-4">
                 {otherUniversities.map((entry) => (
