@@ -4,17 +4,17 @@ const STEP_CONFIG = {
   year: {
     label: 'Année',
     title: 'Choisis ton année',
-    description: "Commence par sélectionner ta promo ou ton année d'étude.",
+    description: "Sélectionne ta promo ou ton année d'étude",
   },
   td: {
     label: 'TD',
-    title: 'Choisis ton groupe de TD',
-    description: 'On affine ensuite avec ton groupe de TD.',
+    title: 'Choisis ton groupe TD',
+    description: 'Groupe de travaux dirigés',
   },
   tp: {
     label: 'TP',
-    title: 'Choisis ton groupe de TP',
-    description: "Dernière étape : ton groupe de TP pour l'emploi du temps le plus précis.",
+    title: 'Choisis ton groupe TP',
+    description: "Groupe de travaux pratiques",
   },
 }
 
@@ -303,8 +303,8 @@ function OnboardingPage({
               </h1>
               <p className="text-lg font-medium leading-[1.2] text-text-muted m-0 font-body max-sm:text-base">
                 {contextLabel
-                  ? `Tu es bien dans ${contextLabel}. Il ne reste plus qu'à choisir ton groupe exact.`
-                  : "Il ne reste plus qu'à choisir ton groupe exact pour afficher l'emploi du temps le plus précis."}
+                  ? `Tu es dans ${contextLabel}, choisis maintenant ton groupe exact.`
+                  : "Choisis ton groupe exact"}
               </p>
             </div>
 
@@ -371,7 +371,7 @@ function OnboardingPage({
 
         {errorMessage ? (
           <div className={`rounded-[22px] border border-[color:var(--color-border)] bg-widget-bg p-5 ${isGroupCircleStep ? 'w-full max-w-[720px]' : ''}`}>
-            <p className="m-0 text-base font-semibold text-text">Impossible de récupérer ce niveau de groupe pour le moment.</p>
+            <p className="m-0 text-base font-semibold text-text">Impossible de récupérer ce niveau de groupe pour le moment</p>
             <p className="m-0 mt-2 text-sm text-text-muted font-body">{errorMessage}</p>
             {hasRetry ? (
               <button
@@ -392,7 +392,7 @@ function OnboardingPage({
               <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isLoading ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                 <div className="overflow-hidden">
                   <div className="flex w-full items-center justify-center py-6">
-                    <OnboardingLoadingDots label={loadingMessage || 'Chargement en cours'} />
+                    <OnboardingLoadingDots label={loadingMessage || 'Chargement'} />
                   </div>
                 </div>
               </div>
@@ -418,14 +418,14 @@ function OnboardingPage({
           </div>
         ) : errorMessage ? null : isTpStep && isLoading ? (
           <div className="flex w-full max-w-[720px] items-center justify-center py-6">
-            <OnboardingLoadingDots label={loadingMessage || 'Chargement en cours'} />
+            <OnboardingLoadingDots label={loadingMessage || 'Chargement'} />
           </div>
         ) : (
           <div className={`rounded-[22px] border border-[color:var(--color-border)] bg-widget-bg p-5 ${isGroupCircleStep ? 'w-full max-w-[720px] text-center' : ''}`}>
-            <p className="m-0 text-base font-semibold text-text">{emptyStateTitle || "Aucun choix n'a encore été trouvé pour cette étape."}</p>
+            <p className="m-0 text-base font-semibold text-text">{emptyStateTitle || "Aucun choix n'a encore été trouvé pour cette étape"}</p>
             <div className="mt-3 min-h-[20px]">
               {isLoading ? (
-                <OnboardingLoadingDots label={loadingMessage || 'Chargement en cours'} />
+                <OnboardingLoadingDots label={loadingMessage || 'Chargement'} />
               ) : emptyStateBody ? (
                 <div className="flex flex-col items-center gap-4">
                   <p className="m-0 text-sm text-text-muted font-body">{emptyStateBody}</p>
@@ -441,7 +441,7 @@ function OnboardingPage({
                   ) : null}
                 </div>
               ) : (
-                <p className="m-0 text-sm text-text-muted font-body">Réessaie dans quelques instants.</p>
+                <p className="m-0 text-sm text-text-muted font-body">Réessaie dans quelques instants</p>
               )}
             </div>
           </div>

@@ -27,7 +27,7 @@ export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null }) {
       ) : null}
       {isAnalyticsAvailable ? (
         <p className="m-0 text-text-secondary">
-          On mesure l’audience de façon anonyme et sans cookie, avec des outils hébergés dans l’UE : aucune note, aucun mail, aucun identifiant n’est collecté, et tu peux tout couper dans Mon compte.{' '}
+          L'audience est mesurée de façon anonyme et sans cookie, et dans l'UE. Aucune note, aucun mail et aucun identifiant n’est collecté. Cette analyse peut être désactivée à tout moment{' '}
           <button type="button" className="p-0 border-0 bg-transparent font-inherit text-[inherit] text-text underline underline-offset-2 cursor-pointer" onClick={() => setPrivacyOpen(true)}>
             En savoir plus
           </button>

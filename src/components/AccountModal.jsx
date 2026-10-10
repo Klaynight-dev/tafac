@@ -418,7 +418,7 @@ function AccountModal({
               type="button"
               className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[rgba(27,27,27,0.16)] bg-[#f3f1eb] p-0 text-[var(--color-text)] transition-colors duration-[120ms] ease-in-out hover:bg-[#edebe5] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-muted)] dark:hover:bg-[var(--color-bg-subtle)]"
               onClick={onClose}
-              aria-label="Fermer la modale de compte"
+              aria-label="Fermer le menu de compte"
             >
               <Icon icon="carbon:close" className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -477,7 +477,7 @@ function AccountModal({
               <div key={shouldShowPlanningLoader ? 'planning-loading' : 'planning-ready'} className="account-modal-layout-panel account-modal-layout-panel--compact min-h-[65px]">
                 {shouldShowPlanningLoader ? (
                   <div className="flex h-[65px] w-full items-center justify-center">
-                    <AccountModalLoadingDots label={planningState.loadingMessage || 'Chargement ADE...'} />
+                    <AccountModalLoadingDots label={planningState.loadingMessage || 'Chargement...'} />
                   </div>
                 ) : (
                   <div className="grid w-full grid-cols-3 gap-[10px] max-sm:grid-cols-1">
@@ -563,7 +563,7 @@ function AccountModal({
                   </div>
 
                   <p className="m-0 font-body text-[14px] font-medium leading-[1.35] text-text-60">
-                    Jusqu’où chercher un cours à venir dans l’emploi du temps.
+                    Jusqu'où afficher les cours sur une période donnée
                   </p>
 
                   <StepSlider
@@ -638,7 +638,7 @@ function AccountModal({
                         onChange={onAnonymousAnalyticsChange}
                       />
                       <button type="button" className="self-start p-0 border-0 bg-transparent font-body text-[13px] font-medium text-text-60 underline underline-offset-2 cursor-pointer transition-colors duration-[120ms] hover:text-[var(--color-text)]" onClick={() => setPrivacyOpen(true)}>
-                        Ce qui est mesuré (et ce qui ne l’est jamais)
+                        En savoir plus
                       </button>
                     </div>
                   ) : null}

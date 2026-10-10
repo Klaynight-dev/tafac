@@ -215,7 +215,7 @@ function WidgetRecentMail({ visible = false }) {
       ) : null}
 
       {state.status === 'ok' && messages.length === 0 ? (
-        <WidgetListStatus icon="carbon:checkmark-outline" title="Aucun nouveau mail" body="Ta boîte de réception est à jour." />
+        <WidgetListStatus icon="carbon:checkmark-outline" title="Aucun nouveau mail" body="Ta boîte de réception est à jour" />
       ) : null}
 
     </article>

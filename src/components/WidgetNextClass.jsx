@@ -294,14 +294,14 @@ function getWidgetErrorMessage(error) {
   const message = error instanceof Error ? error.message : String(error)
 
   if (!message) {
-    return 'Planning indisponible pour le moment.'
+    return 'Planning indisponible'
   }
 
   if (message.toLowerCase().includes('connexion')) {
-    return 'Connexion ENT requise pour afficher le prochain cours.'
+    return 'Connexion requise'
   }
 
-  return 'Planning indisponible pour le moment.'
+  return 'Planning indisponible'
 }
 
 function buildFakeNextClass() {
@@ -344,33 +344,33 @@ function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
   switch (widgetState.status) {
     case 'loading':
       return {
-        title: 'Recherche du prochain cours...',
-        body: 'Chargement du planning',
+        title: 'Chargement',
+        body: 'Chargement',
         icon: 'carbon:search',
       }
     case 'unconfigured':
       return {
         title: 'Groupe manquant',
-        body: 'Choisis ton groupe TD ou TP dans « Mon compte ».',
+        body: 'Choisis ton groupe TD ou TP dans « Mon compte »',
         icon: 'carbon:user-multiple',
       }
     case 'limited':
       return {
         title: 'Planning partiel',
-        body: 'Les données reçues sont incomplètes pour le moment.',
+        body: 'Les données reçues sont incomplètes pour le moment',
         icon: 'carbon:warning-alt',
         action: 'Ouvrir l\'emploi du temps',
       }
     case 'empty':
       return {
         title: 'Aucun cours à venir',
-        body: `Rien de prévu dans les ${lookaheadDays} prochains jours.`,
+        body: `Rien de prévu dans les ${lookaheadDays} prochains jours`,
         action: 'Ouvrir l\'emploi du temps',
       }
     case 'paused':
       return {
         title: 'Synchroniser le planning',
-        body: 'Ouvre l\'emploi du temps depuis cette carte pour mettre à jour le prochain cours.',
+        body: 'Appuie ici pour mettre à jour le prochain cours',
         icon: 'carbon:calendar-settings',
         action: 'Ouvrir l\'emploi du temps',
       }
@@ -397,7 +397,7 @@ async function loadUpcomingClasses({
   })
 
   if (!data?.authenticated) {
-    throw new Error('Connexion ENT requise pour charger le planning.')
+    throw new Error('Connexion requise pour charger le planning')
   }
 
   const events = Array.isArray(data?.upcoming?.events)
@@ -821,7 +821,7 @@ function WidgetNextClass({
     <article
       className={`next-class-widget widget-card relative z-0 hover:z-10 shadow-md flex-[0_1_190px] h-[140px] p-4 border border-white rounded-[22px] overflow-visible text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-[min(320px,100%)] max-md:h-[132px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] max-xs:min-w-0 flex flex-col gap-[6px] text-text cursor-pointer ${wide ? '2xl:flex-[0_1_380px]' : isStatusWide ? '2xl:flex-[0_1_300px]' : ''} ${visible ? 'widget-card-visible' : ''}`}
       style={{ '--class-gradient': classGradient, '--class-gradient-dark': classGradientDark }}
-      aria-label="Prochain cours, ouvrir ADE"
+      aria-label="Prochain cours ouvrir ADE"
       onClick={openAdePlanning}
       onKeyDown={handleKeyDown}
       role="link"

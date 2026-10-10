@@ -80,8 +80,9 @@ function LoginPage({
             height="66"
           />
           <div className="flex w-full flex-col items-start gap-[10px] text-[#f5f3ed]">
-            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-semibold leading-[0.9] max-3xl:text-[48px]">{`Toute ta fac,\nau même endroit.`}</h1>
-            <p className="m-0 w-full text-[20px] font-medium leading-[0.9] font-body max-3xl:text-lg">Une solution libre et ouverte.</p>
+            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-semibold leading-[0.9] max-3xl:text-[48px]">{`Cours, notes et services 
+de ton université.`}</h1>
+            <p className="m-0 w-full text-[20px] font-medium leading-[0.9] font-body max-3xl:text-lg">Une solution alternative, libre et ouverte</p>
           </div>
         </div>
       </div>
@@ -124,7 +125,7 @@ function LoginPage({
               <div className="flex w-full flex-col items-center gap-[10px] text-text">
                 <h2 className="m-0 w-full text-[40px] leading-[0.9] max-md:text-[36px]">Connexion</h2>
                 <p className="m-0 w-full text-[16px] font-medium leading-4 font-body max-md:text-[15px]">
-                  Utilise tes codes fournis par ton établissement d&apos;enseignement supérieur.
+                  Utilise tes codes fournis par ton établissement d'enseignement supérieur
                 </p>
               </div>
             </div>

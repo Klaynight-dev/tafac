@@ -75,22 +75,22 @@ const ANALYTICS_DOC_URL = universityConfig.branding.about?.repoUrl
 
 function getToolsSentence() {
   const tools = []
-  if (isPostHogAvailable()) tools.push('PostHog, appelé par notre serveur et jamais par ton navigateur')
-  if (isSimpleAnalyticsAvailable()) tools.push('Simple Analytics, pour compter les visites')
-  if (tools.length === 0) return 'Les outils de mesure sont hébergés dans l’Union européenne.'
-  return `${tools.length > 1 ? 'Deux outils, tous deux' : 'Un seul outil,'} dans l’Union européenne\u202f: ${tools.join(', et ')}.`
+  if (isPostHogAvailable()) tools.push('PostHog')
+  if (isSimpleAnalyticsAvailable()) tools.push('Simple Analytics')
+  if (tools.length === 0) return 'Ces outils de mesure sont hébergés dans l’Union européenne'
+  return `${tools.length > 1 ? 'Deux outils hébergés' : 'Un seul outil'} dans l’Union européenne\u202f: ${tools.join(', et ')}.`
 }
 
 const SECTIONS = [
   {
     emoji: '🕶️',
     title: 'Anonyme',
-    body: () => 'Aucun nom, identifiant, note, mail ou devoir. Juste des compteurs\u202f: combien de visites, quels widgets s’affichent, lesquels plantent.',
+    body: () => 'Aucun nom, identifiant, note, mail ou devoir n\'est collecté, juste des compteurs de visites et les erreurs rencontrées',
   },
   {
     emoji: '🍪',
     title: 'Sans cookie',
-    body: () => 'Rien n’est déposé sur ton appareil pour te suivre\u202f: pas de suivi d’un jour à l’autre, ni d’un site à l’autre.',
+    body: () => 'Rien n’est déposé sur ton appareil pour te suivre, aucun suivi permanent.',
   },
   {
     emoji: '🇪🇺',
@@ -100,7 +100,7 @@ const SECTIONS = [
   {
     emoji: '🎚️',
     title: 'Tu gardes la main',
-    body: () => 'Coupe «\u202fStatistiques anonymes\u202f» dans Mon compte\u202f: plus rien n’est envoyé.',
+    body: () => 'Désactive « Statistiques anonymes » dans Mon compte et plus rien n’est envoyé',
   },
 ]
 
@@ -153,7 +153,7 @@ function PrivacyModal({ open, onClose }) {
               Tes données restent à toi
             </p>
             <p className="m-0 text-[15px] font-medium leading-[1.35] opacity-90">
-              {APP_NAME} compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse. Rien de plus.
+              {APP_NAME} compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse
             </p>
           </div>
 
@@ -189,7 +189,6 @@ function PrivacyModal({ open, onClose }) {
                 Voir le détail de ce qui est collecté
               </a>
             ) : null}
-            <p className="m-0 text-[14px] font-medium">Pensé depuis Rennes 💚</p>
           </div>
         </div>
       </section>

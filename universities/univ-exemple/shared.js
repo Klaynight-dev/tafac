@@ -12,12 +12,12 @@ export const university = {
 
 export const branding = {
   appName: 'Tafac',
-  defaultTitle: "Tafac | Toute ta fac, au même endroit.",
+  defaultTitle: "Tafac | Cours, notes et services de ton université",
   seoTitle: "Tafac | Client alternatif ENT Université Exemple",
   seoDescription:
     "Instance de démonstration de Tafac pour l'Université Exemple : découvrez le client alternatif d'ENT avec le compte de démo.",
   pwaDescription:
-    "Tafac réunit toutes vos données universitaires — cours, résultats, messagerie dans une interface lisible, rapide et agréable à utiliser.",
+    "Tafac réunit ta vie universitaire avec tes cours, notes et messagerie dans une seule application rapide et agréable à utiliser.",
   logoAlt: 'Université Exemple',
   sidebarLogoAlt: "Tafac — Université Exemple",
   loginFooterLine: "Client alternatif à l'ENT de l'Université Exemple (démo)",

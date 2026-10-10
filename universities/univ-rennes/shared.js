@@ -13,20 +13,20 @@ export const university = {
 // stays importable by Node).
 export const branding = {
   appName: 'Tafac',
-  defaultTitle: "Tafac | Toute ta fac, au même endroit.",
-  seoTitle: "Tafac | Client alternatif ENT Université de Rennes",
+  defaultTitle: "Tafac | Cours, notes et services de ton université",
+  seoTitle: "Tafac - Cours, notes et services de ton université",
   seoDescription:
-    "Client alternatif non officiel à l'ENT de l'Université de Rennes pour consulter notes, emploi du temps ADE, résultats et services universitaires depuis une interface plus lisible.",
+    "Tafac réunit ta vie universitaire avec tes cours, notes et messagerie dans une seule application rapide et agréable à utiliser.",
   pwaDescription:
-    "Tafac réunit toutes vos données universitaires — cours, résultats, messagerie dans une interface lisible, rapide et agréable à utiliser.",
+    "Tafac réunit ta vie universitaire avec tes cours, notes et messagerie dans une seule application rapide et agréable à utiliser.",
   logoAlt: 'Université de Rennes',
-  sidebarLogoAlt: "Tafac — Université de Rennes",
+  sidebarLogoAlt: "Tafac - Université de Rennes",
   loginFooterLine: "Client alternatif à l'ENT de l'Université de Rennes",
   about: {
     intro: "est un client alternatif aux services numériques de l'Université de Rennes.",
     disclaimer:
-      "Client non officiel, indépendant et non affilié à l'Université de Rennes. Aucune donnée personnelle n'est stockée ni collectée : ce projet se contente de relayer les services existants dans une interface repensée.",
-    authorLine: "Fait par un étudiant de l'IUT de Lannion",
+      "Tafac est un projet étudiant indépendant, non officiel et non affilié à l'Université de Rennes. Tes identifiants servent uniquement à te connecter et ne sont jamais stockés.",
+    authorLine: "Fait avec amour par un étudiant de l'IUT de Lannion",
     authorUrl: 'https://tomthings.fr',
     repoUrl: 'https://github.com/tom-things/l-ent',
   },
@@ -73,6 +73,6 @@ export const mailWebmailUrl = 'https://partage.univ-rennes.fr/'
 // Fallback copy shown when the upstream grade service is unavailable.
 export const gradesCopy = {
   unavailableTitle: 'Notes indisponibles',
-  unavailableDetail: 'ScoDoc ne répond pas pour le moment.',
+  unavailableDetail: 'ScoDoc ne répond pas pour le moment',
   disabledPillLabel: 'Notes indisponibles',
 }

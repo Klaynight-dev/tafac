@@ -76,7 +76,7 @@ export default function PwaInstallPrompt({ forceShow = false, forceIos = false }
                 Ajoute {APP_NAME} à ton écran d'accueil
               </h2>
               <p className="m-0 mt-1 text-[0.9rem] text-text-muted font-body">
-                Toute ta fac, depuis ton téléphone.
+                Cours et notes de ton université, sur ton téléphone
               </p>
             </div>
             {showIos ? (

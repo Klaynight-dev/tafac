@@ -17,7 +17,7 @@ export default function RefreshedPrompt({
   onDismiss,
   onConfirm = null,
   title = 'Une nouvelle version est prête',
-  description = `Une nouvelle version de ${APP_NAME} est disponible. Applique-la maintenant pour récupérer les derniers changements.`,
+  description = `Une nouvelle version de ${APP_NAME} est disponible. Applique-la maintenant pour la mettre à jour`,
   dismissLabel = 'Plus tard',
   confirmLabel = 'Mettre à jour',
   confirmBusy = false,
