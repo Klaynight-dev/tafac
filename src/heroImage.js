@@ -38,18 +38,25 @@ function getDayIndex(date) {
   return Math.floor(date.getTime() / 86_400_000)
 }
 
-// Hero photo for the dashboard: establishment photos first, then the
-// university's, then a placeholder. With several photos, the pick rotates
-// daily so it stays stable within a day.
-export function resolveHeroImage(establishment = null, date = new Date()) {
+// Photos the dashboard can show for an establishment: its own first, then the
+// university's. Empty when neither configures any (a placeholder is used).
+export function listHeroImages(establishment = null) {
   const establishmentImages = normalizeHeroImages(
     universityConfig.establishments?.byId?.[establishment]?.heroImages,
   )
   const universityImages = normalizeHeroImages(universityConfig.branding?.heroImages)
-  const candidates = establishmentImages.length > 0 ? establishmentImages : universityImages
+  return establishmentImages.length > 0 ? establishmentImages : universityImages
+}
+
+// Hero photo for the dashboard: establishment photos first, then the
+// university's, then a placeholder. With several photos, the pick rotates
+// daily so it stays stable within a day. `offset` shifts the pick (debug menu).
+export function resolveHeroImage(establishment = null, date = new Date(), offset = 0) {
+  const candidates = listHeroImages(establishment)
 
   if (candidates.length > 0) {
-    return candidates[getDayIndex(date) % candidates.length]
+    const count = candidates.length
+    return candidates[(((getDayIndex(date) + offset) % count) + count) % count]
   }
 
   const seed = `${universityConfig.id ?? ''}:${establishment ?? ''}`

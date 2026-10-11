@@ -35,7 +35,7 @@ import {
   persistTpSelection,
 } from './profileStorage'
 import WidgetContainer from './components/WidgetContainer'
-import { resolveHeroImage } from './heroImage'
+import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getAvailableWidgets } from './dashboardWidgets'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
@@ -950,6 +950,8 @@ function getFrenchTpLoadErrorMessage(error) {
 function App() {
   const debugCopyTimeoutRef = useRef(null)
   const [debugOpen, setDebugOpen] = useState(false)
+  // Debug menu: shifts the daily hero photo pick to preview the others.
+  const [heroOffset, setHeroOffset] = useState(0)
   const [debugOutputTab, setDebugOutputTab] = useState('api')
   const [debugCopyState, setDebugCopyState] = useState('idle')
   const [debugImagePreview, setDebugImagePreview] = useState(null)
@@ -1771,8 +1773,9 @@ function App() {
   const heroImage = useMemo(() => (
     customBackground
       ? { src: customBackground, position: null, credit: null }
-      : resolveHeroImage(establishment)
-  ), [customBackground, establishment])
+      : resolveHeroImage(establishment, new Date(), heroOffset)
+  ), [customBackground, establishment, heroOffset])
+  const heroImageCount = useMemo(() => listHeroImages(establishment).length, [establishment])
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -2578,6 +2581,39 @@ function App() {
               Fermer
             </button>
           </header>
+
+          <section className="grid gap-3 p-4 border border-border rounded-2xl bg-bg-surface">
+            <div className="flex gap-3 justify-between items-center max-lg:flex-col max-lg:items-stretch">
+              <div className="min-w-0">
+                <p className="m-0 text-[0.85rem] font-semibold text-text-secondary font-body">Photo du bandeau</p>
+                <p className="m-0 text-[0.9rem] text-text-muted font-body">
+                  {customBackground
+                    ? 'Fond personnalisé actif : la rotation est ignorée.'
+                    : heroImageCount > 1
+                      ? `${listHeroImages(establishment).findIndex((image) => image.src === heroImage.src) + 1} / ${heroImageCount}${heroImage.credit?.author ? ` · ${heroImage.credit.author}` : ''}`
+                      : heroImageCount === 1 ? 'Une seule photo configurée.' : 'Aucune photo : image générique.'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45"
+                  onClick={() => setHeroOffset((current) => current - 1)}
+                  disabled={Boolean(customBackground) || heroImageCount < 2}
+                >
+                  Précédente
+                </button>
+                <button
+                  type="button"
+                  className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45"
+                  onClick={() => setHeroOffset((current) => current + 1)}
+                  disabled={Boolean(customBackground) || heroImageCount < 2}
+                >
+                  Suivante
+                </button>
+              </div>
+            </div>
+          </section>
 
           <section className="grid gap-3 p-4 border border-border rounded-2xl bg-bg-surface">
             <div className="flex gap-3 justify-between items-center max-lg:flex-col max-lg:items-stretch">
