@@ -4,7 +4,10 @@ import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import universityShowcase from '../../universities/showcase.js'
 import lentLogo from '../assets/lent-logo.svg'
-import toutaticeLoginHero from '../assets/login/toutatice-login-hero.webp'
+import loginClouds from '../assets/login/login-clouds.webp'
+import loginIsland from '../assets/login/login-island.webp'
+import loginSky from '../assets/login/login-sky.webp'
+import loginLogo from '../assets/login/login-logo.webp'
 import LentButton from './LentButton'
 import AboutModal from './AboutModal'
 import { APP_NAME } from '../seo'
@@ -12,6 +15,8 @@ import { APP_NAME } from '../seo'
 const universityLogo = universityConfig.branding.logo
 const universityLogoAlt = universityConfig.branding.logoAlt ?? universityConfig.university?.name ?? ''
 const loginLinks = universityConfig.links ?? {}
+// Width of the login page's left panel, matching its flex-basis.
+const PANEL_WIDTH = 'min(529px, 47vw)'
 
 const activeUniversityId = typeof __UNIVERSITY_ID__ !== 'undefined' ? __UNIVERSITY_ID__ : universityConfig.id
 const otherUniversities = universityShowcase.filter(
@@ -62,27 +67,56 @@ function LoginPage({
   return (
     <section className="flex w-full min-h-screen bg-bg" aria-label="Page de connexion">
       <div
-        className="login-left-panel relative flex-[0_0_min(529px,47vw)] max-w-[529px] min-w-0 min-h-screen overflow-hidden bg-[#f5f3ed] max-4xl:hidden max-3xl:flex-[0_0_44vw] max-3xl:max-w-[529px]"
+        className="login-left-panel relative flex flex-[0_0_min(529px,47vw)] flex-col max-w-[529px] min-w-0 min-h-screen overflow-hidden bg-[#5688af] max-4xl:hidden max-3xl:flex-[0_0_44vw] max-3xl:max-w-[529px]"
       >
         <img
           className="absolute inset-0 block h-full w-full max-w-none object-cover"
-          src={toutaticeLoginHero}
+          src={loginSky}
           alt=""
           aria-hidden="true"
         />
 
-        <div className="relative z-10 ml-10 flex w-[381px] max-w-[calc(100%_-_80px)] flex-col items-start gap-5 pt-10 max-3xl:ml-8 max-3xl:max-w-[calc(100%_-_64px)]">
-          <img
-            className="block h-[66px] w-auto object-contain"
-            src={lentLogo}
-            alt={APP_NAME}
-            width="153"
-            height="66"
-          />
-          <div className="flex w-full flex-col items-start gap-[10px] text-[#f5f3ed]">
-            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-bold leading-[0.9] max-3xl:text-[48px]">{`Cours, notes et services 
-de ton université.`}</h1>
-            <p className="m-0 w-full text-[20px] font-medium leading-[0.9] font-body max-3xl:text-lg">Une solution alternative, libre et ouverte</p>
+        <div className="relative z-10 ml-10 flex w-[381px] max-w-[calc(100%_-_80px)] shrink-0 flex-col items-start gap-5 pt-10 max-3xl:ml-8 max-3xl:max-w-[calc(100%_-_64px)]">
+          {/* The flower and butterfly overflow the 195×85 logo box. */}
+          <div className="relative h-[85px] w-[195px] shrink-0">
+            <img
+              className="absolute left-[-21px] top-[-15px] block h-[110px] w-[247px] max-w-none"
+              src={loginLogo}
+              alt={APP_NAME}
+              width="247"
+              height="110"
+            />
+          </div>
+          <div className="flex w-full flex-col items-start gap-[10px] text-white">
+            <h1 className="m-0 w-full text-[clamp(40px,6.7vh,60px)] font-bold leading-[0.9]">Cours, notes et services de ton université</h1>
+            <p className="m-0 w-full text-[20px] font-semibold leading-[0.9] font-body">Une solution alternative, libre et ouverte</p>
+          </div>
+        </div>
+
+        {/* The island shrinks to the space left under the text, so it never
+            covers it on short screens. Its clouds are a separate layer sized
+            on the panel width, so they always run edge to edge. Geometry
+            (in island units, 529 × 488.5): clouds 779 × 524, top 93.5,
+            centre 32 right of the island's. */}
+        <div className="relative z-0 mt-6 min-h-0 flex-1">
+          <div className="absolute inset-x-0 bottom-0 mx-auto aspect-[1058/977] max-h-full">
+            <img
+              className="absolute top-[19.14%] left-[56.07%] block h-auto max-w-none -translate-x-1/2"
+              style={{ width: `calc(${PANEL_WIDTH} * 1.473)` }}
+              src={loginClouds}
+              alt=""
+              aria-hidden="true"
+              width="1558"
+              height="1048"
+            />
+            <img
+              className="absolute inset-0 block h-full w-full"
+              src={loginIsland}
+              alt=""
+              aria-hidden="true"
+              width="1058"
+              height="977"
+            />
           </div>
         </div>
       </div>
@@ -104,9 +138,9 @@ de ton université.`}</h1>
           <Icon icon="carbon:information" className="h-[18px] w-[18px]" />
         </button>
 
-        <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[25px] px-[88px] pb-[120px] max-4xl:w-[min(640px,100%)] max-4xl:gap-6 max-4xl:px-10 max-4xl:pb-12 max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
-          <header className="relative flex h-[295px] shrink-0 justify-center text-center max-md:h-[245px]">
-            <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[117px] max-4xl:pt-[61px] max-md:pt-[26px]">
+        <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[clamp(16px,3vh,25px)] px-[88px] pb-[clamp(56px,calc(30vh_-_150px),120px)] max-4xl:w-[min(640px,100%)] max-4xl:gap-[clamp(16px,3vh,24px)] max-4xl:px-10 max-4xl:pb-[clamp(24px,calc(30vh_-_170px),48px)] max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
+          <header className="relative flex shrink-0 justify-center text-center">
+            <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[clamp(24px,calc(30vh_-_153px),117px)] max-4xl:pt-[clamp(24px,calc(30vh_-_153px),61px)] max-md:pt-[26px]">
               {/* The left panel (and its app logo) is hidden below 4xl, so
                   show the logo above the university one there instead. */}
               <img
@@ -210,7 +244,7 @@ de ton université.`}</h1>
 
           {otherUniversities.length > 0 ? (
             <div
-              className="mt-auto flex flex-col items-center gap-4 pt-10 max-md:mt-0 max-md:pt-3 max-md:gap-3"
+              className="mt-auto flex flex-col items-center gap-4 pt-[clamp(12px,calc(10vh_-_50px),40px)] max-md:mt-0 max-md:pt-3 max-md:gap-3"
               aria-label="Autres universités disponibles"
             >
               <p className="m-0 text-[13px] font-medium leading-[1.1] text-text-muted font-body">
