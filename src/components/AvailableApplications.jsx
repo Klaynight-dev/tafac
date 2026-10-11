@@ -1589,7 +1589,7 @@ function AvailableApplications({
     <section className="favorites-bar grid gap-2 relative text-brand" aria-labelledby="favorites-strip-title">
       <div className="flex items-center gap-[5px]">
         <Icon icon="carbon:star" className="w-[17px] h-[17px] text-brand shrink-0" aria-hidden="true" />
-        <h2 className="m-0 text-base font-medium leading-[1.06]" id="favorites-strip-title">Favoris</h2>
+        <h2 className="m-0 font-body text-base font-medium tracking-normal leading-[1.06]" id="favorites-strip-title">Favoris</h2>
         {shouldShowFavoriteRow ? (
           <span className="ml-0.5 text-[13px] font-medium leading-none text-text-muted tabular-nums">{orderedFavorites.length}</span>
         ) : null}

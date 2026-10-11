@@ -49,7 +49,7 @@ function SidebarStatPocket({
       </div>
       <div className="flex flex-col items-start gap-[2px] min-w-0 max-w-full">
         <div className="flex items-end gap-[3px] leading-[1.06]">
-          <span className="text-[37px] font-bold leading-none whitespace-nowrap">{value}</span>
+          <span className="font-display text-[37px] font-bold leading-none whitespace-nowrap">{value}</span>
           <span className="text-[19px] font-medium leading-[1.06] whitespace-nowrap pb-[3px]">/{max}</span>
         </div>
         {caption ? (

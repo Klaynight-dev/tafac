@@ -149,7 +149,7 @@ function PrivacyModal({ open, onClose }) {
 
         <div className="flex flex-col items-center gap-7 px-7 pt-1 pb-7 text-center max-sm:px-5">
           <div className="flex flex-col items-center gap-2">
-            <p id="privacy-modal-title" role="heading" aria-level={2} className="m-0 font-display text-[32px] font-semibold leading-[1.05] tracking-[-0.04em] max-sm:text-[28px]">
+            <p id="privacy-modal-title" role="heading" aria-level={2} className="m-0 font-display text-[32px] font-bold leading-[1.05] tracking-[-0.01em] max-sm:text-[28px]">
               Tes données restent à toi
             </p>
             <p className="m-0 text-[15px] font-medium leading-[1.35] opacity-90">
@@ -161,7 +161,7 @@ function PrivacyModal({ open, onClose }) {
             {SECTIONS.map((section) => (
               <div key={section.title} className="flex flex-col items-center gap-1.5">
                 <span className="privacy-modal-emoji text-[44px] leading-none" aria-hidden="true">{section.emoji}</span>
-                <p role="heading" aria-level={3} className="m-0 font-display text-[19px] font-semibold leading-[1.1] tracking-[-0.04em]">
+                <p role="heading" aria-level={3} className="m-0 font-display text-[19px] font-bold leading-[1.1] tracking-[-0.01em]">
                   {section.title}
                 </p>
                 <p className="m-0 text-[14px] font-medium leading-[1.35] opacity-80">

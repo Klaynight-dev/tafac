@@ -80,7 +80,7 @@ function LoginPage({
             height="66"
           />
           <div className="flex w-full flex-col items-start gap-[10px] text-[#f5f3ed]">
-            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-semibold leading-[0.9] max-3xl:text-[48px]">{`Cours, notes et services 
+            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-bold leading-[0.9] max-3xl:text-[48px]">{`Cours, notes et services 
 de ton université.`}</h1>
             <p className="m-0 w-full text-[20px] font-medium leading-[0.9] font-body max-3xl:text-lg">Une solution alternative, libre et ouverte</p>
           </div>

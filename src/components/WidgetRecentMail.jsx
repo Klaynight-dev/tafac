@@ -52,7 +52,7 @@ function getSenderLabel(from) {
 function MailHeader({ unreadCount = 0 }) {
   return (
     <div className="flex items-center gap-[5px] min-w-0 pr-5">
-      <span className="m-0 min-w-0 leading-[1.06] text-base font-medium overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Mails récents</span>
+      <span className="m-0 min-w-0 leading-[1.06] text-base font-medium text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Mails récents</span>
       {unreadCount > 0 ? (
         <span className="mail-unread-pill ml-[3px] inline-flex items-center justify-center min-w-[18px] h-[18px] px-[6px] rounded-full text-[11px] font-semibold leading-none tabular-nums shrink-0" aria-label={`${unreadCount} non lu${unreadCount > 1 ? 's' : ''}`}>
           {unreadCount > 99 ? '99+' : unreadCount}
