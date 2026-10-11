@@ -100,7 +100,7 @@ export default defineConfig({
     entDevAuthPlugin,
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['icon.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallbackDenylist: [/^\/__ent_auth/, /^\/__ent_proxy/],
       },

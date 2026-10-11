@@ -651,7 +651,7 @@ function getFrenchAuthErrorMessage(error, context = 'login') {
     || normalizedMessage.includes('missing password')
     || normalizedMessage.includes('mot de passe requis')
   ) {
-    return 'Merci de renseigner ton identifiant et ton mot de passe.'
+    return 'Remplis ton identifiant et ton mot de passe'
   }
 
   if (
@@ -668,11 +668,11 @@ function getFrenchAuthErrorMessage(error, context = 'login') {
     || normalizedMessage.includes('status 403')
     || normalizedMessage.includes('forbidden')
   ) {
-    return 'Identifiant ou mot de passe incorrect.'
+    return 'Identifiant ou mot de passe incorrect'
   }
 
   if (normalizedMessage.includes('status 429') || normalizedMessage.includes('too many requests')) {
-    return 'Trop de tentatives de connexion. Réessaie dans quelques instants.'
+    return 'Trop de tentatives de connexion. Réessaie dans quelques instants'
   }
 
   if (
@@ -683,19 +683,19 @@ function getFrenchAuthErrorMessage(error, context = 'login') {
     || normalizedMessage.includes('fetch')
   ) {
     return context === 'session'
-      ? 'Impossible de vérifier la session pour le moment. Réessaie dans quelques instants.'
-      : 'Impossible de joindre le service de connexion. Vérifie ta connexion puis réessaie.'
+      ? 'Impossible de vérifier la session, réessaie dans quelques instants'
+      : 'Impossible de joindre le service de connexion, vérifie ta connexion puis réessaie'
   }
 
   if (normalizedMessage.includes('status 5') || normalizedMessage.includes('internal server error')) {
     return context === 'session'
-      ? 'Le service de session est indisponible pour le moment.'
-      : 'Le service de connexion est indisponible pour le moment.'
+      ? 'Le service de session est indisponible pour le moment'
+      : 'Le service de connexion est indisponible pour le moment'
   }
 
   return context === 'session'
-    ? 'Impossible de vérifier la session pour le moment.'
-    : 'La connexion a échoué. Vérifie tes identifiants puis réessaie.'
+    ? 'Impossible de vérifier la session pour le moment'
+    : 'La connexion a échoué, vérifie tes identifiants puis réessaie'
 }
 
 function getSessionWarningMessage(session) {
@@ -705,11 +705,11 @@ function getSessionWarningMessage(session) {
 
   if (session.degradedReason === 'missing-cas-tgc') {
     return session.sessionSource === 'cookie'
-      ? "Session restaurée : tu peux consulter l'ENT, mais certains services externes peuvent demander une reconnexion. Déconnecte-toi puis reconnecte-toi pour rétablir les lancements SSO."
-      : "La session ENT est active, mais les lancements SSO sont limités pour le moment. Déconnecte-toi puis reconnecte-toi pour rétablir l'ouverture de certains services."
+      ? "Certains services sont indisponibles, reconnecte-toi pour les afficher."
+      : "Certains services sont indisponibles, reconnecte-toi pour les afficher."
   }
 
-  return "La session ENT est partiellement restaurée. Certains services externes peuvent demander une reconnexion."
+  return "Certains services sont indisponibles, reconnecte-toi pour les afficher."
 }
 
 function buildDebugSnapshot(label, data, error = '') {
@@ -859,7 +859,7 @@ function buildInitialTpOnboardingState(treePayload) {
       td: buildTpSelectionOption(detectedTdNode, detectedYearNode, contextLabel),
       tp: buildTpSelectionOption(detectedTpNode, detectedTdNode, contextLabel),
     },
-    errorMessage: yearNodes.length > 0 ? '' : "Aucun groupe d'année n'a été trouvé pour le moment.",
+    errorMessage: yearNodes.length > 0 ? '' : "Aucun groupe d'année n'a été trouvé pour le moment",
   })
 }
 
@@ -941,10 +941,10 @@ function getFrenchTpLoadErrorMessage(error) {
     || normalizedMessage.includes('load failed')
     || normalizedMessage.includes('network request failed')
   ) {
-    return "Impossible de récupérer tes groupes TP pour le moment. Vérifie ta connexion puis réessaie."
+    return "Impossible de récupérer les groupes TP pour le moment, vérifie ta connexion puis réessaie"
   }
 
-  return 'Le service de groupes ADE est indisponible pour le moment.'
+  return 'ADE est indisponible pour le moment'
 }
 
 function App() {
@@ -1310,7 +1310,7 @@ function App() {
     setTpOnboardingState((current) => createEmptyTpOnboardingState({
       ...current,
       loadingStep: 'year',
-      loadingMessage: "Récupération de tes groupes d'année...",
+      loadingMessage: "Récupération de ton groupe...",
       errorMessage: '',
     }))
 
@@ -1407,7 +1407,7 @@ function App() {
             tdOptions: detectedYearStep.options,
             errorMessage: detectedYearStep.options.length > 0
               ? ''
-              : "Aucun groupe de TD n'a été trouvé pour le moment.",
+              : "Aucun groupe TD n'a été trouvé pour le moment",
           }
 
           const autoDetectedTd = findTpOptionByLabel(
@@ -1534,7 +1534,7 @@ function App() {
       tpOptions: [],
       errorMessage: '',
       loadingStep: 'td',
-      loadingMessage: 'Récupération de tes groupes de TD...',
+      loadingMessage: 'Récupération des TD...',
     }))
 
     try {
@@ -1584,7 +1584,7 @@ function App() {
       tpOptions: [],
       errorMessage: '',
       loadingStep: 'tp',
-      loadingMessage: 'Récupération de tes groupes de TP...',
+      loadingMessage: 'Récupération des TP...',
     }))
 
     try {
@@ -1683,7 +1683,7 @@ function App() {
 
     setAccountModalPlanningState(createStoredPlanningDraftState(selectedTp, {
       loading: true,
-      loadingMessage: 'Chargement ADE...',
+      loadingMessage: 'Chargement...',
     }))
 
     void buildAccountModalPlanningState(selectedTp)
@@ -1872,7 +1872,7 @@ function App() {
     setAccountModalPlanningState((current) => ({
       ...current,
       loading: true,
-      loadingMessage: 'Chargement des groupes de TD...',
+      loadingMessage: 'Chargement des TD...',
       errorMessage: '',
       draftYear: nextYear,
       draftTd: null,
@@ -1921,7 +1921,7 @@ function App() {
     setAccountModalPlanningState((current) => ({
       ...current,
       loading: true,
-      loadingMessage: 'Chargement des groupes de TP...',
+      loadingMessage: 'Chargement des TP...',
       errorMessage: '',
       draftTd: nextTd,
       draftTp: null,

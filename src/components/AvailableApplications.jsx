@@ -16,7 +16,7 @@ import {
   requestEnt,
 } from '../entApi'
 
-const DEFAULT_ERROR_MESSAGE = 'Impossible de charger les applications pour le moment.'
+const DEFAULT_ERROR_MESSAGE = 'Impossible de charger les applications pour le moment'
 const FAVORITES_CONTEXT_MENU_WIDTH = 216
 const FAVORITES_CONTEXT_MENU_HEIGHT = 56
 const FAVORITES_CONTEXT_MENU_MARGIN = 12
@@ -513,7 +513,7 @@ function getBootstrapErrorMessage(bootstrap) {
   }
 
   if (failedResponse.status === 401 || failedResponse.status === 403) {
-    return 'La session ENT ne permet pas de charger les applications.'
+    return 'Impossible de charger les applications pour le moment'
   }
 
   return getErrorMessage(
@@ -745,7 +745,7 @@ function navigateToApplication({ href, target }, preparedWindow = null, options 
 async function copyTextToClipboard(text) {
   const content = String(text ?? '')
   if (!content) {
-    throw new Error("Impossible de copier un lien vide.")
+    throw new Error("Impossible de copier un lien vide")
   }
 
   if (navigator.clipboard?.writeText) {
@@ -767,7 +767,7 @@ async function copyTextToClipboard(text) {
   document.body.removeChild(fallbackInput)
 
   if (!didCopy) {
-    throw new Error("Impossible de copier le lien.")
+    throw new Error("Impossible de copier le lien")
   }
 }
 
@@ -1357,7 +1357,7 @@ function AvailableApplications({
     if (!preparedWindow) {
       setFavoriteActionState((current) => ({
         ...current,
-        error: "Impossible d'ouvrir un nouvel onglet pour le moment.",
+        error: "Impossible d'ouvrir un nouvel onglet pour le moment",
       }))
       return
     }
@@ -1403,7 +1403,7 @@ function AvailableApplications({
     if (!requestPath) {
       setFavoriteActionState({
         removingKey: '',
-        error: 'Impossible de retirer ce favori pour le moment.',
+        error: 'Impossible de retirer ce favori pour le moment',
       })
       closeContextMenu()
       return
@@ -1428,7 +1428,7 @@ function AvailableApplications({
         throw new Error(
           (typeof response.data === 'object' ? response.data?.error : '')
           || response.text
-          || 'Impossible de retirer ce favori pour le moment.',
+          || 'Impossible de retirer ce favori pour le moment',
         )
       }
       setFavoriteActionState({
@@ -1493,7 +1493,7 @@ function AvailableApplications({
     if (!requestPath) {
       setFavoriteActionState({
         removingKey: '',
-        error: "Impossible d'ajouter ce favori pour le moment.",
+        error: "Impossible d'ajouter ce favori pour le moment",
       })
       closeContextMenu()
       return
@@ -1516,7 +1516,7 @@ function AvailableApplications({
       })
 
       if (!response.ok) {
-        throw new Error("Impossible d'ajouter ce favori pour le moment.")
+        throw new Error("Impossible d'ajouter ce favori pour le moment")
       }
 
       setFavoriteActionState({
@@ -1589,7 +1589,7 @@ function AvailableApplications({
     <section className="favorites-bar grid gap-2 relative text-brand" aria-labelledby="favorites-strip-title">
       <div className="flex items-center gap-[5px]">
         <Icon icon="carbon:star" className="w-[17px] h-[17px] text-brand shrink-0" aria-hidden="true" />
-        <h2 className="m-0 text-base font-medium leading-[1.06]" id="favorites-strip-title">Favoris</h2>
+        <h2 className="m-0 font-body text-base font-medium tracking-normal leading-[1.06]" id="favorites-strip-title">Favoris</h2>
         {shouldShowFavoriteRow ? (
           <span className="ml-0.5 text-[13px] font-medium leading-none text-text-muted tabular-nums">{orderedFavorites.length}</span>
         ) : null}
@@ -1791,7 +1791,7 @@ function AvailableApplications({
             })}
             {filteredServices.length === 0 ? (
               <p className="col-span-full m-0 py-6 text-center text-sm font-medium text-text-secondary font-body">
-                Aucune application ne correspond à votre recherche.
+                Aucune application trouvée
               </p>
             ) : null}
           </div>

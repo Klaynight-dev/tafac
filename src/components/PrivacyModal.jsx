@@ -11,6 +11,7 @@ import flowerImage from '../assets/privacy/flower.webp'
 import bikeImage from '../assets/privacy/bike.webp'
 import housesImage from '../assets/privacy/houses.webp'
 import butterflyImage from '../assets/privacy/butterfly.webp'
+import { APP_NAME } from '../seo'
 
 // "Tes données restent à toi": what the anonymous audience measurement does
 // and doesn't do, in the illustrated style of the Figma presentation screens
@@ -74,22 +75,22 @@ const ANALYTICS_DOC_URL = universityConfig.branding.about?.repoUrl
 
 function getToolsSentence() {
   const tools = []
-  if (isPostHogAvailable()) tools.push('PostHog, appelé par notre serveur et jamais par ton navigateur')
-  if (isSimpleAnalyticsAvailable()) tools.push('Simple Analytics, pour compter les visites')
-  if (tools.length === 0) return 'Les outils de mesure sont hébergés dans l’Union européenne.'
-  return `${tools.length > 1 ? 'Deux outils, tous deux' : 'Un seul outil,'} dans l’Union européenne\u202f: ${tools.join(', et ')}.`
+  if (isPostHogAvailable()) tools.push('PostHog')
+  if (isSimpleAnalyticsAvailable()) tools.push('Simple Analytics')
+  if (tools.length === 0) return 'Ces outils de mesure sont hébergés dans l’Union européenne'
+  return `${tools.length > 1 ? 'Deux outils hébergés' : 'Un seul outil'} dans l’Union européenne\u202f: ${tools.join(', et ')}.`
 }
 
 const SECTIONS = [
   {
     emoji: '🕶️',
     title: 'Anonyme',
-    body: () => 'Aucun nom, identifiant, note, mail ou devoir. Juste des compteurs\u202f: combien de visites, quels widgets s’affichent, lesquels plantent.',
+    body: () => 'Aucun nom, identifiant, note, mail ou devoir n\'est collecté, juste des compteurs de visites et les erreurs rencontrées',
   },
   {
     emoji: '🍪',
     title: 'Sans cookie',
-    body: () => 'Rien n’est déposé sur ton appareil pour te suivre\u202f: pas de suivi d’un jour à l’autre, ni d’un site à l’autre.',
+    body: () => 'Rien n’est déposé sur ton appareil pour te suivre, aucun suivi permanent.',
   },
   {
     emoji: '🇪🇺',
@@ -99,7 +100,7 @@ const SECTIONS = [
   {
     emoji: '🎚️',
     title: 'Tu gardes la main',
-    body: () => 'Coupe «\u202fStatistiques anonymes\u202f» dans Mon compte\u202f: plus rien n’est envoyé.',
+    body: () => 'Désactive « Statistiques anonymes » dans Mon compte et plus rien n’est envoyé',
   },
 ]
 
@@ -148,11 +149,11 @@ function PrivacyModal({ open, onClose }) {
 
         <div className="flex flex-col items-center gap-7 px-7 pt-1 pb-7 text-center max-sm:px-5">
           <div className="flex flex-col items-center gap-2">
-            <p id="privacy-modal-title" role="heading" aria-level={2} className="m-0 font-display text-[32px] font-semibold leading-[1.05] tracking-[-0.04em] max-sm:text-[28px]">
+            <p id="privacy-modal-title" role="heading" aria-level={2} className="m-0 font-display text-[32px] font-bold leading-[1.05] tracking-[-0.01em] max-sm:text-[28px]">
               Tes données restent à toi
             </p>
             <p className="m-0 text-[15px] font-medium leading-[1.35] opacity-90">
-              l’ent compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse. Rien de plus.
+              {APP_NAME} compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse
             </p>
           </div>
 
@@ -160,7 +161,7 @@ function PrivacyModal({ open, onClose }) {
             {SECTIONS.map((section) => (
               <div key={section.title} className="flex flex-col items-center gap-1.5">
                 <span className="privacy-modal-emoji text-[44px] leading-none" aria-hidden="true">{section.emoji}</span>
-                <p role="heading" aria-level={3} className="m-0 font-display text-[19px] font-semibold leading-[1.1] tracking-[-0.04em]">
+                <p role="heading" aria-level={3} className="m-0 font-display text-[19px] font-bold leading-[1.1] tracking-[-0.01em]">
                   {section.title}
                 </p>
                 <p className="m-0 text-[14px] font-medium leading-[1.35] opacity-80">
@@ -188,7 +189,6 @@ function PrivacyModal({ open, onClose }) {
                 Voir le détail de ce qui est collecté
               </a>
             ) : null}
-            <p className="m-0 text-[14px] font-medium">Pensé depuis Rennes 💚</p>
           </div>
         </div>
       </section>

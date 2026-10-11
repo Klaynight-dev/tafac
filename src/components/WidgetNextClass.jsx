@@ -294,14 +294,14 @@ function getWidgetErrorMessage(error) {
   const message = error instanceof Error ? error.message : String(error)
 
   if (!message) {
-    return 'Planning indisponible pour le moment.'
+    return 'Planning indisponible'
   }
 
   if (message.toLowerCase().includes('connexion')) {
-    return 'Connexion ENT requise pour afficher le prochain cours.'
+    return 'Connexion requise'
   }
 
-  return 'Planning indisponible pour le moment.'
+  return 'Planning indisponible'
 }
 
 function buildFakeNextClass() {
@@ -344,33 +344,33 @@ function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
   switch (widgetState.status) {
     case 'loading':
       return {
-        title: 'Recherche du prochain cours...',
-        body: 'Chargement du planning',
+        title: 'Chargement',
+        body: 'Chargement',
         icon: 'carbon:search',
       }
     case 'unconfigured':
       return {
         title: 'Groupe manquant',
-        body: 'Choisis ton groupe TD ou TP dans « Mon compte ».',
+        body: 'Choisis ton groupe TD ou TP dans « Mon compte »',
         icon: 'carbon:user-multiple',
       }
     case 'limited':
       return {
         title: 'Planning partiel',
-        body: 'Les données reçues sont incomplètes pour le moment.',
+        body: 'Les données reçues sont incomplètes pour le moment',
         icon: 'carbon:warning-alt',
         action: 'Ouvrir l\'emploi du temps',
       }
     case 'empty':
       return {
         title: 'Aucun cours à venir',
-        body: `Rien de prévu dans les ${lookaheadDays} prochains jours.`,
+        body: `Rien de prévu dans les ${lookaheadDays} prochains jours`,
         action: 'Ouvrir l\'emploi du temps',
       }
     case 'paused':
       return {
         title: 'Synchroniser le planning',
-        body: 'Ouvre l\'emploi du temps depuis cette carte pour mettre à jour le prochain cours.',
+        body: 'Appuie ici pour mettre à jour le prochain cours',
         icon: 'carbon:calendar-settings',
         action: 'Ouvrir l\'emploi du temps',
       }
@@ -397,7 +397,7 @@ async function loadUpcomingClasses({
   })
 
   if (!data?.authenticated) {
-    throw new Error('Connexion ENT requise pour charger le planning.')
+    throw new Error('Connexion requise pour charger le planning')
   }
 
   const events = Array.isArray(data?.upcoming?.events)
@@ -821,7 +821,7 @@ function WidgetNextClass({
     <article
       className={`next-class-widget widget-card relative z-0 hover:z-10 shadow-md flex-[0_1_190px] h-[140px] p-4 border border-white rounded-[22px] overflow-visible text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-[min(320px,100%)] max-md:h-[132px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] max-xs:min-w-0 flex flex-col gap-[6px] text-text cursor-pointer ${wide ? '2xl:flex-[0_1_380px]' : isStatusWide ? '2xl:flex-[0_1_300px]' : ''} ${visible ? 'widget-card-visible' : ''}`}
       style={{ '--class-gradient': classGradient, '--class-gradient-dark': classGradientDark }}
-      aria-label="Prochain cours, ouvrir ADE"
+      aria-label="Prochain cours ouvrir ADE"
       onClick={openAdePlanning}
       onKeyDown={handleKeyDown}
       role="link"
@@ -829,7 +829,7 @@ function WidgetNextClass({
     >
       <Icon icon="carbon:arrow-up-right" className="grade-corner-arrow absolute top-3 right-3 w-[14px] h-[14px] text-text opacity-0 transition-opacity duration-150 ease-in-out shrink-0" aria-hidden="true" />
       <div className="flex items-center gap-[5px] min-w-0">
-        <span className="m-0 min-w-0 leading-[1.06] text-base font-medium overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Prochain cours</span>
+        <span className="m-0 min-w-0 leading-[1.06] text-base font-medium text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Prochain cours</span>
       </div>
 
       <div className="flex-1 flex flex-col justify-between min-h-0">
@@ -846,18 +846,18 @@ function WidgetNextClass({
                 </div>
               </div>
               <div className="flex flex-col justify-center gap-[3px] min-w-0 flex-1">
-                <span ref={titleRef} className="block m-0 min-w-0 leading-[1.06] text-base font-bold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]" title={nextClass.title}>{nextClass.title}</span>
+                <span ref={titleRef} className="block m-0 min-w-0 leading-[1.06] text-[15px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px]" title={nextClass.title}>{nextClass.title}</span>
                 <div className="flex flex-col gap-[2px] min-w-0">
                   {nextClass.location ? (
-                    <span className="flex items-center gap-[3px] min-w-0 opacity-60">
-                      <Icon icon="carbon:location" className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
-                      <span ref={locationRef} className="block min-w-0 leading-[1.06] text-base overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]" title={nextClass.location}>{nextClass.location}</span>
+                    <span className="flex items-center gap-[3px] min-w-0 text-text-muted">
+                      <Icon icon="carbon:location" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
+                      <span ref={locationRef} className="block min-w-0 leading-[1.06] text-[13px] overflow-hidden text-ellipsis whitespace-nowrap" title={nextClass.location}>{nextClass.location}</span>
                     </span>
                   ) : null}
                   {nextClass.teacher ? (
-                    <span className="flex items-center gap-[3px] min-w-0 opacity-60">
-                      <Icon icon="carbon:user-avatar" className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
-                      <span ref={teacherRef} className="block min-w-0 leading-[1.06] text-base overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]" title={nextClass.teacher}>{nextClass.teacher}</span>
+                    <span className="flex items-center gap-[3px] min-w-0 text-text-muted">
+                      <Icon icon="carbon:user-avatar" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
+                      <span ref={teacherRef} className="block min-w-0 leading-[1.06] text-[13px] overflow-hidden text-ellipsis whitespace-nowrap" title={nextClass.teacher}>{nextClass.teacher}</span>
                     </span>
                   ) : null}
                 </div>
@@ -871,8 +871,8 @@ function WidgetNextClass({
                     className={`relative inline-flex min-w-0 items-center gap-[5px] ${shouldShowExactDateTooltip ? 'group/next-class cursor-help' : ''}`}
                     title={shouldShowExactDateTooltip ? exactDateLabel : undefined}
                   >
-                    <Icon icon="carbon:time" className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
-                    <span ref={timeLabelRef} className="block min-w-0 leading-[1.06] text-base font-medium overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">{timeLabel}</span>
+                    <Icon icon="carbon:time" className="w-[15px] h-[15px] shrink-0" aria-hidden="true" />
+                    <span ref={timeLabelRef} className="block min-w-0 leading-[1.06] text-[15px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px]">{timeLabel}</span>
                     {shouldShowExactDateTooltip ? (
                       <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 inline-flex -translate-x-1/2 translate-y-1 scale-95 whitespace-nowrap rounded-full border border-white/70 bg-[rgba(17,24,39,0.92)] px-3 py-1.5 text-[12px] font-medium leading-none text-white opacity-0 shadow-[0_12px_32px_rgba(17,24,39,0.18)] transition-[opacity,transform] duration-180 ease-out invisible group-hover/next-class:visible group-hover/next-class:translate-y-0 group-hover/next-class:scale-100 group-hover/next-class:opacity-100">
                         {exactDateLabel}
@@ -880,12 +880,12 @@ function WidgetNextClass({
                     ) : null}
                   </span>
                   {displayTimeRange ? (
-                    <span ref={timeRangeRef} className="block min-w-0 leading-[1.06] text-base opacity-60 overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">{displayTimeRange}</span>
+                    <span ref={timeRangeRef} className="block min-w-0 leading-[1.06] text-[15px] font-semibold tabular-nums overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px]">{displayTimeRange}</span>
                   ) : null}
                 </div>
               </div>
               {firstGroup ? (
-                <span ref={groupRef} className="block leading-[1.06] text-base font-semibold opacity-60 shrink-0 max-w-[38%] overflow-hidden text-ellipsis whitespace-nowrap text-right max-md:text-[15px]" title={firstGroup}>{firstGroup}</span>
+                <span ref={groupRef} className="block leading-[1.06] text-[12px] font-semibold text-text-muted shrink-0 max-w-[38%] overflow-hidden text-ellipsis whitespace-nowrap text-right" title={firstGroup}>{firstGroup}</span>
               ) : null}
             </div>
           </>
@@ -895,7 +895,7 @@ function WidgetNextClass({
               {statusCopy.icon ? (
                 <Icon icon={statusCopy.icon} className="w-[18px] h-[18px] shrink-0 opacity-70" aria-hidden="true" />
               ) : null}
-              <span className="m-0 min-w-0 leading-[1.1] text-base font-bold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]" title={statusCopy.title}>{statusCopy.title}</span>
+              <span className="m-0 min-w-0 leading-[1.1] text-base font-semibold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]" title={statusCopy.title}>{statusCopy.title}</span>
             </div>
             {statusCopy.body ? (
               <p className="m-0 text-sm leading-[1.35] opacity-70 line-clamp-2" title={statusCopy.body}>{statusCopy.body}</p>

@@ -59,14 +59,14 @@ function encodeCanvas(canvas, quality) {
 // Throws an Error with a French, user-facing message on failure.
 export async function saveCustomBackground(file, userId = null) {
   if (!file || !/^image\//.test(file.type)) {
-    throw new Error('Choisis un fichier image (JPEG, PNG, WebP…).')
+    throw new Error('Choisis un fichier image (JPEG, PNG, WebP…)')
   }
 
   let image
   try {
     image = await loadImage(file)
   } catch {
-    throw new Error('Impossible de lire cette image.')
+    throw new Error('Impossible de lire cette image')
   }
 
   const scale = Math.min(1, MAX_WIDTH / image.width, MAX_HEIGHT / image.height)
@@ -81,13 +81,13 @@ export async function saveCustomBackground(file, userId = null) {
     dataUrl = encodeCanvas(canvas, 0.6)
   }
   if (dataUrl.length > MAX_DATA_URL_LENGTH) {
-    throw new Error('Image trop lourde, essaie une image plus petite.')
+    throw new Error('Image trop lourde, essaie une image plus petite')
   }
 
   try {
     localStorage.setItem(CUSTOM_BACKGROUND_KEY, JSON.stringify({ user: userId || null, value: dataUrl }))
   } catch {
-    throw new Error('Pas assez d’espace pour enregistrer cette image.')
+    throw new Error('Pas assez d’espace pour enregistrer cette image')
   }
 
   return dataUrl

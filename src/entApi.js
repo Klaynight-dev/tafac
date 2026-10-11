@@ -805,7 +805,7 @@ function resolveGradesReleve(data) {
   }
 
   if (!data?.authenticated) {
-    return { error: 'Non connecté. Connecte-toi pour accéder aux notes.' }
+    return { error: 'Connecte-toi pour accéder aux notes' }
   }
 
   if (data?.disabled) {
@@ -817,7 +817,7 @@ function resolveGradesReleve(data) {
 
   const releve = getCurrentGradesReleve(data.grades)
   if (!releve) {
-    return { error: 'Aucun relevé disponible.', empty: true }
+    return { error: 'Aucun relevé disponible', empty: true }
   }
 
   return { releve }
@@ -902,7 +902,7 @@ export async function getAverageGrade() {
   const promoAverage = computeWeightedAverage(allPromoGrades)
 
   if (average == null) {
-    return { error: 'Aucune note disponible pour calculer la moyenne.' }
+    return { error: 'Aucune note disponible pour calculer la moyenne' }
   }
 
   return {
@@ -951,7 +951,7 @@ export async function getLatestGrade() {
     }
   }
 
-  return latest ?? { error: 'Aucune note trouvée.', empty: true }
+  return latest ?? { error: 'Aucune note trouvée', empty: true }
 }
 
 // ============================================================================

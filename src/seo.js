@@ -102,7 +102,7 @@ export function syncRuntimeSeo({ authenticated = false } = {}) {
   setMetaByName('twitter:description', SEO_DESCRIPTION)
   setMetaByName('twitter:url', pageUrl)
   setMetaByName('twitter:image', imageUrl)
-  setMetaByName('twitter:image:alt', "Aperçu de l'application l'ent")
+  setMetaByName('twitter:image:alt', `Aperçu de l'application ${APP_NAME}`)
 
   setMetaByProperty('og:type', 'website')
   setMetaByProperty('og:locale', 'fr_FR')
@@ -111,7 +111,7 @@ export function syncRuntimeSeo({ authenticated = false } = {}) {
   setMetaByProperty('og:description', SEO_DESCRIPTION)
   setMetaByProperty('og:url', pageUrl)
   setMetaByProperty('og:image', imageUrl)
-  setMetaByProperty('og:image:alt', "Aperçu de l'application l'ent")
+  setMetaByProperty('og:image:alt', `Aperçu de l'application ${APP_NAME}`)
 
   setCanonicalLink(pageUrl)
   syncStructuredData(pageUrl, imageUrl)

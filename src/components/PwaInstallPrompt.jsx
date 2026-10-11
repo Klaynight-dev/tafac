@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import mobileInviteImg from '../assets/mobile-pwa-invite.png'
+import { APP_NAME } from '../seo'
 
 const VISIT_COUNT_KEY = 'l-ent:visit-count'
 const PROMPT_DISMISSED_KEY = 'l-ent:pwa-prompt-dismissed'
@@ -66,16 +67,16 @@ export default function PwaInstallPrompt({ forceShow = false, forceIos = false }
         <div className="max-w-[420px] mx-auto rounded-[20px] bg-widget-bg border border-border overflow-hidden shadow-[0_-8px_40px_var(--color-shadow)]">
           <img
             src={mobileInviteImg}
-            alt="l'ent sur l'écran d'accueil"
+            alt={`${APP_NAME} sur l'écran d'accueil`}
             className="w-full"
           />
           <div className="px-5 pt-4 pb-4 flex flex-col gap-3">
             <div>
               <h2 className="m-0 text-[1.15rem] font-bold text-text leading-tight">
-                Ajoute l'ent à ton écran d'accueil
+                Ajoute {APP_NAME} à ton écran d'accueil
               </h2>
               <p className="m-0 mt-1 text-[0.9rem] text-text-muted font-body">
-                Toute ta fac, depuis ton téléphone.
+                Cours et notes de ton université, sur ton téléphone
               </p>
             </div>
             {showIos ? (

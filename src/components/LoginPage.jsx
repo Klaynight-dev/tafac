@@ -7,6 +7,7 @@ import lentLogo from '../assets/lent-logo.svg'
 import toutaticeLoginHero from '../assets/login/toutatice-login-hero.webp'
 import LentButton from './LentButton'
 import AboutModal from './AboutModal'
+import { APP_NAME } from '../seo'
 
 const universityLogo = universityConfig.branding.logo
 const universityLogoAlt = universityConfig.branding.logoAlt ?? universityConfig.university?.name ?? ''
@@ -74,13 +75,14 @@ function LoginPage({
           <img
             className="block h-[66px] w-auto object-contain"
             src={lentLogo}
-            alt="L'ent"
-            width="118"
+            alt={APP_NAME}
+            width="153"
             height="66"
           />
           <div className="flex w-full flex-col items-start gap-[10px] text-[#f5f3ed]">
-            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-semibold leading-[0.9] max-3xl:text-[48px]">{`Toute ta fac,\nau même endroit.`}</h1>
-            <p className="m-0 w-full text-[20px] font-medium leading-[0.9] font-body max-3xl:text-lg">Une solution libre et ouverte.</p>
+            <h1 className="m-0 w-full whitespace-pre-line text-[60px] font-bold leading-[0.9] max-3xl:text-[48px]">{`Cours, notes et services 
+de ton université.`}</h1>
+            <p className="m-0 w-full text-[20px] font-medium leading-[0.9] font-body max-3xl:text-lg">Une solution alternative, libre et ouverte</p>
           </div>
         </div>
       </div>
@@ -105,12 +107,12 @@ function LoginPage({
         <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[25px] px-[88px] pb-[120px] max-4xl:w-[min(640px,100%)] max-4xl:gap-6 max-4xl:px-10 max-4xl:pb-12 max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
           <header className="relative flex h-[295px] shrink-0 justify-center text-center max-md:h-[245px]">
             <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[117px] max-4xl:pt-[61px] max-md:pt-[26px]">
-              {/* The left panel (and its l'ent logo) is hidden below 4xl, so
+              {/* The left panel (and its app logo) is hidden below 4xl, so
                   show the logo above the university one there instead. */}
               <img
                 className="hidden h-11 w-auto object-contain max-4xl:block"
                 src={lentLogo}
-                alt="L'ent"
+                alt={APP_NAME}
               />
               <img
                 className="block h-[51px] w-[173px] object-contain dark:invert"
@@ -123,7 +125,7 @@ function LoginPage({
               <div className="flex w-full flex-col items-center gap-[10px] text-text">
                 <h2 className="m-0 w-full text-[40px] leading-[0.9] max-md:text-[36px]">Connexion</h2>
                 <p className="m-0 w-full text-[16px] font-medium leading-4 font-body max-md:text-[15px]">
-                  Utilise tes codes fournis par ton établissement d&apos;enseignement supérieur.
+                  Utilise tes codes fournis par ton établissement d'enseignement supérieur
                 </p>
               </div>
             </div>
@@ -212,7 +214,7 @@ function LoginPage({
               aria-label="Autres universités disponibles"
             >
               <p className="m-0 text-[13px] font-medium leading-[1.1] text-text-muted font-body">
-                l&apos;ent est aussi disponible pour
+                {APP_NAME} est aussi disponible pour
               </p>
               <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-4">
                 {otherUniversities.map((entry) => (

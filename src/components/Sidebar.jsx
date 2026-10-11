@@ -121,7 +121,7 @@ function Sidebar({
         <a
           href="/"
           className="inline-flex items-center no-underline"
-          aria-label="Retour à l'accueil"
+          aria-label="Retour"
         >
           <UniversityLockup variant="sidebar" />
         </a>

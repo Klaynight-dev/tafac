@@ -36,7 +36,7 @@ function getGradeColor(resource) {
 function LatestGradeHeader() {
   return (
     <div className="flex items-center gap-[5px] min-w-0">
-      <span className="m-0 min-w-0 leading-[1.06] text-base font-medium overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Dernière note</span>
+      <span className="m-0 min-w-0 leading-[1.06] text-base font-medium text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Dernière note</span>
     </div>
   )
 }
@@ -56,7 +56,7 @@ function LatestGradeValue({ noteDisplay, noteMax, accentColor = null }) {
         )}
       </div>
       <div className="flex items-end gap-[3px] leading-[1.06]">
-        <span className="text-[37px] font-bold leading-none whitespace-nowrap max-md:text-[32px]">{noteDisplay}</span>
+        <span className="font-display text-[37px] font-bold leading-none whitespace-nowrap max-md:text-[32px]">{noteDisplay}</span>
         <span className="text-[19px] font-medium leading-[1.06] whitespace-nowrap pb-[3px] max-md:text-[17px]">/{noteMax}</span>
       </div>
     </div>
@@ -84,8 +84,8 @@ function DisabledWidgetLatestGrade({ visible }) {
         <div className="flex-1 flex flex-col gap-[5px] justify-end">
           <LatestGradeValue noteDisplay={noteDisplay} noteMax={noteMax} />
           <div className="flex items-end justify-between gap-2 min-w-0">
-            <span className="m-0 leading-[1.06] text-base font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">{grade.description}</span>
-            <span className="m-0 leading-[1.06] text-base font-medium opacity-60 shrink-0 max-w-[34%] overflow-hidden text-ellipsis whitespace-nowrap text-right max-md:text-[15px]">{grade.resource}</span>
+            <span className="m-0 leading-[1.06] text-[15px] font-semibold min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px]">{grade.description}</span>
+            <span className="m-0 leading-[1.06] text-[12px] font-semibold text-text-muted shrink-0 max-w-[34%] overflow-hidden text-ellipsis whitespace-nowrap text-right">{grade.resource}</span>
           </div>
         </div>
       </div>
@@ -191,8 +191,8 @@ function LiveWidgetLatestGrade({ visible }) {
       <div className="flex-1 flex flex-col gap-[5px] justify-end">
         <LatestGradeValue noteDisplay={noteDisplay} noteMax={noteMax} accentColor={accentColor} />
         <div className="flex items-end justify-between gap-2 min-w-0">
-          <span ref={titleRef} className="m-0 leading-[1.06] text-base font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]" title={grade.description}>{grade.description}</span>
-          <span className="m-0 leading-[1.06] text-base font-medium opacity-60 shrink-0 max-w-[34%] overflow-hidden text-ellipsis whitespace-nowrap text-right max-md:text-[15px]" title={grade.resource}>{grade.resource}</span>
+          <span ref={titleRef} className="m-0 leading-[1.06] text-[15px] font-semibold min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px]" title={grade.description}>{grade.description}</span>
+          <span className="m-0 leading-[1.06] text-[12px] font-semibold text-text-muted shrink-0 max-w-[34%] overflow-hidden text-ellipsis whitespace-nowrap text-right" title={grade.resource}>{grade.resource}</span>
         </div>
       </div>
     </article>

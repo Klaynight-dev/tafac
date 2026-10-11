@@ -1,8 +1,8 @@
 export const DEMO_SESSION_MODE = 'demo'
 
 export const DEMO_CREDENTIALS = Object.freeze({
-  username: 'demo@l-ent.app',
-  password: 'lent-demo',
+  username: 'demo@tafac.fr',
+  password: 'tafac-demo',
 })
 
 const DEMO_DEFAULT_FAVORITE_IDS = [

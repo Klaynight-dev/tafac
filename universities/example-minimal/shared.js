@@ -10,12 +10,12 @@ export const university = {
 }
 
 export const branding = {
-  appName: "l'ent",
-  defaultTitle: "l'ent | Toute ta fac, au même endroit.",
-  seoTitle: "l'ent | Client alternatif ENT Mon Université",
+  appName: 'Tafac',
+  defaultTitle: "Tafac | Cours, notes et services de ton université",
+  seoTitle: "Tafac | Client alternatif ENT Mon Université",
   seoDescription: "Client alternatif non officiel à l'ENT de Mon Université.",
   logoAlt: 'Mon Université',
-  sidebarLogoAlt: "L'ent — Mon Université",
+  sidebarLogoAlt: "Tafac — Mon Université",
   loginFooterLine: "Client alternatif à l'ENT de Mon Université",
   about: {
     intro: 'est un client alternatif aux services numériques de Mon Université.',

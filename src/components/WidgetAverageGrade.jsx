@@ -19,7 +19,7 @@ const CARD_CLASSES = 'average-grade-widget widget-card shadow-md flex-[0_1_220px
 function AverageGradeHeader() {
   return (
     <div className="flex items-center gap-[5px] min-w-0">
-      <span className="m-0 min-w-0 leading-[1.06] text-base font-medium overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Moyenne Générale</span>
+      <span className="m-0 min-w-0 leading-[1.06] text-base font-medium text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Moyenne Générale</span>
     </div>
   )
 }
@@ -36,7 +36,7 @@ function AverageGradeWaves() {
 function AverageGradeValues({ avgDisplay, promoDisplay }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center relative z-10">
-      <span className="text-[37px] font-bold leading-none tracking-[0.01em] max-md:text-[32px]">{avgDisplay}</span>
+      <span className="font-display text-[37px] font-bold leading-none tracking-[0.01em] max-md:text-[32px]">{avgDisplay}</span>
       {promoDisplay ? (
         <span className="text-base font-medium leading-[1.06] opacity-60 dark:opacity-80 whitespace-nowrap max-md:text-[15px]">
           Moy. Promo : {promoDisplay}
