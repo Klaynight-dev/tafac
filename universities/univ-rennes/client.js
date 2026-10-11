@@ -3,6 +3,7 @@
 // This is the reference implementation forks should copy (see docs/ADDING_A_UNIVERSITY.md).
 import logo from './assets/logo.svg'
 import heroLannionBrelevenez from './assets/hero/lannion-brelevenez.webp'
+import heroLannionIut from './assets/hero/lannion-iut.webp'
 import heroLannionLeguer from './assets/hero/lannion-leguer.webp'
 import heroRennesBeaulieu1 from './assets/hero/rennes-beaulieu-1.webp'
 import heroRennesBeaulieu2 from './assets/hero/rennes-beaulieu-2.webp'
@@ -104,6 +105,13 @@ export default {
       iutlan: {
         label: 'IUT de Lannion',
         heroImages: [
+          {
+            src: heroLannionIut,
+            position: 'center 50%',
+            credit: {
+              author: 'Tom Heliere',
+            },
+          },
           {
             src: heroLannionBrelevenez,
             credit: {
