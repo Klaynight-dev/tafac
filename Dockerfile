@@ -8,6 +8,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ARG TENANTS
+# Commit shown in "À propos" (the build context has no .git).
+ARG BUILD_HASH
 RUN npm run build:all
 
 # --- Runtime: production dependencies, sources and built frontends ---

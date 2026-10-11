@@ -78,7 +78,9 @@ const entDevAuthPlugin = {
   },
 }
 
+// Docker builds have no .git, so CI passes the commit as BUILD_HASH.
 const gitHash = (() => {
+  if (process.env.BUILD_HASH) return process.env.BUILD_HASH.slice(0, 7)
   try { return execSync('git rev-parse --short HEAD').toString().trim() }
   catch { return 'dev' }
 })()
