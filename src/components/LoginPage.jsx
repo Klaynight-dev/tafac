@@ -10,6 +10,7 @@ import loginSky from '../assets/login/login-sky.webp'
 import loginLogo from '../assets/login/login-logo.webp'
 import LentButton from './LentButton'
 import AboutModal from './AboutModal'
+import RenameNotice from './RenameNotice'
 import { APP_NAME } from '../seo'
 
 const universityLogo = universityConfig.branding.logo
@@ -58,6 +59,7 @@ function LoginPage({
 }) {
   const [showPassword, setShowPassword] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [renameNoticeOpen, setRenameNoticeOpen] = useState(false)
 
   function handleDemoLinkClick() {
     setAboutOpen(false)
@@ -128,7 +130,23 @@ function LoginPage({
         onDemoLinkClick={handleDemoLinkClick}
       />
 
+      <RenameNotice visible={renameNoticeOpen} onDismiss={() => setRenameNoticeOpen(false)} />
+
       <div className="relative isolate flex min-h-screen min-w-0 flex-[1_1_auto] items-stretch justify-center bg-[#f5f3ed] dark:bg-bg max-4xl:w-full max-md:justify-start">
+        <button
+          type="button"
+          className="absolute top-[27px] left-6 z-30 inline-flex h-8 items-center gap-[6px] rounded-full border border-border/70 bg-widget-bg/60 px-3 text-[13px] font-medium leading-none font-body transition-colors duration-120 hover:bg-widget-bg max-3xl:top-[23px] max-3xl:left-5 max-md:top-[19px] max-md:left-4"
+          onClick={() => setRenameNoticeOpen(true)}
+        >
+          <Icon icon="carbon:star" className="h-[14px] w-[14px] shrink-0 text-text-muted" aria-hidden="true" />
+          <span
+            className="bg-[linear-gradient(90deg,var(--color-text-muted)_0%,var(--color-text)_50%,var(--color-text-muted)_100%)] bg-[length:200%_100%] bg-clip-text text-transparent animate-shimmer"
+            style={{ animationDuration: '3s' }}
+          >
+            l'ent devient Tafac !
+          </span>
+        </button>
+
         <button
           type="button"
           className="absolute top-6 right-6 z-30 inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border-0 bg-transparent text-text-muted transition-colors duration-120 hover:text-text max-3xl:top-5 max-3xl:right-5 max-md:top-4 max-md:right-4"
@@ -138,9 +156,9 @@ function LoginPage({
           <Icon icon="carbon:information" className="h-[18px] w-[18px]" />
         </button>
 
-        <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[clamp(16px,3vh,25px)] px-[88px] pb-[clamp(56px,calc(30vh_-_150px),120px)] max-4xl:w-[min(640px,100%)] max-4xl:gap-[clamp(16px,3vh,24px)] max-4xl:px-10 max-4xl:pb-[clamp(24px,calc(30vh_-_170px),48px)] max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
+        <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[clamp(14px,calc(6vh_-_26px),25px)] px-[88px] pb-[clamp(56px,calc(30vh_-_150px),120px)] max-4xl:w-[min(640px,100%)] max-4xl:gap-[clamp(14px,calc(6vh_-_26px),24px)] max-4xl:px-10 max-4xl:pb-[clamp(24px,calc(30vh_-_170px),48px)] max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
           <header className="relative flex shrink-0 justify-center text-center">
-            <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[clamp(24px,calc(30vh_-_153px),117px)] max-4xl:pt-[clamp(24px,calc(30vh_-_153px),61px)] max-md:pt-[26px]">
+            <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[clamp(66px,calc(30vh_-_153px),117px)] max-4xl:pt-[66px] max-md:pt-[62px]">
               {/* The left panel (and its app logo) is hidden below 4xl, so
                   show the logo above the university one there instead. */}
               <img
