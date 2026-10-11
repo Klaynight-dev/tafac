@@ -59,7 +59,7 @@ test('allowlist drops unknown events, unknown properties and free text', () => {
       duration_bucket: '<1s',
       error_kind: 'network',
       subject: 'Convocation examen',
-      email: 'demo@l-ent.app',
+      email: 'demo@tafac.fr',
       device: 'desktop',
       browser: 'Mozilla/5.0',
       lang: 'fr-FR',

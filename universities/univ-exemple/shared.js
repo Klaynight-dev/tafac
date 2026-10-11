@@ -1,6 +1,6 @@
 // Université Exemple — fake university used to test the multi-university
 // setup end-to-end (subdomain routing, branding, demo account, widgets).
-// Its origins don't exist: only the demo login (demo@l-ent.app / lent-demo)
+// Its origins don't exist: only the demo login (demo@tafac.fr / tafac-demo)
 // works; real CAS logins fail cleanly.
 
 export const id = 'univ-exemple'
