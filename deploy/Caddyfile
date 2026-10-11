@@ -4,3 +4,19 @@ lent.example.fr {
 	encode zstd gzip
 	reverse_proxy lent:3000
 }
+
+# Optional: PostHog on your own subdomain (DNS A/AAAA → server), then set
+# POSTHOG_HOST=https://p.example.fr in .env. Points at PostHog EU.
+#p.example.fr {
+#	handle_path /static/* {
+#		rewrite * /static{path}
+#		reverse_proxy https://eu-assets.i.posthog.com {
+#			header_up Host eu-assets.i.posthog.com
+#		}
+#	}
+#	handle {
+#		reverse_proxy https://eu.i.posthog.com {
+#			header_up Host eu.i.posthog.com
+#		}
+#	}
+#}
