@@ -7,8 +7,8 @@
 #   anything else                 → patch
 # Add [skip release] to the head commit message to skip publishing.
 #
-# Pushes to the `tafac` branch only refresh ghcr.io/<owner>/<repo>:tafac
-# (no version, no release), for the tafac.fr deployment.
+# Pushes to the `tafac` branch publish ghcr.io/<owner>/<repo>:latest and
+# :tafac (no version, no release), for the tafac.fr deployment.
 name: CI
 
 on:
@@ -156,6 +156,7 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
+            type=raw,value=latest
             type=raw,value=tafac
             type=sha,prefix=tafac-
       - uses: docker/build-push-action@v6
