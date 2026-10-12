@@ -44,4 +44,12 @@ export default {
   },
 
   grades: gradesCopy,
+
+  // Look of the automatic application tiles (server/appIcons.js). The demo
+  // university shows off a non-default style; example-minimal lists the
+  // options.
+  appIcons: {
+    style: 'phosphor-duotone',
+    colorMode: 'soft',
+  },
 }

@@ -10,6 +10,9 @@ services:
     env_file: .env
     expose:
       - "3000"
+    volumes:
+      # Automatic app icons, remembered per university (docs/SELF_HOSTING.md).
+      - lent_data:/app/data
 
   caddy:
     image: caddy:2-alpine
@@ -26,5 +29,6 @@ services:
       - caddy_config:/config
 
 volumes:
+  lent_data:
   caddy_data:
   caddy_config:

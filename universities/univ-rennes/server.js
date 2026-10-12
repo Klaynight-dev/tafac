@@ -1,7 +1,7 @@
 // Université de Rennes — server-side configuration.
 // Never imported by client code: holds origins, auth-flow parameters and the
 // reverse-engineered ADE mobile-app credentials.
-import { id, casOrigin, entOrigin, features, gradesCopy, gradesOrigin, mailWebmailUrl, planningServiceUrl, portalEntryPath } from './shared.js'
+import { id, casOrigin, entOrigin, features, gradesCopy, gradesOrigin, mailWebmailUrl, moodleOrigin, planningServiceUrl, portalEntryPath } from './shared.js'
 
 export default {
   id,
@@ -14,7 +14,7 @@ export default {
     // Set any of these to null when the university has no such service —
     // the matching feature flag must be false too.
     ade: 'https://campus-app.univ-rennes.fr',
-    moodle: 'https://foad.univ-rennes.fr',
+    moodle: moodleOrigin,
     planning: 'https://planning.univ-rennes.fr',
   },
 
@@ -78,5 +78,20 @@ export default {
     // Hosts the SAML sign-in chain may visit, besides the webmail and CAS
     // hosts (RENATER's Partage SP and the university IdP).
     signInDomains: ['partage.renater.fr', 'univ-rennes1.fr', 'univ-rennes.fr'],
+  },
+
+  // Certificat de scolarité (features.schoolCertificate): the ESUP
+  // MonDossierWeb instance behind CAS, and the caption of its menu button
+  // that lists the certificates (server/schoolCertificate.js).
+  schoolCertificate: {
+    origin: 'https://mdw.univ-rennes.fr',
+    menuCaption: 'Inscriptions',
+  },
+
+  // Look of the automatic application tiles (server/appIcons.js): Phosphor
+  // duotone icons on soft tiles, like the demo university.
+  appIcons: {
+    style: 'phosphor-duotone',
+    colorMode: 'soft',
   },
 }

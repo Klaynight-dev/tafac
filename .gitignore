@@ -30,3 +30,6 @@ API_GUIDE.md
 *.njsproj
 *.sln
 *.sw?
+
+# Server data (automatic app icons, see docs/SELF_HOSTING.md)
+data/

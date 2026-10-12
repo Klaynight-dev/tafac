@@ -17,13 +17,18 @@ FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production \
     MULTI_TENANT=1 \
-    PORT=3000
+    PORT=3000 \
+    DATA_DIR=/app/data
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 # The server imports a few modules from src/ (demo account), so the sources
 # stay; only the built frontends come from the build stage.
 COPY . .
 COPY --from=build /app/dist ./dist
+# Automatic app icons (server/appIcons.js) are remembered here: mount a
+# volume on it (deploy/docker-compose.yml does). Owned by `node` so a fresh
+# named volume starts out writable too.
+RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

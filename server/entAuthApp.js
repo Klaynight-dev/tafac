@@ -19,6 +19,13 @@ import {
 } from '../adeApi.js'
 import { createAdeUpcomingResolver } from '../adeUpcomingResolver.js'
 import { createAnalytics, readAnalyticsConfig } from './analytics.js'
+import {
+  createAppIconStore,
+  resolveAppIconTheme,
+  resolveDataDir,
+  sanitizeAppIconRequest,
+  toIconifyName,
+} from './appIcons.js'
 import { ANALYTICS_MAX_BODY_BYTES } from './analyticsSchema.js'
 import {
   LEGACY_SESSION_COOKIE_NAME,
@@ -32,6 +39,7 @@ import {
   unpackJarCookies,
 } from './sessionCookie.js'
 import { createPlanningPortalApiClient } from '../planningPortalApi.js'
+import { SchoolCertificateUnavailableError, buildDemoCertificatePdf, openCertificateDownload } from './schoolCertificate.js'
 import { createPlanningRpcClient } from '../planningRpc.js'
 import {
   DEMO_ACCOUNT,
@@ -62,8 +70,27 @@ import {
 // SESSION_SECRET / SESSION_SECRET_PREVIOUS and NODE_ENV === 'production'.
 // server.js (the production entry point) always passes production: true, the
 // Vite mount always passes false; tests inject a secret here.
+// options.appIcons: { dataDir } — defaults to DATA_DIR, else ./data (see
+// server/appIcons.js).
 export function createEntAuthApp(universityConfig, options = {}) {
 const app = express()
+
+// Automatic tile icons, remembered per university, drawn in the university's
+// icon style and colour mode (server/appIcons.js, config → appIcons).
+const APP_ICON_THEME = resolveAppIconTheme(universityConfig.appIcons)
+const appIconStore = createAppIconStore({
+  universityId: universityConfig.id,
+  dataDir: options.appIcons?.dataDir ?? resolveDataDir(),
+})
+// Demo services, by the id the client sends (fname): their titles come from
+// here, not from the request.
+const DEMO_APP_ICON_SERVICES = new Map(
+  buildDemoLayoutDocData().map((application) => [application.fname, {
+    title: application.title,
+    description: application.description ?? '',
+    category: '',
+  }]),
+)
 
 const analytics = createAnalytics({
   ...(options.analytics ?? readAnalyticsConfig()),
@@ -85,6 +112,9 @@ const ADE_ORIGIN = universityConfig.origins.ade ?? null
 const MOODLE_ORIGIN = universityConfig.origins.moodle ?? null
 const PLANNING_ORIGIN = universityConfig.origins.planning ?? null
 const GRADES_ORIGIN = universityConfig.grades?.origin ?? null
+// Certificat de scolarité (features.schoolCertificate, server/schoolCertificate.js).
+const SCHOOL_CERTIFICATE_ORIGIN = FEATURES.schoolCertificate ? (universityConfig.schoolCertificate?.origin ?? null) : null
+const SCHOOL_CERTIFICATE_MENU_CAPTION = universityConfig.schoolCertificate?.menuCaption ?? 'Inscriptions'
 // Mail (see universities/<id>/server.js → mail, docs/ADDING_A_UNIVERSITY.md).
 const MAIL_PROVIDER = universityConfig.mail?.provider ?? null
 const MAIL_ORIGIN = universityConfig.mail?.origin ?? null
@@ -1644,6 +1674,7 @@ function clearSensitiveSessionCaches(session) {
   clearCachedGrades(sessionId)
   clearMailCaches(sessionId)
   clearMoodleCaches(sessionId)
+  schoolCertificateStatusCache.delete(sessionId)
   clearAdeCaches(cacheScope)
   clearPlanningCaches(cacheScope)
   clearPortalCaches(cacheScope)
@@ -3402,6 +3433,195 @@ app.get('/__ent_auth/student-pic', async (req, res) => {
 
     res.status(500).json({
       error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6e. Application tile icons (see server/appIcons.js)
+// POST { services: [{ id, title, description?, category? }] }
+//   200 { ok: true, palette: { [color]: { light: { bg, fg }, dark: { bg, fg } } },
+//         icons: { [id]: { icon, color } } }   icon: Iconify name in this
+//         university's style; color: a key of palette (its colour mode)
+//   400 { ok: false, error }   body isn't { services: [...] }
+//   401 { ok: false, error }   no session
+// The first pick for a service is kept for the whole university. Demo
+// credentials are public, so a demo session only gets demo services written
+// down (with the server's own titles); anything else it sends is answered
+// without being stored.
+app.post('/__ent_auth/app-icons', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ ok: false, error: 'Authentication required.' })
+    }
+
+    const services = sanitizeAppIconRequest(req.body)
+    if (!services) {
+      return res.status(400).json({ ok: false, error: 'Expected { services: [...] }.' })
+    }
+
+    let picks
+    if (isDemoSession(session)) {
+      const demoServices = []
+      const otherServices = []
+      for (const service of services) {
+        const demoService = DEMO_APP_ICON_SERVICES.get(service.id)
+        if (demoService) {
+          demoServices.push({ ...service, ...demoService })
+        } else {
+          otherServices.push(service)
+        }
+      }
+      picks = {
+        ...await appIconStore.resolve(otherServices, { remember: false }),
+        ...await appIconStore.resolve(demoServices),
+      }
+    } else {
+      picks = await appIconStore.resolve(services)
+    }
+
+    const icons = Object.fromEntries(Object.entries(picks).map(([id, { icon, color }]) => (
+      [id, { icon: toIconifyName(icon, APP_ICON_THEME), color }]
+    )))
+    setSessionCookie(res, session)
+    return res.status(200).json({ ok: true, palette: APP_ICON_THEME.palette, icons })
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// ============================================================================
+// CERTIFICAT DE SCOLARITÉ (MonDossierWeb)
+// ============================================================================
+
+// "Is there a certificate?" is answered from cache for a while: each check
+// opens a Vaadin UI on MonDossierWeb.
+const SCHOOL_CERTIFICATE_STATUS_TTL_MS = 15 * 60 * 1000
+const schoolCertificateStatusCache = new Map()
+// One MonDossierWeb UI at a time per session: two would share the same
+// server-side Vaadin session and step on each other's sync ids.
+const schoolCertificateInflight = new Map()
+
+function withSchoolCertificateLock(session, task) {
+  const previous = schoolCertificateInflight.get(session.id) ?? Promise.resolve()
+  const run = previous.catch(() => {}).then(task)
+  const settled = run.catch(() => {})
+  schoolCertificateInflight.set(session.id, settled)
+  settled.then(() => {
+    if (schoolCertificateInflight.get(session.id) === settled) {
+      schoolCertificateInflight.delete(session.id)
+    }
+  })
+  return run
+}
+
+function openSchoolCertificate(session) {
+  return openCertificateDownload({
+    origin: SCHOOL_CERTIFICATE_ORIGIN,
+    jar: session.jar,
+    menuCaption: SCHOOL_CERTIFICATE_MENU_CAPTION,
+    followRedirectChain,
+    fetchWithJar,
+  })
+}
+
+// "2026-2027" from September, "2025-2026" until August.
+function getCurrentSchoolYear(date = new Date()) {
+  const start = date.getMonth() >= 8 ? date.getFullYear() : date.getFullYear() - 1
+  return `${start}-${start + 1}`
+}
+
+// The real file name carries accents ("Scolarité"): plain ASCII for old
+// clients, the exact name in filename*.
+function buildAttachmentHeader(filename) {
+  const ascii = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]|["\\]/g, '_')
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+}
+
+// GET /__ent_auth/documents/school-certificate/status
+//   200 { available: true, schoolYear: '2026-2027' } | { available: false }
+//   401 no session · 404 feature off for this university
+app.get('/__ent_auth/documents/school-certificate/status', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  const session = getSessionFromRequest(req)
+  if (!session) {
+    return res.status(401).json({ available: false, error: 'Authentication required.' })
+  }
+  if (!SCHOOL_CERTIFICATE_ORIGIN) {
+    return res.status(404).json({ available: false })
+  }
+
+  setSessionCookie(res, session)
+  if (isDemoSession(session)) {
+    return res.status(200).json({ available: true, schoolYear: getCurrentSchoolYear() })
+  }
+
+  const cached = schoolCertificateStatusCache.get(session.id)
+  if (cached && Date.now() - cached.at < SCHOOL_CERTIFICATE_STATUS_TTL_MS) {
+    return res.status(200).json(cached.status)
+  }
+
+  try {
+    const download = await withSchoolCertificateLock(session, () => openSchoolCertificate(session))
+    const status = { available: true, schoolYear: download.schoolYear }
+    schoolCertificateStatusCache.set(session.id, { at: Date.now(), status })
+    return res.status(200).json(status)
+  } catch (error) {
+    // "No certificate" is remembered; a network hiccup is retried next time.
+    if (error instanceof SchoolCertificateUnavailableError) {
+      schoolCertificateStatusCache.set(session.id, { at: Date.now(), status: { available: false } })
+    }
+    return res.status(200).json({ available: false })
+  }
+})
+
+// GET /__ent_auth/documents/school-certificate
+//   200 the PDF (attachment) · 401 no session · 404 none for this student
+//   502 MonDossierWeb failed. Streamed through, never stored.
+app.get('/__ent_auth/documents/school-certificate', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  const session = getSessionFromRequest(req)
+  if (!session) {
+    return res.status(401).json({ ok: false, error: 'Authentication required.' })
+  }
+  if (!SCHOOL_CERTIFICATE_ORIGIN) {
+    return res.status(404).json({ ok: false, error: 'No certificate service for this university.' })
+  }
+
+  setSessionCookie(res, session)
+  if (isDemoSession(session)) {
+    const schoolYear = getCurrentSchoolYear()
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', buildAttachmentHeader(`Certificat_de_scolarite_demo_${schoolYear}.pdf`))
+    return res.status(200).send(buildDemoCertificatePdf(schoolYear))
+  }
+
+  try {
+    const certificate = await withSchoolCertificateLock(session, async () => {
+      const download = await openSchoolCertificate(session)
+      const response = await fetchWithJar(download.url, session.jar, {
+        headers: { Accept: 'application/pdf,*/*', Referer: `${SCHOOL_CERTIFICATE_ORIGIN}/` },
+      })
+      const body = Buffer.from(await response.arrayBuffer())
+      if (!response.ok || body.subarray(0, 4).toString('latin1') !== '%PDF') {
+        throw new Error(`MonDossierWeb download failed (${response.status}).`)
+      }
+      return { body, filename: download.filename }
+    })
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', buildAttachmentHeader(certificate.filename))
+    return res.status(200).send(certificate.body)
+  } catch (error) {
+    const unavailable = error instanceof SchoolCertificateUnavailableError
+    return res.status(unavailable ? 404 : 502).json({
+      ok: false,
+      error: unavailable ? 'Aucun certificat de scolarité disponible.' : 'Certificat indisponible pour le moment.',
     })
   }
 })

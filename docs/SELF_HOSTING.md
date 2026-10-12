@@ -10,7 +10,7 @@ ghcr.io/l-ent-univ/l-ent:0.4.1      # version précise
 ghcr.io/l-ent-univ/l-ent:0.4        # dernière 0.4.x
 ```
 
-L'image contient le serveur Express et le frontend de chaque université (mode multi-tenant, `MULTI_TENANT=1`). Elle écoute sur le port 3000, tourne avec un utilisateur non root et n'écrit rien sur le disque.
+L'image contient le serveur Express et le frontend de chaque université (mode multi-tenant, `MULTI_TENANT=1`). Elle écoute sur le port 3000 et tourne avec un utilisateur non root. Elle n'écrit sur le disque que dans `/app/data` (icônes automatiques des applications, voir plus bas), monté en volume par `docker-compose.yml`.
 
 ## Prérequis
 
@@ -53,6 +53,34 @@ Pour figer une version, remplacer `latest` par un numéro (`ghcr.io/l-ent-univ/l
 | `TENANTS` | Universités servies (ids séparés par des virgules) | toutes |
 | `POSTHOG_PROJECT_KEY` | Mesure d'audience anonyme ([ANALYTICS.md](ANALYTICS.md)) | désactivée |
 | `PORT` | Port interne du conteneur | `3000` |
+| `DATA_DIR` | Dossier des icônes automatiques des applications | `/app/data` dans l'image, `./data` sinon |
+
+## Icônes automatiques des applications
+
+Le serveur donne à chaque application du portail une icône et une couleur (voir [ADDING_A_UNIVERSITY.md](ADDING_A_UNIVERSITY.md#icônes-des-applications)) et mémorise ce choix pour que tous les étudiants d'une université voient la même tuile, d'un jour à l'autre. C'est la seule donnée que le serveur écrit :
+
+- un fichier JSON par université : `$DATA_DIR/app-icons/<université>.json` (dans le conteneur : `/app/data/app-icons/univ-rennes.json`…), sur le volume `lent_data` ;
+- par service : son identifiant de portail, le concept d'icône, la teinte, le titre et la date du premier passage. **Aucune donnée d'étudiant** : ce sont les mêmes services pour tout le monde ;
+- écriture atomique (fichier temporaire puis renommage), 500 services au plus par université. Une session démo n'y écrit que les services de démonstration.
+
+Sans volume, ou si le dossier n'est pas accessible en écriture, tout continue de fonctionner : les icônes sont choisies en mémoire (de façon déterministe) et un avertissement `[app-icons]` apparaît dans les logs ; elles ne sont simplement pas gardées d'un redémarrage à l'autre.
+
+**Corriger ou réinitialiser** (le fichier est relu dès qu'il change, sans redémarrage) :
+
+```sh
+docker compose exec lent cat /app/data/app-icons/univ-rennes.json
+docker compose exec lent vi /app/data/app-icons/univ-rennes.json   # ou docker cp aller-retour
+```
+
+```json
+"moodle-foad": { "icon": "course", "color": "blue", "title": "Moodle - FOAD", "assignedAt": "2026-10-12" }
+```
+
+- **Changer une tuile** : remplacer `icon` par un autre concept (`library`, `sport`… : liste dans `server/appIcons.js`, dessiné dans le style de l'université) ou par un nom Iconify précis (`ph:basketball`, utilisé tel quel), et/ou `color` par une teinte (`red`, `orange`, `yellow`, `lime`, `green`, `teal`, `cyan`, `sky`, `blue`, `indigo`, `violet`, `fuchsia`, `pink`). Une entrée invalide est ignorée et choisie à nouveau.
+- Le style d'icônes et le mode de couleur se règlent par université dans le code (`appIcons` dans `universities/<id>/server.js`, voir [ADDING_A_UNIVERSITY.md](ADDING_A_UNIVERSITY.md#style-des-icônes-et-couleurs-serverjs--appicons)).
+- **Refaire le choix d'un service** : supprimer son entrée. **Tout réinitialiser** : supprimer le fichier.
+- Un fichier JSON illisible n'est jamais écrasé : le serveur passe en mémoire seule jusqu'à ce qu'il soit réparé.
+- Les icônes faites main (`services.getAppIcon`, dans le code de l'université) restent prioritaires.
 
 ## Changer de domaine
 

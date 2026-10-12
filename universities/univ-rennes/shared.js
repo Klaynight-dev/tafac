@@ -55,6 +55,8 @@ export const features = {
   grades: true,
   mail: true,
   moodleDeadlines: true,
+  // « Certificat de scolarité » in Réglages › Compte, from MonDossierWeb.
+  schoolCertificate: true,
   weather: { enabled: true, defaultCity: 'Rennes' },
   serviceCategories: false,
   demo: true,
@@ -65,6 +67,10 @@ export const planningServiceUrl = 'https://planning.univ-rennes.fr/portal/planni
 
 export const gradesOrigin = 'https://notes9.iutlan.univ-rennes1.fr'
 export const gradesServiceUrl = `${gradesOrigin}/services/doAuth.php?href=${encodeURIComponent(`${gradesOrigin}/`)}`
+
+// Moodle (FOAD). Public: the sidebar and tab bar link to it, the server signs
+// in there for the "Échéances Moodle" widget.
+export const moodleOrigin = 'https://foad.univ-rennes.fr'
 
 // Webmail ("Messagerie"): RENATER Partage (Zimbra), behind Shibboleth → CAS.
 // Opened through /__ent_auth/launch by the "Mails récents" widget.

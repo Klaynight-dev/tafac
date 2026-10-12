@@ -17,3 +17,5 @@ deploy
 .idea
 .claude
 SECURITY_REVIEW.md
+# Local server data (DATA_DIR): the image gets a volume instead.
+data

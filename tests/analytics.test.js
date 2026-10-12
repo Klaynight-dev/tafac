@@ -92,6 +92,12 @@ test('required and cross-property rules', () => {
     { setting: 'app_descriptions', value: 'on' },
   )
   assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'setting_changed', properties: { setting: 'theme', value: 'dark' } }, opts)?.properties,
+    { setting: 'theme', value: 'dark' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'setting_changed', properties: { setting: 'theme', value: 'on' } }, opts), null)
+  assert.equal(sanitizeAnalyticsEvent({ event: 'setting_changed', properties: { setting: 'wallpaper', value: 'dark' } }, opts), null)
+  assert.deepEqual(
     sanitizeAnalyticsEvent({ event: 'widget_loaded', properties: { widget: 'mail', status: 'error', error_kind: 'http_5xx' } }, opts)?.properties,
     { widget: 'mail', status: 'error', error_kind: 'http_5xx' },
   )

@@ -225,7 +225,8 @@ function escapeHtml(value) {
 }
 
 function createDemoAvatarDataUri(initials = 'CM') {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Avatar demo"><defs><linearGradient id="demoAvatarGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f8ffa1"/><stop offset="48%" stop-color="#acf600"/><stop offset="100%" stop-color="#8bd3ff"/></linearGradient></defs><rect width="128" height="128" rx="32" fill="url(#demoAvatarGradient)"/><circle cx="64" cy="50" r="24" fill="#fffaf0" fill-opacity="0.95"/><path d="M27 110c3-20 19-33 37-33s34 13 37 33" fill="#fffaf0" fill-opacity="0.95"/><text x="64" y="116" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="700" fill="#341200">${escapeHtml(initials)}</text></svg>`
+  // Just the initials on a flat warm tone; the app crops it to a circle.
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Avatar demo"><rect width="128" height="128" fill="#ebe4d6"/><text x="64" y="64" dy="0.35em" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="46" font-weight="600" fill="#341200">${escapeHtml(initials)}</text></svg>`
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
 

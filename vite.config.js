@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig, loadEnv } from 'vite'
 import { readAnalyticsConfig } from './server/analytics.js'
+import { resolveDataDir } from './server/appIcons.js'
 import { createEntAuthApp } from './server/entAuthApp.js'
 import { clientConfigPath, listUniversityIds, loadServerConfig, loadSharedConfig, resolveUniversityId } from './universities/index.js'
 
@@ -13,13 +14,15 @@ const { branding } = await loadSharedConfig(universityId)
 
 // Dev/preview backend: the same Express app the production server mounts
 // (server/entAuthApp.js). Unmatched requests fall through to Vite.
-// POSTHOG_* and SESSION_SECRET* may come from the shell or from .env /
-// .env.local (shell wins). Without SESSION_SECRET the backend uses a random
-// per-process key: sessions then don't survive a dev-server restart.
+// POSTHOG_*, SESSION_SECRET* and DATA_DIR may come from the shell or from
+// .env / .env.local (shell wins). Without SESSION_SECRET the backend uses a
+// random per-process key: sessions then don't survive a dev-server restart.
+// Without DATA_DIR, automatic app icons are remembered in ./data.
 function mountEntAuthApp(server) {
-  const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), ['POSTHOG_', 'SESSION_SECRET'])
+  const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), ['POSTHOG_', 'SESSION_SECRET', 'DATA_DIR'])
   const entAuthApp = createEntAuthApp(universityServerConfig, {
     analytics: readAnalyticsConfig(env),
+    appIcons: { dataDir: resolveDataDir(env) },
     session: {
       secret: env.SESSION_SECRET,
       previousSecrets: env.SESSION_SECRET_PREVIOUS,

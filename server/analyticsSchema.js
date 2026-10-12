@@ -65,20 +65,23 @@ export const ANALYTICS_EVENTS = {
   app_opened: {
     properties: {
       app: slug(64),
-      source: oneOf('grid', 'favorites', 'sidebar'),
+      source: oneOf('grid', 'favorites', 'sidebar', 'tabbar'),
     },
     required: ['app', 'source'],
   },
   setting_changed: {
     properties: {
-      setting: oneOf('widget_visibility', 'app_descriptions', 'custom_background', 'wallpaper', 'analytics'),
-      value: oneOf('on', 'off'),
+      setting: oneOf('widget_visibility', 'app_descriptions', 'custom_background', 'wallpaper', 'theme', 'analytics'),
+      value: oneOf('on', 'off', 'auto', 'light', 'dark'),
       widget: oneOf(...WIDGET_IDS),
     },
     required: ['setting', 'value'],
     refine: (props) => {
       // Turning analytics off must not be reported at all.
       if (props.setting === 'analytics' && props.value === 'off') return null
+      // The theme reports which one was picked; every other setting is on/off.
+      const isThemeValue = ['auto', 'light', 'dark'].includes(props.value)
+      if ((props.setting === 'theme') !== isThemeValue) return null
       if (props.setting === 'widget_visibility') {
         return props.widget ? props : null
       }
