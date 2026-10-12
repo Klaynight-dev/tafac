@@ -24,7 +24,7 @@ export const branding = {
   about: {
     intro: "est un client alternatif aux services numériques de l'Université Exemple. Cette instance est une démonstration : connectez-vous avec le compte démo.",
     disclaimer: "Université fictive servant à tester l'ajout d'universités. Aucun service réel n'est relayé.",
-    repoUrl: 'https://github.com/tom-things/l-ent',
+    repoUrl: 'https://github.com/l-ent-univ/tafac',
   },
 }
 

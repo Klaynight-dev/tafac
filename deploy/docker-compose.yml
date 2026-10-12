@@ -1,7 +1,7 @@
-# Self-hosting l'ent with Docker: the app + Caddy for automatic HTTPS.
+# Self-hosting Tafac (formerly l'ent) with Docker: the app + Caddy for automatic HTTPS.
 # Usage (see docs/SELF_HOSTING.md):
 #   1. copy this folder to the server, create .env next to it (SESSION_SECRET…)
-#   2. replace lent.example.fr in Caddyfile with your domain (DNS A/AAAA → server)
+#   2. replace tafac.example.fr in Caddyfile with your domain (DNS A/AAAA → server)
 #   3. docker compose up -d
 services:
   lent:

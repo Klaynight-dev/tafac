@@ -1,6 +1,8 @@
 # Mesure d'audience anonyme
 
-l'ent peut mesurer son audience de façon anonyme, pour savoir quels widgets marchent, quelles applications sont ouvertes et si les connexions réussissent. Le dispositif est conçu pour rester dans le cadre de l'**exemption de consentement de la CNIL** (« mesure d'audience exemptée ») : aucun cookie, aucun identifiant persistant, aucune donnée personnelle, finalité strictement statistique, et un interrupteur pour la désactiver.
+> Tafac s'appelait auparavant l'ent : les identifiants techniques (clés `l-ent:*`, ids `lent-*`) gardent l'ancien nom.
+
+Tafac peut mesurer son audience de façon anonyme, pour savoir quels widgets marchent, quelles applications sont ouvertes et si les connexions réussissent. Le dispositif est conçu pour rester dans le cadre de l'**exemption de consentement de la CNIL** (« mesure d'audience exemptée ») : aucun cookie, aucun identifiant persistant, aucune donnée personnelle, finalité strictement statistique, et un interrupteur pour la désactiver.
 
 Deux outils, tous deux **sans cookie et hébergés dans l'UE**, tous deux coupés par l'interrupteur *Statistiques anonymes* :
 
@@ -12,7 +14,7 @@ Une fenêtre « Tes données restent à toi » (`src/components/PrivacyModal.jsx
 ## Fonctionnement
 
 ```
-navigateur ──(événements filtrés)──▶ /__ent_auth/analytics (serveur l'ent) ──posthog-node──▶ PostHog (UE)
+navigateur ──(événements filtrés)──▶ /__ent_auth/analytics (serveur Tafac) ──posthog-node──▶ PostHog (UE)
 ```
 
 - **Le navigateur ne parle jamais à PostHog** et ne charge aucun script PostHog. `src/analytics.js` met les événements en lot et les envoie à notre propre serveur, via `navigator.sendBeacon` (ou `fetch` avec `keepalive` en secours).
@@ -61,7 +63,7 @@ PostHog ajoute aussi `$lib`, `$lib_version`, `$is_server` et `$geoip_disable` (m
 [Simple Analytics](https://www.simpleanalytics.com/) est un outil de mesure d'audience européen, sans cookie et sans identifiant, qui ne compte que les pages vues (page, référent, pays, type d'appareil). Son script est chargé par le navigateur depuis `scripts.simpleanalyticscdn.com`, mais :
 
 - il n'est **plus inclus dans `index.html`** : `src/analytics.js` l'injecte seulement si *Statistiques anonymes* est activé, et seulement dans les builds de production ;
-- il est chargé avec `data-auto-collect="false"` : il n'enregistre rien de lui-même. l'ent envoie **une seule page vue par chargement** (`sa_pageview(location.pathname)`, sans paramètres d'URL), et seulement tant que l'interrupteur est activé — le couper arrête donc aussi Simple Analytics, même si le script est déjà chargé.
+- il est chargé avec `data-auto-collect="false"` : il n'enregistre rien de lui-même. Tafac envoie **une seule page vue par chargement** (`sa_pageview(location.pathname)`, sans paramètres d'URL), et seulement tant que l'interrupteur est activé — le couper arrête donc aussi Simple Analytics, même si le script est déjà chargé.
 
 ## Ce qui n'est jamais collecté
 

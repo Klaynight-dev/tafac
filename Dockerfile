@@ -1,4 +1,4 @@
-# l'ent production image: every university frontend (dist/<id>/) plus the
+# Tafac (formerly l'ent) production image: every university frontend (dist/<id>/) plus the
 # Express server, run in multi-tenant mode. See docs/SELF_HOSTING.md.
 
 # --- Build: install everything, build one frontend per university ---

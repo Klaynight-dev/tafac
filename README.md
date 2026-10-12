@@ -1,4 +1,7 @@
-![l'ent](src/assets/login/lentlogo_outline.svg)
+![Tafac](src/assets/lent-logo.svg)
+
+> **l'ent s'appelle désormais Tafac.** Même app, même équipe, nouveau nom : l'instance officielle est sur **[tafac.fr](https://tafac.fr)**.  
+> Certains identifiants techniques gardent l'ancien nom (image Docker `ghcr.io/l-ent-univ/l-ent`, clés `l-ent:*` du `localStorage`, cookie `__Host-lent_session`) : c'est voulu, les renommer déconnecterait les utilisateurs et effacerait leurs réglages.
 
 Interface alternative pour les portails ENT des universités françaises.  
 Regroupe notes, emploi du temps et services dans une seule page.
@@ -12,7 +15,7 @@ Université supportée : **Université de Rennes**. Le projet est conçu pour ê
 
 ## Contexte
 
-Les portails ENT (uPortal + CAS, le standard des universités françaises) exposent les données étudiantes (notes, planning, services) à travers plusieurs interfaces séparées et datées. l'ent les agrège dans un dashboard unique, utilisable sur mobile comme sur desktop.
+Les portails ENT (uPortal + CAS, le standard des universités françaises) exposent les données étudiantes (notes, planning, services) à travers plusieurs interfaces séparées et datées. Tafac les agrège dans un dashboard unique, utilisable sur mobile comme sur desktop.
 
 ## 🎓 Ajoutez votre université
 
@@ -26,7 +29,7 @@ UNIVERSITY=univ-lavotre npm run dev
 ```
 
 - Chaque feature (ADE, planning, Moodle, notes…) est **optionnelle** : ce que votre université n'a pas est proprement masqué.
-- `universities/univ-rennes/` sert d'implémentation de référence complète, `universities/univ-exemple/` de démo jouable (compte `demo@l-ent.app` / `lent-demo`).
+- `universities/univ-rennes/` sert d'implémentation de référence complète, `universities/univ-exemple/` de démo jouable (compte `demo@tafac.fr` / `tafac-demo`).
 - Une fois testée avec un vrai compte étudiant, **ouvrez une Pull Request** : votre université peut être hébergée sur l'instance officielle, sur son propre sous-domaine (voir plus bas) ou déployez votre fork vous-même.
 
 Guide pas-à-pas : **[docs/ADDING_A_UNIVERSITY.md](docs/ADDING_A_UNIVERSITY.md)**
@@ -58,8 +61,8 @@ Guide pas-à-pas : **[docs/ADDING_A_UNIVERSITY.md](docs/ADDING_A_UNIVERSITY.md)*
 Prérequis : Node.js 18+, npm.
 
 ```bash
-git clone https://github.com/tom-things/l-ent.git
-cd l-ent
+git clone https://github.com/l-ent-univ/tafac.git
+cd tafac
 npm install
 npm run dev
 ```
@@ -89,7 +92,7 @@ Le serveur Express écoute sur le port `3000` (configurable via `PORT`).
 
 ## Multi-université par sous-domaine
 
-Une seule instance peut servir plusieurs universités, chacune sur son sous-domaine (`univrennes.lent.example`, `univnantes.lent.example`…) :
+Une seule instance peut servir plusieurs universités, chacune sur son sous-domaine (`univrennes.tafac.example`, `univnantes.tafac.example`…) :
 
 ```bash
 npm run build:all                 # un bundle par université → dist/<id>/
@@ -104,7 +107,7 @@ Avec Docker (serveur perso, VPS…) : chaque merge sur `main` publie une image `
 
 ## Sécurité & confidentialité
 
-- l'ent ne maintient pas de base de données applicative dédiée pour stocker les comptes étudiants.
+- Tafac ne maintient pas de base de données applicative dédiée pour stocker les comptes étudiants.
 - Les données sont récupérées à la demande depuis les services de l'université configurée : CAS, ENT, ADE et Planning.
 - Le mot de passe ne sert qu'à la requête de connexion au CAS : il n'est jamais conservé, ni côté navigateur, ni en mémoire serveur, ni dans le cookie. La session repose sur le ticket CAS (cookie `TGC`), qui ouvre ensuite ADE, Moodle, la messagerie ou ScoDoc sans mot de passe.
 - Le cookie de session (`__Host-lent_session` : `Secure`, `HttpOnly`, `SameSite=Lax`) contient une copie **chiffrée** (AES-256-GCM, clé dérivée de `SESSION_SECRET`) des cookies universitaires, dont le `TGC`. Il permet de rester connecté (30 jours glissants, plafonnés à 30 jours depuis la connexion, et en pratique à la durée de vie du ticket CAS côté université) et de rétablir la session en silence après un redémarrage du serveur.
@@ -126,7 +129,7 @@ Avec Docker (serveur perso, VPS…) : chaque merge sur `main` publie une image `
 ## Architecture
 
 ```
-l-ent/
+tafac/
 ├── universities/          # ★ Une université = un dossier de config
 │   ├── univ-rennes/       #   Référence complète (Rennes)
 │   ├── univ-exemple/      #   Université fictive de démonstration
@@ -156,7 +159,7 @@ La config d'une université est lue côté serveur (`universities/<id>/server.js
 
 ## Intégrations
 
-l'ent communique avec les systèmes suivants :
+Tafac communique avec les systèmes suivants :
 
 - **CAS SSO** : authentification centralisée
 - **Portail ENT** : layout, portlets, marketplace

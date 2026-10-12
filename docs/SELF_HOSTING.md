@@ -1,4 +1,6 @@
-# Auto-héberger l'ent avec Docker
+# Auto-héberger Tafac avec Docker
+
+> Tafac s'appelait auparavant l'ent. L'image Docker garde l'ancien nom (`ghcr.io/l-ent-univ/l-ent`) pour que les installations existantes continuent de recevoir les mises à jour.
 
 Chaque merge sur `main` publie une release GitHub et une image Docker multi-architecture (amd64 et arm64) :
 
@@ -25,7 +27,7 @@ L'image contient le serveur Express et le frontend de chaque université (mode m
    echo "SESSION_SECRET=$(openssl rand -base64 32)" >> .env
    ```
    Le serveur refuse de démarrer sans ce secret. Gardez-le : le changer déconnecte tout le monde.
-3. Remplacer `lent.example.fr` par votre domaine dans `Caddyfile`. Caddy obtient et renouvelle le certificat TLS tout seul.
+3. Remplacer `tafac.example.fr` par votre domaine dans `Caddyfile`. Caddy obtient et renouvelle le certificat TLS tout seul.
 4. Lancer :
    ```sh
    docker compose up -d
@@ -40,7 +42,7 @@ Derrière un autre reverse proxy (nginx, Traefik…), il suffit de transmettre `
 docker compose pull && docker compose up -d
 ```
 
-Pour figer une version, remplacer `latest` par un numéro (`ghcr.io/l-ent-univ/l-ent:0.4.1`) dans `docker-compose.yml`. Les notes de chaque version sont sur la page [Releases](https://github.com/l-ent-univ/l-ent/releases).
+Pour figer une version, remplacer `latest` par un numéro (`ghcr.io/l-ent-univ/l-ent:0.4.1`) dans `docker-compose.yml`. Les notes de chaque version sont sur la page [Releases](https://github.com/l-ent-univ/tafac/releases).
 
 ## Variables d'environnement
 
@@ -54,7 +56,7 @@ Pour figer une version, remplacer `latest` par un numéro (`ghcr.io/l-ent-univ/l
 
 ## Changer de domaine
 
-Une PWA installée est liée à son domaine : déménager l'ent vers un nouveau domaine oblige les utilisateurs à réinstaller l'app et leur fait perdre leurs réglages locaux. Prévoir une période de transition où l'ancien domaine reste en ligne.
+Une PWA installée est liée à son domaine : déménager Tafac vers un nouveau domaine oblige les utilisateurs à réinstaller l'app et leur fait perdre leurs réglages locaux. Prévoir une période de transition où l'ancien domaine reste en ligne.
 
 ## Publication (mainteneurs)
 

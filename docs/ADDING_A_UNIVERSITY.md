@@ -1,12 +1,14 @@
 # Ajouter votre université
 
-l'ent est conçu pour être forké : toute la configuration propre à une université vit dans un seul dossier, `universities/<id>/`. Le reste du code (frontend React, backend Express) est générique.
+> Tafac s'appelait auparavant l'ent : certains identifiants techniques (`%LENT_*%`, `l-ent:*`) gardent l'ancien nom.
+
+Tafac est conçu pour être forké : toute la configuration propre à une université vit dans un seul dossier, `universities/<id>/`. Le reste du code (frontend React, backend Express) est générique.
 
 Trois exemples sont fournis :
 
 - **`universities/univ-rennes/`** — l'implémentation de référence, complète (CAS + ADE + Planning GWT + Moodle + établissements + icônes de services).
 - **`universities/example-minimal/`** — le strict minimum (ENT uPortal + CAS). Bon point de départ : copiez-le, renommez-le, remplissez vos valeurs.
-- **`universities/univ-exemple/`** — université fictive de démonstration : origins factices, mais compte démo (`demo@l-ent.app` / `lent-demo`) et widgets activés. Sert à tester le flux d'ajout et le routage par sous-domaine de bout en bout.
+- **`universities/univ-exemple/`** — université fictive de démonstration : origins factices, mais compte démo (`demo@tafac.fr` / `tafac-demo`) et widgets activés. Sert à tester le flux d'ajout et le routage par sous-domaine de bout en bout.
 
 ## Démarrage rapide
 
@@ -25,7 +27,7 @@ UNIVERSITY=univ-exemple npm start        # production
 Une même instance peut servir plusieurs universités (voir README, section « Multi-université par sous-domaine ») : `npm run build:all` puis `MULTI_TENANT=1 npm start`. Votre université est alors accessible sur le sous-domaine `<id-sans-tirets>.<domaine>` ; pour utiliser d'autres hostnames, exportez-les dans `shared.js` :
 
 ```js
-export const hostnames = ['rennes.lent.example', 'ent-rennes.example.fr']
+export const hostnames = ['rennes.tafac.example', 'ent-rennes.example.fr']
 ```
 
 ## Les trois fichiers d'une université
@@ -46,7 +48,7 @@ export const hostnames = ['rennes.lent.example', 'ent-rennes.example.fr']
 - `auth.portalEntryPath` — page d'atterrissage uPortal (souvent `/f/services/normal/render.uP`). Sert de point d'entrée de connexion, de `Referer` par défaut et de preuve d'authentification. Le serveur rejoue cette entrée avec le seul cookie CAS `TGC` (conservé chiffré dans le cookie de session) pour rétablir la session ENT en silence quand elle a expiré.
 - `auth.casLogoutPath` (optionnel, défaut `/logout`) — chemin de déconnexion du CAS Apereo, appelé à la déconnexion pour clore la session SSO côté université.
 - `branding` — `appName`, `defaultTitle`, `seoTitle`, `seoDescription`, `logo` (+ `logoAlt`, `loginFooterLine`, `about.*`). Utilisé par la page de connexion, la sidebar, le SEO, le manifest PWA et `index.html` (placeholders `%LENT_*%`).
-  - `lockup` / `lockupDark` (optionnels, `client.js` uniquement) — visuel combiné « l'ent × université » affiché dans la sidebar et le header (comme Rennes). Sans eux, le logo l'ent et votre `logo` sont composés côte à côte automatiquement.
+  - `lockup` / `lockupDark` (optionnels, `client.js` uniquement) — visuel combiné « Tafac × université » affiché dans la sidebar et le header (comme Rennes). Sans eux, le logo Tafac et votre `logo` sont composés côte à côte automatiquement.
   - `heroImages` (optionnel, `client.js` uniquement) — photos affichées en fond du haut du tableau de bord, en fondu vers le fond uni : `[{ src, credit: { author, license, url }, position? }]`. Plusieurs photos tournent chaque jour. Chaque établissement peut définir ses propres `heroImages` dans `establishments.byId`. Sans photo, un placeholder générique est affiché. Le crédit apparaît dans le footer : utilisez des images libres de droits (ex. Wikimedia Commons) et renseignez auteur + licence.
 - `features` — l'interrupteur général (voir ci-dessous).
 
@@ -62,7 +64,7 @@ export const features = {
   moodleDeadlines: false, // widget « Échéances Moodle » (devoirs/tests à rendre) — distinct de `moodle`
   weather: { enabled: true, defaultCity: 'Paris' },
   serviceCategories: false, // filtres par catégorie au-dessus de la grille d'applications (voir services.categories)
-  demo: true,        // compte de démonstration (demo@l-ent.app)
+  demo: true,        // compte de démonstration (demo@tafac.fr)
 }
 ```
 
@@ -119,7 +121,7 @@ Un feature à `false` : le serveur répond `{ disabled: true }` sur les endpoint
 
 1. `npm run lint && UNIVERSITY=<id> npm run build` — le build doit passer.
 2. `UNIVERSITY=<id> npm run dev` — page de connexion : logo, textes, liens d'aide corrects.
-3. Connexion démo (`demo@l-ent.app` / `lent-demo`) si `features.demo` — dashboard, grille d'applications.
+3. Connexion démo (`demo@tafac.fr` / `tafac-demo`) si `features.demo` — dashboard, grille d'applications.
 4. **Connexion réelle** avec un compte étudiant — c'est le seul test qui exerce CAS, le proxy ENT et les services activés.
 5. `grep -ri '<votre-univ>' src/ server/` ne doit rien retourner : tout doit vivre dans `universities/<id>/`.
 

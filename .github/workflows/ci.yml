@@ -1,5 +1,5 @@
 # CI on every pull request and push to main; on main it also publishes a
-# GitHub release and a Docker image (ghcr.io/<owner>/<repo>).
+# GitHub release and a Docker image (ghcr.io/l-ent-univ/l-ent).
 #
 # Version bump from the commits since the last v* tag (conventional commits):
 #   "type!:" or "BREAKING CHANGE" → major (minor while still 0.x)
@@ -21,7 +21,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  # Pinned to the pre-rename name so existing self-hosted installs keep
+  # pulling updates after the repo was renamed. Don't derive it from the repo.
+  IMAGE: ghcr.io/l-ent-univ/l-ent
 
 jobs:
   check:
