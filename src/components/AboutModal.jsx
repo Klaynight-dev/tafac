@@ -8,9 +8,10 @@ import PrivacyModal from './PrivacyModal'
 
 const about = universityConfig.branding.about ?? {}
 
-// Body of the "À propos" modal, also embedded at the bottom of the account
-// modal.
-export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null }) {
+// Body of the "À propos" modal, also embedded in Réglages. There,
+// `onPrivacyClick` jumps to the Confidentialité section instead of opening
+// the privacy modal on top.
+export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null, onPrivacyClick = null }) {
   const shouldShowDemoLink = typeof onDemoLinkClick === 'function' && demoLinkLabel.trim()
   const isAnalyticsAvailable = useAnalyticsAvailable()
   const [isPrivacyOpen, setPrivacyOpen] = useState(false)
@@ -28,7 +29,7 @@ export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null }) {
       {isAnalyticsAvailable ? (
         <p className="m-0 text-text-secondary">
           L'audience est mesurée de façon anonyme et sans cookie, et dans l'UE. Aucune note, aucun mail et aucun identifiant n’est collecté. Cette analyse peut être désactivée à tout moment{' '}
-          <button type="button" className="p-0 border-0 bg-transparent font-inherit text-[inherit] text-text underline underline-offset-2 cursor-pointer" onClick={() => setPrivacyOpen(true)}>
+          <button type="button" className="p-0 border-0 bg-transparent font-inherit text-[inherit] text-text underline underline-offset-2 cursor-pointer" onClick={() => (typeof onPrivacyClick === 'function' ? onPrivacyClick() : setPrivacyOpen(true))}>
             En savoir plus
           </button>
         </p>

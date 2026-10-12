@@ -4,6 +4,7 @@ export const ADE_LOOKAHEAD_KEY = 'l-ent:ade-lookahead-days'
 export const GREETING_HIDDEN_KEY = 'l-ent:greeting-hidden'
 export const HIDDEN_WIDGETS_KEY = 'l-ent:hidden-widgets'
 export const APP_DESCRIPTIONS_KEY = 'l-ent:show-app-descriptions'
+export const WALLPAPER_KEY = 'l-ent:show-wallpaper'
 export const ANONYMOUS_ANALYTICS_KEY = 'l-ent:anonymous-analytics'
 const STUDENT_TP_SELECTION_VERSION = 4
 
@@ -203,6 +204,22 @@ export function getStoredShowAppDescriptions(userId = null) {
 export function persistShowAppDescriptions(show, userId = null) {
   try {
     localStorage.setItem(APP_DESCRIPTIONS_KEY, JSON.stringify({
+      user: userId || null,
+      value: Boolean(show),
+    }))
+  } catch {
+    // Storage unavailable
+  }
+}
+
+// Dashboard background photo (Mon compte): on unless this user switched it off.
+export function getStoredShowWallpaper(userId = null) {
+  return readScopedStorageValue(WALLPAPER_KEY, userId) !== false
+}
+
+export function persistShowWallpaper(show, userId = null) {
+  try {
+    localStorage.setItem(WALLPAPER_KEY, JSON.stringify({
       user: userId || null,
       value: Boolean(show),
     }))

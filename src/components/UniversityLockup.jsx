@@ -16,8 +16,9 @@ const VARIANTS = {
     lockupLight: 'block w-[290px] h-16 object-contain max-xl:w-[180px] max-xl:h-12 max-md:w-[200px] max-md:h-auto dark:hidden',
     lockupDark: 'hidden w-[290px] h-16 object-contain max-xl:w-[180px] max-xl:h-12 max-md:w-[200px] max-md:h-auto dark:block',
     lent: 'block h-16 w-auto shrink-0 object-contain max-xl:h-12 max-md:h-11',
-    // The header sits over the hero photo, so the university logo is shown in white.
-    uni: 'block h-8 w-auto min-w-0 object-contain max-xl:h-6 [filter:brightness(0)_invert(1)_drop-shadow(0_1px_2px_rgba(0,0,0,0.5))_drop-shadow(0_0_10px_rgba(0,0,0,0.35))]',
+    // The header sits over the hero photo, so the university logo is shown in
+    // white (back to its own colours when the wallpaper is off, see overrides.css).
+    uni: 'header-university-logo block h-8 w-auto min-w-0 object-contain max-xl:h-6 [filter:brightness(0)_invert(1)_drop-shadow(0_1px_2px_rgba(0,0,0,0.5))_drop-shadow(0_0_10px_rgba(0,0,0,0.35))]',
     row: 'inline-flex items-center gap-3 min-w-0',
   },
 }

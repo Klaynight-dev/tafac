@@ -15,7 +15,8 @@ import { APP_NAME } from '../seo'
 
 // "Tes données restent à toi": what the anonymous audience measurement does
 // and doesn't do, in the illustrated style of the Figma presentation screens
-// (toutatice, node 543:959). Opened from Mon compte and from À propos.
+// (toutatice, node 543:959). Shown inline in Réglages › Confidentialité, and
+// as a modal from À propos.
 
 // Header collage rebuilt from the Figma layers (frame "illu", 402×293) so the
 // sky gradient can follow the theme. Geometry is Figma's, in frame pixels:
@@ -81,7 +82,7 @@ function getToolsSentence() {
   return `${tools.length > 1 ? 'Deux outils hébergés' : 'Un seul outil'} dans l’Union européenne\u202f: ${tools.join(', et ')}.`
 }
 
-const SECTIONS = [
+const getSections = (embedded) => [
   {
     emoji: '🕶️',
     title: 'Anonyme',
@@ -100,9 +101,72 @@ const SECTIONS = [
   {
     emoji: '🎚️',
     title: 'Tu gardes la main',
-    body: () => 'Désactive « Statistiques anonymes » dans Mon compte et plus rien n’est envoyé',
+    body: () => (embedded
+      ? 'Coupe « Statistiques anonymes » juste au-dessus et plus rien n’est envoyé'
+      : 'Désactive « Statistiques anonymes » dans les réglages et plus rien n’est envoyé'),
   },
 ]
+
+// Illustration, promise and the four points. `control` (the analytics
+// switch, when embedded) sits between the promise and the points; `actions`
+// sits above the link to the full list.
+export function PrivacyContent({ embedded = false, control = null, actions = null }) {
+  return (
+    <>
+      <div className={embedded ? 'mx-auto w-full max-w-[420px] shrink-0 overflow-hidden rounded-[20px]' : ''}>
+        <PrivacyIllustration />
+      </div>
+
+      <div className={`flex flex-col items-center gap-7 text-center ${embedded ? 'pt-1' : 'px-7 pt-1 pb-7 max-sm:px-5'}`}>
+        <div className="flex flex-col items-center gap-2">
+          <p
+            id={embedded ? undefined : 'privacy-modal-title'}
+            role="heading"
+            aria-level={embedded ? 4 : 2}
+            className={`m-0 font-display font-bold leading-[1.05] tracking-[-0.01em] ${embedded ? 'text-[28px] max-sm:text-[24px]' : 'text-[32px] max-sm:text-[28px]'}`}
+          >
+            Tes données restent à toi
+          </p>
+          <p className="m-0 text-[15px] font-medium leading-[1.35] opacity-90">
+            {APP_NAME} compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse
+          </p>
+        </div>
+
+        {control ? <div className="w-full text-left">{control}</div> : null}
+
+        <div className="grid w-full grid-cols-2 gap-x-5 gap-y-6 max-sm:grid-cols-1">
+          {getSections(embedded).map((section) => (
+            <div key={section.title} className="flex flex-col items-center gap-1.5">
+              <span className="privacy-modal-emoji text-[44px] leading-none" aria-hidden="true">{section.emoji}</span>
+              <p role="heading" aria-level={embedded ? 5 : 3} className="m-0 font-display text-[19px] font-bold leading-[1.1] tracking-[-0.01em]">
+                {section.title}
+              </p>
+              <p className="m-0 text-[14px] font-medium leading-[1.35] opacity-80">
+                {section.body()}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {actions || ANALYTICS_DOC_URL ? (
+          <div className="flex flex-col items-center gap-3">
+            {actions}
+            {ANALYTICS_DOC_URL ? (
+              <a
+                href={ANALYTICS_DOC_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] font-medium underline underline-offset-2 opacity-70 hover:opacity-100"
+              >
+                Voir le détail de ce qui est collecté
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </>
+  )
+}
 
 function PrivacyModal({ open, onClose }) {
   useEffect(() => {
@@ -145,33 +209,8 @@ function PrivacyModal({ open, onClose }) {
           <Icon icon="carbon:close" className="h-4 w-4" aria-hidden="true" />
         </button>
 
-        <PrivacyIllustration />
-
-        <div className="flex flex-col items-center gap-7 px-7 pt-1 pb-7 text-center max-sm:px-5">
-          <div className="flex flex-col items-center gap-2">
-            <p id="privacy-modal-title" role="heading" aria-level={2} className="m-0 font-display text-[32px] font-bold leading-[1.05] tracking-[-0.01em] max-sm:text-[28px]">
-              Tes données restent à toi
-            </p>
-            <p className="m-0 text-[15px] font-medium leading-[1.35] opacity-90">
-              {APP_NAME} compte ses visites pour savoir ce qui sert vraiment et réparer ce qui casse
-            </p>
-          </div>
-
-          <div className="grid w-full grid-cols-2 gap-x-5 gap-y-6 max-sm:grid-cols-1">
-            {SECTIONS.map((section) => (
-              <div key={section.title} className="flex flex-col items-center gap-1.5">
-                <span className="privacy-modal-emoji text-[44px] leading-none" aria-hidden="true">{section.emoji}</span>
-                <p role="heading" aria-level={3} className="m-0 font-display text-[19px] font-bold leading-[1.1] tracking-[-0.01em]">
-                  {section.title}
-                </p>
-                <p className="m-0 text-[14px] font-medium leading-[1.35] opacity-80">
-                  {section.body()}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col items-center gap-3">
+        <PrivacyContent
+          actions={(
             <button
               type="button"
               className="lent-button inline-flex h-11 items-center justify-center rounded-full border-0 px-7 text-[15px] font-semibold text-white cursor-pointer"
@@ -179,18 +218,8 @@ function PrivacyModal({ open, onClose }) {
             >
               Compris
             </button>
-            {ANALYTICS_DOC_URL ? (
-              <a
-                href={ANALYTICS_DOC_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[13px] font-medium underline underline-offset-2 opacity-70 hover:opacity-100"
-              >
-                Voir le détail de ce qui est collecté
-              </a>
-            ) : null}
-          </div>
-        </div>
+          )}
+        />
       </section>
     </div>
   )

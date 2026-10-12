@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { AboutContent } from './AboutModal'
-import PrivacyModal from './PrivacyModal'
+import { PrivacyContent } from './PrivacyModal'
 
 function buildSelectOptions(options, selectedOption) {
   const normalizedOptions = Array.isArray(options) ? [...options] : []
@@ -233,39 +233,139 @@ function StepSlider({ options, value, onChange, ariaLabel, disabled = false }) {
   )
 }
 
-function SettingSwitch({ icon, label, checked, onChange }) {
+const CARD_CLASSES = 'overflow-hidden rounded-[20px] border border-white bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]'
+const ROW_CLASSES = 'flex min-h-[54px] items-center justify-between gap-3 px-4 py-[11px]'
+const MUTED_FILL_CLASSES = 'bg-[#f3f1eb] dark:bg-[var(--color-bg-muted)]'
+const SETTING_BUTTON_CLASSES = `inline-flex h-9 items-center justify-center gap-[6px] rounded-full border-0 ${MUTED_FILL_CLASSES} px-3 font-body text-[14px] font-medium text-[var(--color-text)] transition-colors duration-[120ms] ease-in-out hover:bg-[#edebe5] cursor-pointer disabled:cursor-wait disabled:opacity-60 dark:hover:bg-[var(--color-bg-subtle)]`
+
+function Switch({ checked, onChange }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3">
-      <span className="flex h-[17px] min-w-0 items-center gap-[5px]">
-        <Icon icon={icon} className="h-[17px] w-[17px] shrink-0 text-[var(--color-text)]" aria-hidden="true" />
-        <span className="font-body text-[16px] font-medium leading-[16.96px] tracking-[-0.3125px] text-[var(--color-text)]">
-          {label}
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-[26px] w-[44px] shrink-0 items-center rounded-full border-0 p-0 transition-colors duration-150 ease-in-out cursor-pointer ${checked ? 'bg-text' : 'bg-text-30'}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute left-[3px] top-[3px] h-5 w-5 rounded-full bg-widget-bg shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-150 ease-in-out ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`}
+      />
+    </button>
+  )
+}
+
+function RowText({ icon, label, description }) {
+  return (
+    <span className="flex min-w-0 items-center gap-[10px]">
+      {icon ? (
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${MUTED_FILL_CLASSES}`} aria-hidden="true">
+          <Icon icon={icon} className="h-[17px] w-[17px] text-[var(--color-text)]" />
         </span>
+      ) : null}
+      <span className="flex min-w-0 flex-col gap-[3px]">
+        <span className="font-body text-[16px] font-medium leading-[1.2] tracking-[-0.3125px] text-[var(--color-text)]">{label}</span>
+        {description ? (
+          <span className="font-body text-[13px] font-medium leading-[1.35] text-text-60">{description}</span>
+        ) : null}
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-[26px] w-[44px] shrink-0 items-center rounded-full border-0 p-0 transition-colors duration-150 ease-in-out ${checked ? 'bg-text' : 'bg-text-30'}`}
-      >
-        <span
-          aria-hidden="true"
-          className={`absolute left-[3px] top-[3px] h-5 w-5 rounded-full bg-widget-bg shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-150 ease-in-out ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`}
-        />
-      </button>
+    </span>
+  )
+}
+
+// A row whose whole surface toggles the switch.
+function SwitchRow({ icon, label, description, checked, onChange }) {
+  return (
+    <label className={`${ROW_CLASSES} cursor-pointer`}>
+      <RowText icon={icon} label={label} description={description} />
+      <Switch checked={checked} onChange={onChange} />
     </label>
   )
 }
 
-const SETTING_BUTTON_CLASSES = 'inline-flex h-9 items-center justify-center gap-[6px] rounded-full border border-white bg-white px-3 font-body text-[14px] font-medium text-[var(--color-text)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors duration-[120ms] ease-in-out hover:bg-[#f8f7f3] cursor-pointer disabled:cursor-wait disabled:opacity-60 dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] dark:hover:bg-[var(--color-bg-subtle)]'
+// Titled white card; its rows are split by hairlines.
+function SettingsGroup({ title, footer, children }) {
+  return (
+    <div className="flex flex-col gap-[7px]">
+      {title ? (
+        <h4 className="m-0 px-1 font-body text-[13px] font-semibold leading-none text-text-60">{title}</h4>
+      ) : null}
+      <div className={`${CARD_CLASSES} divide-y divide-[var(--color-border)]`}>
+        {children}
+      </div>
+      {footer ? (
+        <p className="m-0 px-1 font-body text-[13px] font-medium leading-[1.4] text-text-50">{footer}</p>
+      ) : null}
+    </div>
+  )
+}
 
-// Custom dashboard background: preview of the current one, pick an image,
-// or go back to the default photo.
-function BackgroundSetting({ previewSrc, hasCustom, onChange, onReset }) {
+function PlanningSelect({ label, value, options, placeholder, disabled, onChange }) {
+  return (
+    <label className={ROW_CLASSES}>
+      <span className="font-body text-[16px] font-medium leading-[1.2] tracking-[-0.3125px] text-[var(--color-text)]">{label}</span>
+      <span className="relative min-w-0 w-[min(220px,58%)]">
+        <select
+          className={`h-9 w-full appearance-none truncate rounded-full border-0 ${MUTED_FILL_CLASSES} pl-[13px] pr-9 font-body text-[15px] font-medium text-[var(--color-text)] outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-brand/45 disabled:cursor-wait disabled:opacity-60`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+        >
+          <option value="" disabled>{placeholder}</option>
+          {options.map((option) => (
+            <option key={option.resourceId} value={option.resourceId}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <Icon icon="carbon:chevron-down" className="pointer-events-none absolute right-[11px] top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text)]" aria-hidden="true" />
+      </span>
+    </label>
+  )
+}
+
+function LookaheadSetting({ days, options, onChange }) {
+  const stepCount = options.length
+
+  return (
+    <div className="flex flex-col gap-[12px] px-4 pb-4 pt-[13px]">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-body text-[14px] font-medium leading-[1.35] text-text-60">
+          Chercher le prochain cours sur
+        </span>
+        <span className={`inline-flex items-center rounded-full ${MUTED_FILL_CLASSES} px-[10px] py-[4px] font-body text-[13px] font-semibold leading-none text-[var(--color-text)]`}>
+          {days} jours
+        </span>
+      </div>
+      <StepSlider
+        options={options}
+        value={days}
+        onChange={onChange}
+        ariaLabel="Nombre de jours de recherche du prochain cours"
+      />
+      <div className="relative h-[15px]" aria-hidden="true">
+        {options.map((option, index) => (
+          <span
+            key={option}
+            className="absolute top-0 -translate-x-1/2 font-body text-[12px] font-medium leading-none text-text-50"
+            style={{ left: `calc(${STEP_SLIDER_KNOB_PX / 2}px + (100% - ${STEP_SLIDER_KNOB_PX}px) * ${stepCount > 1 ? index / (stepCount - 1) : 0})` }}
+          >
+            {option}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Dashboard background: large preview, an on/off switch, and (when on) pick
+// an image or go back to the default photo.
+function WallpaperSetting({ previewSrc, hasCustom, enabled, onEnabledChange, onChange, onReset }) {
   const inputRef = useRef(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const canToggle = typeof onEnabledChange === 'function'
+  const canPick = typeof onChange === 'function'
 
   const handleFile = async (event) => {
     const file = event.target.files?.[0]
@@ -284,38 +384,54 @@ function BackgroundSetting({ previewSrc, hasCustom, onChange, onReset }) {
   }
 
   return (
-    <div className="flex flex-col gap-[10px]">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex h-[17px] min-w-0 items-center gap-[5px]">
-          <Icon icon="carbon:image" className="h-[17px] w-[17px] shrink-0 text-[var(--color-text)]" aria-hidden="true" />
-          <span className="font-body text-[16px] font-medium leading-[16.96px] tracking-[-0.3125px] text-[var(--color-text)]">
-            Fond d’écran
-          </span>
-        </span>
-        {previewSrc ? (
-          <span
-            className="block h-9 w-16 shrink-0 rounded-[10px] border border-[var(--color-border)] bg-cover bg-center"
+    <SettingsGroup
+      title="Fond d’écran"
+      footer={canPick ? 'Ton image reste sur cet appareil, elle n’est envoyée nulle part.' : null}
+    >
+      {previewSrc ? (
+        <div className="p-2">
+          <div
+            className={`relative aspect-[16/6] w-full rounded-[14px] bg-cover bg-center transition-[opacity,filter] duration-200 ${enabled ? '' : 'opacity-35 grayscale'}`}
             style={{ backgroundImage: `url("${previewSrc}")` }}
             aria-hidden="true"
-          />
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={SETTING_BUTTON_CLASSES} onClick={() => inputRef.current?.click()} disabled={busy}>
-          <Icon icon="carbon:upload" className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
-          {busy ? 'Enregistrement…' : 'Choisir une image'}
-        </button>
-        {hasCustom ? (
-          <button type="button" className={SETTING_BUTTON_CLASSES} onClick={() => { setError(''); onReset() }} disabled={busy}>
-            Rétablir la photo
-          </button>
-        ) : null}
-        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      </div>
-      {error ? (
-        <p className="m-0 font-body text-[13px] font-semibold leading-[1.2] text-[#b91c1c] dark:text-[var(--color-error)]" role="alert">{error}</p>
+          >
+            {hasCustom && enabled ? (
+              <span className="absolute left-2 top-2 rounded-full bg-black/45 px-[9px] py-[4px] font-body text-[12px] font-semibold leading-none text-white backdrop-blur-sm">
+                Image personnalisée
+              </span>
+            ) : null}
+          </div>
+        </div>
       ) : null}
-    </div>
+      {canToggle ? (
+        <SwitchRow
+          label="Afficher le fond d’écran"
+          description="Photo en haut du tableau de bord"
+          checked={enabled}
+          onChange={onEnabledChange}
+        />
+      ) : null}
+      {canPick && enabled ? (
+        <div className="flex flex-col gap-2 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={SETTING_BUTTON_CLASSES} onClick={() => inputRef.current?.click()} disabled={busy}>
+              <Icon icon="carbon:upload" className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
+              {busy ? 'Enregistrement…' : hasCustom ? 'Changer d’image' : 'Choisir une image'}
+            </button>
+            {hasCustom ? (
+              <button type="button" className={SETTING_BUTTON_CLASSES} onClick={() => { setError(''); onReset() }} disabled={busy}>
+                <Icon icon="carbon:reset" className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
+                Photo par défaut
+              </button>
+            ) : null}
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+          </div>
+          {error ? (
+            <p className="m-0 font-body text-[13px] font-semibold leading-[1.2] text-[#b91c1c] dark:text-[var(--color-error)]" role="alert">{error}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </SettingsGroup>
   )
 }
 
@@ -336,6 +452,8 @@ function AccountModal({
   widgetToggles = [],
   onWidgetVisibilityChange,
   backgroundPreviewSrc = null,
+  showWallpaper = true,
+  onShowWallpaperChange,
   hasCustomBackground = false,
   onCustomBackgroundChange,
   onCustomBackgroundReset,
@@ -344,7 +462,9 @@ function AccountModal({
   anonymousAnalytics = true,
   onAnonymousAnalyticsChange = null,
 }) {
-  const [isPrivacyOpen, setPrivacyOpen] = useState(false)
+  const [activeSectionId, setActiveSectionId] = useState('account')
+  const tabRefs = useRef({})
+
   useEffect(() => {
     if (!open) {
       return undefined
@@ -372,8 +492,6 @@ function AccountModal({
   const tpOptions = buildSelectOptions(planningState.tpOptions, planningState.draftTp)
 
   const isPlanningBusy = planningState.loading || planningState.applying
-  const isTdDisabled = isPlanningBusy || !planningState.draftYear
-  const isTpDisabled = isPlanningBusy || !planningState.draftTd
   // Only swap the planning selects for the loading dots when there is nothing
   // stored to show — with a stored selection the selects render immediately
   // (disabled) while ADE loads in the background.
@@ -389,7 +507,234 @@ function AccountModal({
   const canConfigureLookahead = typeof onLookaheadChange === 'function'
     && Array.isArray(lookaheadOptions)
     && lookaheadOptions.length > 1
-  const lookaheadStepCount = canConfigureLookahead ? lookaheadOptions.length : 0
+  const canToggleWidgets = typeof onWidgetVisibilityChange === 'function' && widgetToggles.length > 0
+  const nextClassToggle = canToggleWidgets ? widgetToggles.find((widget) => widget.id === 'nextClass') : null
+  // The lookahead only tunes the "Prochain cours" card, so it lives under that
+  // card's switch. Without the card in the list it falls back to Planning.
+  const lookaheadInDashboard = canConfigureLookahead && Boolean(nextClassToggle)
+  const hasAppearance = typeof onCustomBackgroundChange === 'function'
+    || typeof onShowWallpaperChange === 'function'
+    || typeof onShowAppDescriptionsChange === 'function'
+  const hasPrivacy = typeof onAnonymousAnalyticsChange === 'function'
+
+  const sections = [
+    { id: 'account', label: 'Compte', icon: 'carbon:user-avatar' },
+    { id: 'planning', label: 'Planning', icon: 'carbon:calendar' },
+    canToggleWidgets ? { id: 'dashboard', label: 'Tableau de bord', icon: 'carbon:dashboard' } : null,
+    hasAppearance ? { id: 'appearance', label: 'Apparence', icon: 'carbon:image' } : null,
+    hasPrivacy ? { id: 'privacy', label: 'Confidentialité', icon: 'carbon:locked' } : null,
+    { id: 'about', label: 'À propos', icon: 'carbon:information' },
+  ].filter(Boolean)
+  const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0]
+
+  // On phones the tabs scroll sideways: bring the picked one fully into view.
+  const selectSection = (sectionId) => {
+    setActiveSectionId(sectionId)
+    tabRefs.current[sectionId]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }
+
+  const focusSection = (index) => {
+    const section = sections[(index + sections.length) % sections.length]
+    selectSection(section.id)
+    tabRefs.current[section.id]?.focus()
+  }
+
+  const handleTabKeyDown = (event) => {
+    const index = sections.findIndex((section) => section.id === activeSection.id)
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'ArrowRight':
+        event.preventDefault()
+        focusSection(index + 1)
+        break
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        event.preventDefault()
+        focusSection(index - 1)
+        break
+      case 'Home':
+        event.preventDefault()
+        focusSection(0)
+        break
+      case 'End':
+        event.preventDefault()
+        focusSection(sections.length - 1)
+        break
+      default:
+        break
+    }
+  }
+
+  const renderSection = () => {
+    switch (activeSection.id) {
+      case 'account':
+        return (
+          <>
+            <div className={`${CARD_CLASSES} flex items-center gap-[18px] p-[18px]`}>
+              <div className={`flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[rgba(27,27,27,0.16)] ${MUTED_FILL_CLASSES} dark:border-[var(--color-border)]`}>
+                {profilePhotoSrc ? (
+                  <img
+                    className="h-full w-full object-cover"
+                    src={profilePhotoSrc}
+                    alt={`Photo de profil de ${displayInfo.firstName || displayInfo.email || 'l’utilisateur'}`}
+                  />
+                ) : (
+                  <Icon icon="carbon:user-avatar-filled-alt" className="h-9 w-9 text-[var(--color-text)]" aria-hidden="true" />
+                )}
+              </div>
+              <div className="flex min-w-0 flex-col gap-[4px]">
+                <p className="m-0 truncate font-body text-[19px] font-semibold leading-[1.2] tracking-[-0.3125px]">
+                  {[displayInfo.firstName, displayInfo.lastName].filter(Boolean).join(' ') || '—'}
+                </p>
+                <p className="m-0 truncate font-body text-[14px] font-medium leading-[1.3] text-text-60">
+                  {displayInfo.email || '—'}
+                </p>
+              </div>
+            </div>
+
+            {typeof onManageAccount === 'function' ? (
+              <SettingsGroup>
+                <button type="button" className={`${ROW_CLASSES} w-full border-0 bg-transparent text-left cursor-pointer transition-colors duration-[120ms] hover:bg-[#f8f7f3] dark:hover:bg-[var(--color-bg-subtle)]`} onClick={onManageAccount}>
+                  <RowText icon="carbon:password" label="Gérer mon compte sur Sésame" />
+                  <Icon icon="carbon:launch" className="h-4 w-4 shrink-0 text-text-60" aria-hidden="true" />
+                </button>
+              </SettingsGroup>
+            ) : null}
+          </>
+        )
+
+      case 'planning':
+        return (
+          <>
+            <SettingsGroup
+              title="Mon groupe"
+              footer="Sert à trouver tes cours. Le changement s’applique quand tu fermes les réglages."
+            >
+              {shouldShowPlanningLoader ? (
+                <div className="flex h-[162px] w-full items-center justify-center">
+                  <AccountModalLoadingDots label={planningState.loadingMessage || 'Chargement...'} />
+                </div>
+              ) : (
+                <>
+                  <PlanningSelect
+                    label={fieldLabels.year}
+                    value={planningState.draftYear?.resourceId ?? ''}
+                    options={yearOptions}
+                    placeholder={loadingPlaceholder}
+                    disabled={isPlanningBusy || yearOptions.length === 0}
+                    onChange={onYearChange}
+                  />
+                  <PlanningSelect
+                    label={fieldLabels.td}
+                    value={planningState.draftTd?.resourceId ?? ''}
+                    options={tdOptions}
+                    placeholder={loadingPlaceholder}
+                    disabled={isPlanningBusy || !planningState.draftYear}
+                    onChange={onTdChange}
+                  />
+                  <PlanningSelect
+                    label={fieldLabels.tp}
+                    value={planningState.draftTp?.resourceId ?? ''}
+                    options={tpOptions}
+                    placeholder={loadingPlaceholder}
+                    disabled={isPlanningBusy || !planningState.draftTd}
+                    onChange={onTpChange}
+                  />
+                </>
+              )}
+            </SettingsGroup>
+
+            {planningState.errorMessage ? (
+              <p className="m-0 px-1 font-body text-[13px] font-semibold leading-[1.2] text-[#b91c1c] dark:text-[var(--color-error)]" role="alert">
+                {planningState.errorMessage}
+              </p>
+            ) : null}
+
+            {canConfigureLookahead && !lookaheadInDashboard ? (
+              <SettingsGroup title="Prochain cours">
+                <LookaheadSetting days={lookaheadDays} options={lookaheadOptions} onChange={onLookaheadChange} />
+              </SettingsGroup>
+            ) : null}
+          </>
+        )
+
+      case 'dashboard':
+        return (
+          <SettingsGroup title="Cartes affichées" footer="Les cartes masquées disparaissent du haut du tableau de bord.">
+            {widgetToggles.map((widget) => (
+              <div key={widget.id}>
+                <SwitchRow
+                  icon={widget.icon}
+                  label={widget.label}
+                  checked={widget.visible}
+                  onChange={(visible) => onWidgetVisibilityChange(widget.id, visible)}
+                />
+                {widget.id === 'nextClass' && lookaheadInDashboard && widget.visible ? (
+                  <div className="border-t border-[var(--color-border)]">
+                    <LookaheadSetting days={lookaheadDays} options={lookaheadOptions} onChange={onLookaheadChange} />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </SettingsGroup>
+        )
+
+      case 'appearance':
+        return (
+          <>
+            {typeof onCustomBackgroundChange === 'function' || typeof onShowWallpaperChange === 'function' ? (
+              <WallpaperSetting
+                previewSrc={backgroundPreviewSrc}
+                hasCustom={hasCustomBackground}
+                enabled={showWallpaper}
+                onEnabledChange={onShowWallpaperChange}
+                onChange={onCustomBackgroundChange}
+                onReset={onCustomBackgroundReset}
+              />
+            ) : null}
+            {typeof onShowAppDescriptionsChange === 'function' ? (
+              <SettingsGroup title="Applications">
+                <SwitchRow
+                  icon="carbon:text-short-paragraph"
+                  label="Descriptions des applications"
+                  description="Une ligne d’explication sous chaque application"
+                  checked={showAppDescriptions}
+                  onChange={onShowAppDescriptionsChange}
+                />
+              </SettingsGroup>
+            ) : null}
+          </>
+        )
+
+      case 'privacy':
+        return (
+          <PrivacyContent
+            embedded
+            control={(
+              <SettingsGroup>
+                <SwitchRow
+                  icon="carbon:chart-line"
+                  label="Statistiques anonymes"
+                  description={anonymousAnalytics ? 'Activées, merci !' : 'Désactivées, plus rien n’est envoyé'}
+                  checked={anonymousAnalytics}
+                  onChange={onAnonymousAnalyticsChange}
+                />
+              </SettingsGroup>
+            )}
+          />
+        )
+
+      case 'about':
+        return (
+          <div className={`${CARD_CLASSES} p-[18px]`}>
+            <AboutContent onPrivacyClick={hasPrivacy ? () => selectSection('privacy') : null} />
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
 
   return (
     <div
@@ -398,288 +743,78 @@ function AccountModal({
       role="presentation"
     >
       <section
-        className="account-modal-card flex h-[572px] w-[min(569px,100%)] max-h-[calc(100vh-40px)] flex-col overflow-hidden rounded-[22px] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] animate-modal-card-in max-sm:h-auto max-sm:max-h-[calc(100vh-28px)]"
+        className="account-modal-card flex h-[600px] w-[min(780px,100%)] max-h-[calc(100vh-40px)] flex-col overflow-hidden rounded-[22px] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] animate-modal-card-in max-sm:h-[calc(100dvh-28px)] max-sm:max-h-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-modal-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div key="content" className="account-modal-layout-panel flex h-full min-h-0 flex-col">
-          <div className="flex items-center justify-between px-[21px] pb-[10px] pt-[21px]">
-            <h2
-              id="account-modal-title"
-              className="m-0 text-[26.4px] font-bold leading-[26.6px] text-[var(--color-text)]"
-            >
-              Mon compte
-              <span className="ml-[7px] text-[15px] font-medium tracking-normal text-text-secondary">et préférences</span>
-            </h2>
+        <div className="flex items-center justify-between px-[21px] pb-[12px] pt-[21px]">
+          <h2
+            id="account-modal-title"
+            className="m-0 text-[26.4px] font-bold leading-[26.6px] text-[var(--color-text)]"
+          >
+            Réglages
+          </h2>
 
-            <button
-              type="button"
-              className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[rgba(27,27,27,0.16)] bg-[#f3f1eb] p-0 text-[var(--color-text)] transition-colors duration-[120ms] ease-in-out hover:bg-[#edebe5] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-muted)] dark:hover:bg-[var(--color-bg-subtle)]"
-              onClick={onClose}
-              aria-label="Fermer le menu de compte"
-            >
-              <Icon icon="carbon:close" className="h-4 w-4" aria-hidden="true" />
-            </button>
+          <button
+            type="button"
+            className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[rgba(27,27,27,0.16)] bg-[#f3f1eb] p-0 text-[var(--color-text)] transition-colors duration-[120ms] ease-in-out hover:bg-[#edebe5] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-muted)] dark:hover:bg-[var(--color-bg-subtle)]"
+            onClick={onClose}
+            aria-label="Fermer les réglages"
+          >
+            <Icon icon="carbon:close" className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="flex min-h-0 flex-1 max-sm:flex-col">
+          <nav
+            className="flex w-[208px] shrink-0 flex-col gap-1 overflow-y-auto px-[13px] pb-[21px] max-sm:w-auto max-sm:flex-row max-sm:overflow-x-auto max-sm:px-[14px] max-sm:pb-[10px] max-sm:[scrollbar-width:none]"
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label="Sections des réglages"
+          >
+            {sections.map((section) => {
+              const isActive = section.id === activeSection.id
+              return (
+                <button
+                  key={section.id}
+                  ref={(element) => { tabRefs.current[section.id] = element }}
+                  id={`settings-tab-${section.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls="settings-panel"
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => selectSection(section.id)}
+                  onKeyDown={handleTabKeyDown}
+                  className={`inline-flex h-10 w-full shrink-0 items-center gap-2 rounded-full border px-3 text-left font-body text-[15px] font-medium leading-6 whitespace-nowrap text-text cursor-pointer transition-[background-color,box-shadow,border-color] duration-150 ease-in-out max-sm:w-auto max-sm:h-9 max-sm:text-[14px] ${
+                    isActive
+                      ? 'bg-widget-bg border-white dark:border-[rgba(255,255,255,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+                      : 'bg-transparent border-transparent hover:bg-brand-subtle'
+                  }`}
+                >
+                  <Icon icon={section.icon} className="h-[17px] w-[17px] shrink-0" aria-hidden="true" />
+                  {section.label}
+                </button>
+              )
+            })}
+          </nav>
+
+          <div
+            key={activeSection.id}
+            id="settings-panel"
+            role="tabpanel"
+            aria-labelledby={`settings-tab-${activeSection.id}`}
+            className="account-modal-layout-panel account-modal-layout-panel--compact flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto pb-[21px] pl-[8px] pr-[21px] max-sm:px-[14px] max-sm:pt-1"
+          >
+            <h3 className="m-0 font-body text-[19px] font-semibold leading-[1.2] tracking-[-0.3125px] max-sm:hidden">
+              {activeSection.label}
+            </h3>
+            {renderSection()}
           </div>
-
-          <div className="flex flex-1 flex-col gap-[15px] overflow-y-auto px-[21px] pb-[21px]">
-            <div className="flex items-center gap-[25px] rounded-[23px] border border-white bg-white p-[21px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] max-sm:flex-col max-sm:items-start">
-              <div className="flex h-[97px] w-[97px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[rgba(27,27,27,0.16)] bg-[#f3f1eb] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-muted)]">
-                {profilePhotoSrc ? (
-                  <img
-                    className="h-full w-full object-cover"
-                    src={profilePhotoSrc}
-                    alt={`Photo de profil de ${displayInfo.firstName || displayInfo.email || 'l’utilisateur'}`}
-                  />
-                ) : (
-                  <Icon icon="carbon:user-avatar-filled-alt" className="h-10 w-10 text-[var(--color-text)]" aria-hidden="true" />
-                )}
-              </div>
-
-              <div className="flex min-w-0 flex-1 flex-col gap-[10px] text-[var(--color-text)]">
-                <div className="grid w-full grid-cols-2 gap-[10px] max-sm:grid-cols-1">
-                  <div className="min-w-0">
-                    <p className="m-0 font-body text-[14px] font-semibold leading-[14px]">Prénom</p>
-                    <p className="m-0 truncate font-body text-[16px] font-normal leading-[24px]">
-                      {displayInfo.firstName || '—'}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="m-0 font-body text-[14px] font-semibold leading-[14px]">Nom</p>
-                    <p className="m-0 truncate font-body text-[16px] font-normal leading-[24px]">
-                      {displayInfo.lastName || '—'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="min-w-0">
-                  <p className="m-0 font-body text-[14px] font-semibold leading-[14px]">Adresse mail</p>
-                  <p className="m-0 truncate font-body text-[16px] font-normal leading-[24px]">
-                    {displayInfo.email || '—'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px w-full bg-[var(--color-border)]" aria-hidden="true" />
-
-            <div className="flex flex-col gap-[10px]">
-              <div className="flex h-[17px] items-center gap-[5px]">
-                <Icon icon="carbon:calendar" className="h-[17px] w-[17px] shrink-0 text-[var(--color-text)]" aria-hidden="true" />
-                <p className="m-0 font-body text-[16px] font-medium leading-[16.96px] tracking-[-0.3125px] text-[var(--color-text)]">
-                  Planning
-                </p>
-              </div>
-
-              <div key={shouldShowPlanningLoader ? 'planning-loading' : 'planning-ready'} className="account-modal-layout-panel account-modal-layout-panel--compact min-h-[65px]">
-                {shouldShowPlanningLoader ? (
-                  <div className="flex h-[65px] w-full items-center justify-center">
-                    <AccountModalLoadingDots label={planningState.loadingMessage || 'Chargement...'} />
-                  </div>
-                ) : (
-                  <div className="grid w-full grid-cols-3 gap-[10px] max-sm:grid-cols-1">
-                    <label className="flex min-w-0 flex-col gap-[5px]">
-                      <span className="font-body text-[14px] font-semibold leading-[14px] text-[var(--color-text)]">{fieldLabels.year}</span>
-                      <div className="relative">
-                        <select
-                          className="h-[46px] w-full appearance-none rounded-full border border-white bg-white pl-[13px] pr-10 font-body text-[16px] font-medium leading-[24px] tracking-[-0.3125px] text-[var(--color-text)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] outline-none disabled:cursor-wait disabled:opacity-60 dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
-                          value={planningState.draftYear?.resourceId ?? ''}
-                          onChange={(event) => onYearChange(event.target.value)}
-                          disabled={isPlanningBusy || yearOptions.length === 0}
-                        >
-                          <option value="" disabled>{loadingPlaceholder}</option>
-                          {yearOptions.map((option) => (
-                            <option key={option.resourceId} value={option.resourceId}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <Icon icon="carbon:chevron-down" className="pointer-events-none absolute right-[13px] top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[var(--color-text)]" aria-hidden="true" />
-                      </div>
-                    </label>
-
-                    <label className="flex min-w-0 flex-col gap-[5px]">
-                      <span className="font-body text-[14px] font-semibold leading-[14px] text-[var(--color-text)]">{fieldLabels.td}</span>
-                      <div className="relative">
-                        <select
-                          className="h-[46px] w-full appearance-none rounded-full border border-white bg-white pl-[13px] pr-10 font-body text-[16px] font-medium leading-[24px] tracking-[-0.3125px] text-[var(--color-text)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] outline-none disabled:cursor-wait disabled:opacity-60 dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
-                          value={planningState.draftTd?.resourceId ?? ''}
-                          onChange={(event) => onTdChange(event.target.value)}
-                          disabled={isTdDisabled}
-                        >
-                          <option value="" disabled>{loadingPlaceholder}</option>
-                          {tdOptions.map((option) => (
-                            <option key={option.resourceId} value={option.resourceId}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <Icon icon="carbon:chevron-down" className="pointer-events-none absolute right-[13px] top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[var(--color-text)]" aria-hidden="true" />
-                      </div>
-                    </label>
-
-                    <label className="flex min-w-0 flex-col gap-[5px]">
-                      <span className="font-body text-[14px] font-semibold leading-[14px] text-[var(--color-text)]">{fieldLabels.tp}</span>
-                      <div className="relative">
-                        <select
-                          className="h-[46px] w-full appearance-none rounded-full border border-white bg-white pl-[13px] pr-10 font-body text-[16px] font-medium leading-[24px] tracking-[-0.3125px] text-[var(--color-text)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] outline-none disabled:cursor-wait disabled:opacity-60 dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
-                          value={planningState.draftTp?.resourceId ?? ''}
-                          onChange={(event) => onTpChange(event.target.value)}
-                          disabled={isTpDisabled}
-                        >
-                          <option value="" disabled>{loadingPlaceholder}</option>
-                          {tpOptions.map((option) => (
-                            <option key={option.resourceId} value={option.resourceId}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <Icon icon="carbon:chevron-down" className="pointer-events-none absolute right-[13px] top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[var(--color-text)]" aria-hidden="true" />
-                      </div>
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {canConfigureLookahead ? (
-              <>
-                <div className="h-px w-full bg-[var(--color-border)]" aria-hidden="true" />
-
-                <div className="flex flex-col gap-[12px]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex h-[17px] items-center gap-[5px]">
-                      <Icon icon="carbon:time" className="h-[17px] w-[17px] shrink-0 text-[var(--color-text)]" aria-hidden="true" />
-                      <p className="m-0 font-body text-[16px] font-medium leading-[16.96px] tracking-[-0.3125px] text-[var(--color-text)]">
-                        Prochain cours
-                      </p>
-                    </div>
-                    <span className="inline-flex items-center rounded-full bg-[#f3f1eb] px-[10px] py-[3px] font-body text-[13px] font-semibold leading-none text-[var(--color-text)] dark:bg-[var(--color-bg-muted)]">
-                      {lookaheadDays} jours
-                    </span>
-                  </div>
-
-                  <p className="m-0 font-body text-[14px] font-medium leading-[1.35] text-text-60">
-                    Jusqu'où afficher les cours sur une période donnée
-                  </p>
-
-                  <StepSlider
-                    options={lookaheadOptions}
-                    value={lookaheadDays}
-                    onChange={onLookaheadChange}
-                    ariaLabel="Nombre de jours de recherche du prochain cours"
-                  />
-
-                  <div className="relative h-[15px]" aria-hidden="true">
-                    {lookaheadOptions.map((option, index) => (
-                      <span
-                        key={option}
-                        className="absolute top-0 -translate-x-1/2 font-body text-[12px] font-medium leading-none text-text-50"
-                        style={{ left: `calc(${STEP_SLIDER_KNOB_PX / 2}px + (100% - ${STEP_SLIDER_KNOB_PX}px) * ${lookaheadStepCount > 1 ? index / (lookaheadStepCount - 1) : 0})` }}
-                      >
-                        {option}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {typeof onWidgetVisibilityChange === 'function' && widgetToggles.length > 0 ? (
-              <>
-                <div className="h-px w-full bg-[var(--color-border)]" aria-hidden="true" />
-
-                <div className="flex flex-col gap-[14px]">
-                  {widgetToggles.map((widget) => (
-                    <SettingSwitch
-                      key={widget.id}
-                      icon={widget.icon}
-                      label={widget.label}
-                      checked={widget.visible}
-                      onChange={(visible) => onWidgetVisibilityChange(widget.id, visible)}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-            {typeof onShowAppDescriptionsChange === 'function'
-              || typeof onCustomBackgroundChange === 'function'
-              || typeof onAnonymousAnalyticsChange === 'function' ? (
-              <>
-                <div className="h-px w-full bg-[var(--color-border)]" aria-hidden="true" />
-
-                <div className="flex flex-col gap-[14px]">
-                  {typeof onCustomBackgroundChange === 'function' ? (
-                    <BackgroundSetting
-                      previewSrc={backgroundPreviewSrc}
-                      hasCustom={hasCustomBackground}
-                      onChange={onCustomBackgroundChange}
-                      onReset={onCustomBackgroundReset}
-                    />
-                  ) : null}
-                  {typeof onShowAppDescriptionsChange === 'function' ? (
-                    <SettingSwitch
-                      icon="carbon:text-short-paragraph"
-                      label="Descriptions des applications"
-                      checked={showAppDescriptions}
-                      onChange={onShowAppDescriptionsChange}
-                    />
-                  ) : null}
-                  {typeof onAnonymousAnalyticsChange === 'function' ? (
-                    <div className="flex flex-col gap-[6px]">
-                      <SettingSwitch
-                        icon="carbon:chart-line"
-                        label="Statistiques anonymes"
-                        checked={anonymousAnalytics}
-                        onChange={onAnonymousAnalyticsChange}
-                      />
-                      <button type="button" className="self-start p-0 border-0 bg-transparent font-body text-[13px] font-medium text-text-60 underline underline-offset-2 cursor-pointer transition-colors duration-[120ms] hover:text-[var(--color-text)]" onClick={() => setPrivacyOpen(true)}>
-                        En savoir plus
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </>
-            ) : null}
-
-            {planningState.errorMessage ? (
-              <p className="m-0 font-body text-[13px] font-semibold leading-[1.2] text-[#b91c1c] dark:text-[var(--color-error)]">
-                {planningState.errorMessage}
-              </p>
-            ) : null}
-
-            <div className="h-px w-full bg-[var(--color-border)]" aria-hidden="true" />
-
-            <div className="flex flex-col gap-[10px]">
-              <div className="flex h-[17px] items-center gap-[5px]">
-                <Icon icon="carbon:information" className="h-[17px] w-[17px] shrink-0 text-[var(--color-text)]" aria-hidden="true" />
-                <p className="m-0 font-body text-[16px] font-medium leading-[16.96px] tracking-[-0.3125px] text-[var(--color-text)]">
-                  À propos
-                </p>
-              </div>
-
-              <AboutContent />
-            </div>
-          </div>
-
-          {typeof onManageAccount === 'function' ? (
-            <div className="flex w-full items-end justify-end gap-[10px] p-[21px] max-sm:flex-col max-sm:items-stretch">
-              <button
-                type="button"
-                className="inline-flex h-[46px] items-center justify-center rounded-full border border-white bg-white px-[13px] font-body text-[16px] font-normal leading-[24px] tracking-[-0.3125px] text-[var(--color-text)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors duration-[120ms] ease-in-out hover:bg-[#f8f7f3] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)] dark:hover:bg-[var(--color-bg-subtle)] max-sm:w-full"
-                onClick={onManageAccount}
-              >
-                Gérer mon compte sur Sésame
-              </button>
-            </div>
-          ) : null}
         </div>
       </section>
-      <PrivacyModal open={isPrivacyOpen} onClose={() => setPrivacyOpen(false)} />
     </div>
   )
 }

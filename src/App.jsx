@@ -28,12 +28,14 @@ import {
   getStoredEstablishment,
   getStoredHiddenWidgets,
   getStoredShowAppDescriptions,
+  getStoredShowWallpaper,
   getStoredTpSelection,
   persistAdeLookaheadDays,
   persistAnonymousAnalytics,
   persistEstablishment,
   persistHiddenWidgets,
   persistShowAppDescriptions,
+  persistShowWallpaper,
   persistTpSelection,
 } from './profileStorage'
 import WidgetContainer from './components/WidgetContainer'
@@ -1004,6 +1006,7 @@ function App() {
   const [nextClassLookaheadDays, setNextClassLookaheadDays] = useState(() => getStoredAdeLookaheadDays())
   const [hiddenWidgets, setHiddenWidgets] = useState(() => getStoredHiddenWidgets())
   const [customBackground, setCustomBackground] = useState(() => getStoredCustomBackground())
+  const [showWallpaper, setShowWallpaper] = useState(() => getStoredShowWallpaper())
   const [showAppDescriptions, setShowAppDescriptions] = useState(() => getStoredShowAppDescriptions())
   const [anonymousAnalytics, setAnonymousAnalytics] = useState(() => getStoredAnonymousAnalytics())
   const isAnalyticsAvailable = useAnalyticsAvailable()
@@ -1311,6 +1314,7 @@ function App() {
     setNextClassLookaheadDays(getStoredAdeLookaheadDays(sessionState.user))
     setHiddenWidgets(getStoredHiddenWidgets(sessionState.user))
     setCustomBackground(getStoredCustomBackground(sessionState.user))
+    setShowWallpaper(getStoredShowWallpaper(sessionState.user))
     setShowAppDescriptions(getStoredShowAppDescriptions(sessionState.user))
     // Applied to the analytics module right away (not in an effect) so the
     // first dashboard events already honour this user's choice.
@@ -1814,6 +1818,12 @@ function App() {
     setCustomBackground(null)
     track('setting_changed', { setting: 'custom_background', value: 'off' })
   }, [])
+
+  const handleShowWallpaperChange = useCallback((show) => {
+    persistShowWallpaper(show, sessionState.user)
+    setShowWallpaper(show)
+    track('setting_changed', { setting: 'wallpaper', value: show ? 'on' : 'off' })
+  }, [sessionState.user])
   const [heroHeight, setHeroHeight] = useState(null)
   const heroObserverRef = useRef(null)
 
@@ -2477,7 +2487,7 @@ function App() {
       ) : shouldShowCompletionScreen ? (
         <OnboardingCompletionPage userName={completionScreenState.userName} isLeaving={completionScreenState.leaving} />
       ) : sessionState.authenticated ? (
-        <div key={`dashboard-${dashboardRevealNonce}`} className={`${dashboardRevealNonce > 0 ? 'dashboard-reveal-shell ' : ''}flex flex-col min-h-screen 4xl:h-screen 4xl:min-h-0 4xl:overflow-hidden`}>
+        <div key={`dashboard-${dashboardRevealNonce}`} className={`${dashboardRevealNonce > 0 ? 'dashboard-reveal-shell ' : ''}${showWallpaper ? '' : 'dashboard-no-wallpaper '}flex flex-col min-h-screen 4xl:h-screen 4xl:min-h-0 4xl:overflow-hidden`}>
           <Sidebar
             authenticated={sessionState.authenticated}
             checking={sessionState.checking}
@@ -2496,15 +2506,17 @@ function App() {
           />
           <div ref={dashboardColumnRef} className="relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[292px]">
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
-            <div
-              aria-hidden="true"
-              className="dashboard-hero pointer-events-none absolute inset-x-0 top-0 -z-10 h-[230px] bg-cover bg-[center_40%] max-md:h-[260px] dark:opacity-60"
-              style={{
-                ...(heroHeight ? { height: heroHeight } : null),
-                backgroundImage: `url("${heroImage.src}")`,
-                ...(heroImage.position ? { backgroundPosition: heroImage.position } : null),
-              }}
-            />
+            {showWallpaper ? (
+              <div
+                aria-hidden="true"
+                className="dashboard-hero pointer-events-none absolute inset-x-0 top-0 -z-10 h-[230px] bg-cover bg-[center_40%] max-md:h-[260px] dark:opacity-60"
+                style={{
+                  ...(heroHeight ? { height: heroHeight } : null),
+                  backgroundImage: `url("${heroImage.src}")`,
+                  ...(heroImage.position ? { backgroundPosition: heroImage.position } : null),
+                }}
+              />
+            ) : null}
             <div className="4xl:hidden">
               <AppHeader
                 authenticated={sessionState.authenticated}
@@ -2543,7 +2555,7 @@ function App() {
               />
             </div>
             <div className="4xl:mt-auto">
-              <AppFooter heroCredit={heroImage.credit} />
+              <AppFooter heroCredit={showWallpaper ? heroImage.credit : null} />
             </div>
           </div>
         </div>
@@ -2574,6 +2586,8 @@ function App() {
         widgetToggles={widgetToggles}
         onWidgetVisibilityChange={handleWidgetVisibilityChange}
         backgroundPreviewSrc={heroImage.src}
+        showWallpaper={showWallpaper}
+        onShowWallpaperChange={handleShowWallpaperChange}
         hasCustomBackground={Boolean(customBackground)}
         onCustomBackgroundChange={handleCustomBackgroundChange}
         onCustomBackgroundReset={handleCustomBackgroundReset}

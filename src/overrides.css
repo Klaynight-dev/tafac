@@ -50,6 +50,47 @@
   }
 }
 
+/* ── Wallpaper off (Réglages › Apparence) ──
+   Nothing behind the cards to see through: drop the blur and go back to
+   solid surfaces, with a crisper edge so they still lift off the page. */
+
+.dashboard-no-wallpaper .widget-card {
+  --color-widget-bg: #ffffff;
+  --color-bg-subtle: #f8f7f3;
+  border-color: #ffffff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 3px rgb(52 18 0 / 0.06), 0 10px 28px -14px rgb(52 18 0 / 0.16);
+}
+
+.dashboard-no-wallpaper .sidebar-panel {
+  background-color: #f5f3ec;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* The header logo is whitened for the photo; on the plain page it would vanish. */
+.dashboard-no-wallpaper .header-university-logo {
+  filter: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dashboard-no-wallpaper .widget-card {
+    --color-widget-bg: #1c1c1c;
+    --color-bg-subtle: #242424;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  }
+
+  .dashboard-no-wallpaper .sidebar-panel {
+    background-color: #161616;
+  }
+
+  .dashboard-no-wallpaper .header-university-logo {
+    filter: invert(1);
+  }
+}
+
 /* ── Privacy modal illustration sky (Figma "illu" gradient, themed) ── */
 
 .privacy-illustration {
