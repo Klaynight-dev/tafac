@@ -1,0 +1,136 @@
+// « Nouveautés » logic: which entries apply to this university, which ones
+// this device hasn't seen yet, and the seen state kept in localStorage.
+// Pure (no React, no @university), see tests/changelogState.test.js.
+//
+// The device stores the ids it has seen: `{"ids":["resume-du-jour",…]}`.
+// Ids rather than a date, so an entry added later on the same day still
+// shows up. Nothing stored yet means a first visit: every entry that applies
+// right now is recorded as seen without showing the pill, so a new student
+// only hears about what comes after.
+
+// Per device, like the theme. Never rename: devices would see everything again.
+export const CHANGELOG_SEEN_KEY = 'l-ent:changelog-seen'
+
+// `true`, or an object that isn't switched off (`weather: { enabled }`).
+// Anything else, `grades: 'disabled'` included, is off.
+export function isFeatureOn(value) {
+  if (value === true) return true
+  return value !== null && typeof value === 'object' && value.enabled !== false
+}
+
+// `university`: { id, features } (universityConfig).
+export function isEntryApplicable(entry, university = {}) {
+  if (Array.isArray(entry.universities) && entry.universities.length > 0
+    && !entry.universities.includes(university.id)) {
+    return false
+  }
+
+  if (Array.isArray(entry.features)) {
+    return entry.features.every((feature) => isFeatureOn(university.features?.[feature]))
+  }
+
+  return true
+}
+
+// The entries this university gets, newest first. Same-day entries keep
+// their order in the file.
+export function getApplicableEntries(entries, university) {
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => isEntryApplicable(entry, university))
+    .sort((left, right) => (
+      right.entry.date.localeCompare(left.entry.date) || left.index - right.index
+    ))
+    .map(({ entry }) => entry)
+}
+
+// Stored value → Set of seen ids, or null when nothing (usable) is stored,
+// which counts as a first visit.
+export function parseSeenValue(rawValue) {
+  if (typeof rawValue !== 'string' || !rawValue) return null
+
+  try {
+    const ids = JSON.parse(rawValue)?.ids
+    return Array.isArray(ids) ? new Set(ids.filter((id) => typeof id === 'string')) : null
+  } catch {
+    return null
+  }
+}
+
+// Value to store once `ids` are seen. Only ids still in the changelog are
+// kept, so removed entries don't pile up.
+export function serializeSeen(ids, entries) {
+  const knownIds = new Set(entries.map((entry) => entry.id))
+  return JSON.stringify({ ids: [...new Set(ids)].filter((id) => knownIds.has(id)) })
+}
+
+// Where this device stands when the app starts.
+//   entries: the applicable entries (getApplicableEntries)
+//   allEntries: the whole changelog, for pruning
+//   rawSeen: what localStorage holds under CHANGELOG_SEEN_KEY (or null)
+// Returns the unseen ids (in display order) and the value to write, or null
+// when storage is already right.
+export function resolveChangelogVisit({ entries, allEntries = entries, rawSeen }) {
+  const seen = parseSeenValue(rawSeen)
+
+  if (!seen) {
+    return {
+      firstVisit: true,
+      unseenIds: [],
+      nextSeen: serializeSeen(entries.map((entry) => entry.id), allEntries),
+    }
+  }
+
+  return {
+    firstVisit: false,
+    unseenIds: entries.filter((entry) => !seen.has(entry.id)).map((entry) => entry.id),
+    nextSeen: null,
+  }
+}
+
+// Value to store once the list was opened: everything shown is seen, and
+// whatever was seen before stays seen.
+export function markAllSeen({ entries, allEntries = entries, rawSeen }) {
+  const previous = parseSeenValue(rawSeen) ?? new Set()
+  return serializeSeen([...previous, ...entries.map((entry) => entry.id)], allEntries)
+}
+
+export function readSeenValue(storage = globalThis.localStorage) {
+  try {
+    return storage?.getItem(CHANGELOG_SEEN_KEY) ?? null
+  } catch {
+    return null
+  }
+}
+
+export function writeSeenValue(value, storage = globalThis.localStorage) {
+  try {
+    storage?.setItem(CHANGELOG_SEEN_KEY, value)
+  } catch {
+    // Storage unavailable: the pill comes back next time, nothing worse.
+  }
+}
+
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+
+// '2026-10-12' → '12 octobre', with the year when it isn't `now`'s.
+export function formatEntryDate(date, now = new Date()) {
+  const [year, month, day] = String(date).split('-').map(Number)
+  if (!year || !month || !day) return ''
+  const label = `${day === 1 ? '1er' : day} ${MONTHS[month - 1]}`
+  return year === now.getFullYear() ? label : `${label} ${year}`
+}
+
+// Consecutive entries of the same day, for the list's date headings.
+export function groupEntriesByDate(entries) {
+  const groups = []
+  for (const entry of entries) {
+    const last = groups[groups.length - 1]
+    if (last?.date === entry.date) {
+      last.entries.push(entry)
+    } else {
+      groups.push({ date: entry.date, entries: [entry] })
+    }
+  }
+  return groups
+}

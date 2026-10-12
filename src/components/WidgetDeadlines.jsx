@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { useWidgetLoadReport } from '../analytics'
+import { publishBriefingSource } from '../briefingSources'
 import { getMoodleDeadlines } from '../entApi'
 import WidgetListStatus from './WidgetListStatus'
 import {
@@ -23,8 +24,9 @@ const URGENT_WINDOW_MS = 48 * HOUR_MS
 // later refresh fails (error payloads carry no moodleHref).
 const MOODLE_HREF_KEY = 'l-ent:moodle-href'
 
-const CARD_CLASSES = 'moodle-deadlines-widget widget-card shadow-md flex-[0_1_360px] h-[140px] p-4 border border-white rounded-[22px] overflow-hidden bg-widget-bg text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-0 max-md:h-[124px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] relative flex flex-col gap-[6px] text-text'
-const ROW_CLASSES = 'grid grid-cols-[14px_minmax(0,1fr)_auto] content-center items-center gap-x-[7px] gap-y-[3px] h-[38px] px-1.5 rounded-[10px] min-w-0 max-md:h-[36px]'
+// Phones: 44px rows (touch targets), hence the taller card there.
+const CARD_CLASSES = 'moodle-deadlines-widget widget-card shadow-md flex-[0_1_360px] h-[140px] p-4 border border-white rounded-[22px] overflow-hidden bg-widget-bg text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-0 max-md:h-[124px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] max-xs:h-[140px] relative flex flex-col gap-[6px] text-text'
+const ROW_CLASSES = 'grid grid-cols-[14px_minmax(0,1fr)_auto] content-center items-center gap-x-[7px] gap-y-[3px] h-[38px] px-1.5 rounded-[10px] min-w-0 max-md:h-[36px] max-xs:h-11'
 
 const TYPE_ICONS = {
   assign: 'carbon:document',
@@ -238,6 +240,22 @@ function WidgetDeadlines({ visible = false }) {
   useEffect(() => {
     void loadDeadlines()
   }, [loadDeadlines])
+
+  // The greeting briefing reuses this list rather than asking Moodle again.
+  useEffect(() => {
+    publishBriefingSource('deadlines', state)
+  }, [state])
+
+  useEffect(() => () => publishBriefingSource('deadlines', null), [])
+
+  // Badge count (due within 48 h), so the busier of mail and deadlines can go first.
+  useEffect(() => {
+    publishBriefingSource('deadlinesCount', state.status === 'ok'
+      ? prioritizeDeadlines(state.items, now).filter((item) => isUrgent(item, now)).length
+      : null)
+  }, [state, now])
+
+  useEffect(() => () => publishBriefingSource('deadlinesCount', null), [])
 
   useEffect(() => {
     if (state.status !== 'ok' && state.status !== 'error') return undefined

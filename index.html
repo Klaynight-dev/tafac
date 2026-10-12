@@ -72,9 +72,28 @@
       }
     </script>
 
+    <script>
+      // Theme before first paint, so a forced Clair/Sombre never flashes the
+      // system one. Mirrors src/theme.js (same key, same resolution).
+      (function () {
+        var theme = 'auto'
+        try {
+          var stored = JSON.parse(localStorage.getItem('l-ent:theme') || 'null')
+          if (stored && (stored.value === 'light' || stored.value === 'dark')) theme = stored.value
+        } catch (error) {}
+        var dark = theme === 'dark'
+          || (theme === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+      })()
+    </script>
+
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: light;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
       }
 
       html,
@@ -90,11 +109,9 @@
         color: #341200;
       }
 
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: #0f0f0f;
-          color: #f3ede8;
-        }
+      [data-theme="dark"] body {
+        background: #0f0f0f;
+        color: #f3ede8;
       }
     </style>
   </head>

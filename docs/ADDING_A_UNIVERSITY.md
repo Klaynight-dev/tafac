@@ -45,6 +45,7 @@ export const hostnames = ['rennes.tafac.example', 'ent-rennes.example.fr']
 - `id` — identifiant du dossier (kebab-case).
 - `origins.ent` — origine du portail ENT (uPortal). Le proxy local ne relaie que cet hôte.
 - `origins.cas` (serveur + client) — origine du SSO CAS. Le flux de connexion implémenté est **CAS 2.0 avec formulaire** (scraping des champs `execution`/`_eventId`), le standard Jasig/Apereo utilisé par la plupart des universités françaises.
+- `origins.moodle` (optionnel, `client.js`) — origine Moodle, pour le lien « Moodle » de la sidebar et de la barre d'onglets mobile (`/my/`, via `/__ent_auth/launch`). Requiert `features.moodle`. Le lien « Messagerie » n'a besoin que de `features.mail`.
 - `auth.portalEntryPath` — page d'atterrissage uPortal (souvent `/f/services/normal/render.uP`). Sert de point d'entrée de connexion, de `Referer` par défaut et de preuve d'authentification. Le serveur rejoue cette entrée avec le seul cookie CAS `TGC` (conservé chiffré dans le cookie de session) pour rétablir la session ENT en silence quand elle a expiré.
 - `auth.casLogoutPath` (optionnel, défaut `/logout`) — chemin de déconnexion du CAS Apereo, appelé à la déconnexion pour clore la session SSO côté université.
 - `branding` — `appName`, `defaultTitle`, `seoTitle`, `seoDescription`, `logo` (+ `logoAlt`, `loginFooterLine`, `about.*`). Utilisé par la page de connexion, la sidebar, le SEO, le manifest PWA et `index.html` (placeholders `%LENT_*%`).
@@ -89,7 +90,7 @@ Un feature à `false` : le serveur répond `{ disabled: true }` sur les endpoint
   }
   ```
   Omettez le bloc entier si votre université n'a qu'un seul « établissement ».
-- `services.getAppIcon(title)` — retourne l'icône d'une application ENT à partir de son titre (voir `universities/univ-rennes/app-icons/`). Retournez `null` pour l'icône générique.
+- `services.getAppIcon(title)` — retourne une icône faite main pour une application ENT à partir de son titre (voir `universities/univ-rennes/app-icons/`). Retournez `null` pour laisser l'icône automatique (voir [Icônes des applications](#icônes-des-applications)).
 - `services.categories` — mots-clés → catégories de la grille d'applications.
 - `services.titleOverrides` — (optionnel) renomme des applications ENT : `{ 'titre ent en minuscules': 'Titre affiché' }`.
 - `services.isUnavailableApplication(app)` — masque complètement certaines applications.
@@ -116,6 +117,32 @@ Un feature à `false` : le serveur répond `{ disabled: true }` sur les endpoint
   }
   ```
   Le serveur parcourt la chaîne SSO du webmail (Shibboleth → CAS) avec une copie du cookie jar de session, puis lit la boîte via l'API Zimbra (SOAP `SearchRequest`/`GetFolderRequest`, repli REST `/service/home/~/inbox?fmt=json`). Résultat mis en cache 2 min par session. Le compte démo renvoie des mails fictifs. Pour un autre webmail (SOGo, Roundcube, Exchange…), ajoutez une fonction dans `MAIL_PROVIDERS` (`server/entAuthApp.js`) qui renvoie `{ unreadCount, webmailHref, messages }` ; un `provider` inconnu répond `500 { error: 'Mail provider not configured' }`.
+
+## Icônes des applications
+
+Chaque tuile d'application (grille « Toutes les applications », favoris, favoris de la sidebar) reçoit une icône et une couleur **automatiquement**, sans rien configurer :
+
+1. **Icône faite main** si `services.getAppIcon(title)` en renvoie une (Rennes : `universities/univ-rennes/app-icons/`). Elle a toujours la priorité.
+2. Sinon, **icône automatique** choisie par le serveur (`server/appIcons.js`) : un *concept* (`mail`, `calendar`, `course`, `library`, `wifi`, `printing`, `visio`, `office`, `help`, `restaurant`, `sport`, `jobs`, `card`, `payment`…, 59 au total) d'après des mots-clés français et anglais du titre (puis de la description, puis de la catégorie), et une *teinte*, tirée du hash de l'id du service en évitant les teintes déjà les plus utilisées. Sans mot-clé reconnu : concept `generic`.
+3. Pendant le chargement ou en cas d'échec : la lettre sur fond coloré, à la même taille.
+
+Le premier choix pour un service est **mémorisé pour toute l'université** dans `<DATA_DIR>/app-icons/<id>.json` (voir [SELF_HOSTING.md](SELF_HOSTING.md#icônes-automatiques-des-applications)) : tous les étudiants voient la même tuile, et modifier la liste de mots-clés ne change pas les tuiles existantes, seulement celles des services jamais vus. Un service ajouté au portail a donc tout de suite une tuile correcte.
+
+### Style des icônes et couleurs (`server.js` → `appIcons`)
+
+Le concept et la teinte sont dessinés selon le style de chaque université :
+
+```js
+appIcons: {
+  style: 'carbon',      // 'carbon' (défaut, comme le reste de l'UI), 'phosphor', 'phosphor-fill', 'phosphor-duotone', 'tabler'
+  colorMode: 'pastel',  // 'pastel' (défaut : tuile vive, pictogramme foncé), 'soft' (teinte légère), 'vivid' (tuile saturée, pictogramme blanc), 'mono' (sans couleur)
+  icons: { mail: 'mdi:email-outline' }, // optionnel : remplace l'icône d'un concept par n'importe quelle icône Iconify
+}
+```
+
+Chaque mode de couleur a sa variante sombre. Le fichier ne garde que le concept et la teinte : changer de style ou de mode redessine toutes les tuiles sans rien remélanger. Une valeur inconnue empêche le serveur de démarrer (comme un id d'université inconnu). Exemples : Rennes en `carbon` + `pastel`, l'université de démo en `phosphor-duotone` + `soft`.
+
+Pour améliorer les choix, ajoutez des mots-clés dans `APP_ICON_RULES` (`server/appIcons.js`, test dans `tests/appIcons.test.js`) ; un nouveau concept doit avoir une icône dans chaque style (`ICONS_BY_CONCEPT`). Pour corriger une tuile déjà attribuée, éditez le fichier JSON (voir SELF_HOSTING) ou ajoutez une icône faite main.
 
 ## Checklist de validation
 

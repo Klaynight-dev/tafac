@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { useWidgetLoadReport } from '../analytics'
+import { publishBriefingSource } from '../briefingSources'
 import { getRecentMail } from '../entApi'
 import WidgetListStatus from './WidgetListStatus'
 import {
@@ -19,8 +20,9 @@ const MAIL_REFRESH_MS = 5 * 60 * 1000
 // later refresh fails (error payloads carry no webmailHref).
 const WEBMAIL_HREF_KEY = 'l-ent:webmail-href'
 
-const CARD_CLASSES = 'recent-mail-widget widget-card shadow-md flex-[0_1_360px] h-[140px] p-4 border border-white rounded-[22px] overflow-hidden bg-widget-bg text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-0 max-md:h-[124px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] relative flex flex-col gap-[6px] text-text'
-const ROW_CLASSES = 'grid grid-cols-[6px_minmax(0,1fr)_auto] content-center items-center gap-x-[7px] gap-y-[3px] h-[38px] px-1.5 rounded-[10px] min-w-0 max-md:h-[36px]'
+// Phones: 44px rows (touch targets), hence the taller card there.
+const CARD_CLASSES = 'recent-mail-widget widget-card shadow-md flex-[0_1_360px] h-[140px] p-4 border border-white rounded-[22px] overflow-hidden bg-widget-bg text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-0 max-md:h-[124px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] max-xs:h-[140px] relative flex flex-col gap-[6px] text-text'
+const ROW_CLASSES = 'grid grid-cols-[6px_minmax(0,1fr)_auto] content-center items-center gap-x-[7px] gap-y-[3px] h-[38px] px-1.5 rounded-[10px] min-w-0 max-md:h-[36px] max-xs:h-11'
 
 const weekdayFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
 const dayMonthFormatter = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
@@ -167,6 +169,15 @@ function WidgetRecentMail({ visible = false }) {
       document.removeEventListener('visibilitychange', refreshIfStale)
     }
   }, [loadMail, state.status])
+
+  // Unread count, so the busier of mail and deadlines can go first.
+  useEffect(() => {
+    publishBriefingSource('mailCount', state.status === 'ok'
+      ? (state.unreadCount ?? state.messages.filter((message) => message.unread).length)
+      : null)
+  }, [state])
+
+  useEffect(() => () => publishBriefingSource('mailCount', null), [])
 
   // Hidden when the mailbox can't be loaded; the background refresh brings
   // the card back once the webmail answers again.

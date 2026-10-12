@@ -7,7 +7,6 @@ import heroLannionIut from './assets/hero/lannion-iut.webp'
 import heroLannionLeguer from './assets/hero/lannion-leguer.webp'
 import heroRennesBeaulieu1 from './assets/hero/rennes-beaulieu-1.webp'
 import heroRennesBeaulieu2 from './assets/hero/rennes-beaulieu-2.webp'
-import { getAppIcon } from './app-icons/index.js'
 import {
   id,
   branding,
@@ -16,6 +15,7 @@ import {
   features,
   gradesCopy,
   gradesServiceUrl,
+  moodleOrigin,
   planningServiceUrl,
   portalEntryPath,
   university,
@@ -62,6 +62,8 @@ export default {
   origins: {
     ent: entOrigin,
     cas: casOrigin,
+    // Sidebar / tab bar "Moodle" link (features.moodle).
+    moodle: moodleOrigin,
   },
 
   auth: {
@@ -156,11 +158,12 @@ export default {
   },
 
   services: {
-    // (title) => icon URL | null, for the applications grid.
-    getAppIcon,
+    // No getAppIcon: tiles use the automatic icons (server/appIcons.js,
+    // style set in server.js).
     // Lowercased ENT title → title shown in l'ent.
     titleOverrides: {
       'mon emploi du temps': 'Planning',
+      'prêt de matériel': 'Loxya',
     },
     // Keyword → category map applied to ENT service titles.
     categories: [

@@ -6,6 +6,8 @@ import AppHeader from './components/AppHeader'
 import AppFooter from './components/AppFooter'
 import Sidebar from './components/Sidebar'
 import AccountModal from './components/AccountModal'
+import ChangelogPill from './components/ChangelogPill'
+import ChangelogSheet from './components/ChangelogSheet'
 import LentButton from './components/LentButton'
 import LoginPage from './components/LoginPage'
 import OnboardingCompletionPage from './components/OnboardingCompletionPage'
@@ -40,6 +42,9 @@ import {
 } from './profileStorage'
 import WidgetContainer from './components/WidgetContainer'
 import { listHeroImages, resolveHeroImage } from './heroImage'
+import { getStoredTheme, persistTheme, watchTheme } from './theme'
+import MobileTabBar from './components/MobileTabBar'
+import { getMobileTabItems } from './navItems'
 import { getAvailableWidgets } from './dashboardWidgets'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
@@ -973,6 +978,7 @@ function App() {
   const [forceIosPrompt, setForceIosPrompt] = useState(false)
   const [forceUpdatePrompt, setForceUpdatePrompt] = useState(false)
   const [welcomeFromLentOpen, setWelcomeFromLentOpen] = useState(false)
+  const [isInstallPromptVisible, setIsInstallPromptVisible] = useState(false)
 
   useEffect(() => {
     if (!settingsTransfer.arrived) return undefined
@@ -985,6 +991,10 @@ function App() {
     setTimeout(() => setForceInstallPrompt(false), 100)
   }, [])
   const [hasPendingUpdate, setHasPendingUpdate] = useState(false)
+  // The « Nouveautés » pill waits for the "Nouvelle version" notice (same
+  // slot; the update reload brings the new entries anyway) and for any sheet
+  // that opened by itself.
+  const showChangelogPill = !hasPendingUpdate && !welcomeFromLentOpen && !isInstallPromptVisible
   const applyUpdateRef = useRef(null)
   const handleApplyUpdate = useCallback(async () => {
     if (applyUpdateRef.current) {
@@ -1007,6 +1017,7 @@ function App() {
   const [hiddenWidgets, setHiddenWidgets] = useState(() => getStoredHiddenWidgets())
   const [customBackground, setCustomBackground] = useState(() => getStoredCustomBackground())
   const [showWallpaper, setShowWallpaper] = useState(() => getStoredShowWallpaper())
+  const [theme, setTheme] = useState(() => getStoredTheme())
   const [showAppDescriptions, setShowAppDescriptions] = useState(() => getStoredShowAppDescriptions())
   const [anonymousAnalytics, setAnonymousAnalytics] = useState(() => getStoredAnonymousAnalytics())
   const isAnalyticsAvailable = useAnalyticsAvailable()
@@ -1805,6 +1816,7 @@ function App() {
       : resolveHeroImage(establishment, new Date(), heroOffset)
   ), [customBackground, establishment, heroOffset])
   const heroImageCount = useMemo(() => listHeroImages(establishment).length, [establishment])
+  const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment).length > 0, [establishment])
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -1817,6 +1829,14 @@ function App() {
     clearStoredCustomBackground()
     setCustomBackground(null)
     track('setting_changed', { setting: 'custom_background', value: 'off' })
+  }, [])
+
+  useEffect(() => watchTheme(theme), [theme])
+
+  const handleThemeChange = useCallback((nextTheme) => {
+    persistTheme(nextTheme)
+    setTheme(nextTheme)
+    track('setting_changed', { setting: 'theme', value: nextTheme })
   }, [])
 
   const handleShowWallpaperChange = useCallback((show) => {
@@ -2502,9 +2522,10 @@ function App() {
             favoritesSlotRef={setFavoritesSlotEl}
             hasPendingUpdate={hasPendingUpdate}
             onUpdateClick={handleApplyUpdate}
+            showChangelogPill={showChangelogPill}
             establishment={establishment}
           />
-          <div ref={dashboardColumnRef} className="relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[292px]">
+          <div ref={dashboardColumnRef} className={`relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
             {showWallpaper ? (
               <div
@@ -2529,6 +2550,11 @@ function App() {
               <div className="4xl:hidden px-6 pt-3 max-md:px-3">
                 <UpdateNotice onUpdateClick={handleApplyUpdate} />
               </div>
+            ) : null}
+            {showChangelogPill ? (
+              // Right under the header buttons, eating into the space above
+              // the cards rather than pushing them down a full row.
+              <ChangelogPill className="4xl:hidden flex justify-end px-6 pt-2 -mb-2 max-md:px-3 max-md:pt-1.5" />
             ) : null}
             {sessionState.warning ? (
               <div className="px-6 pt-3 max-md:px-3 4xl:pt-5">
@@ -2558,6 +2584,7 @@ function App() {
               <AppFooter heroCredit={showWallpaper ? heroImage.credit : null} />
             </div>
           </div>
+          <MobileTabBar establishment={establishment} />
         </div>
       ) : (
         <LoginPage
@@ -2588,6 +2615,8 @@ function App() {
         backgroundPreviewSrc={heroImage.src}
         showWallpaper={showWallpaper}
         onShowWallpaperChange={handleShowWallpaperChange}
+        theme={theme}
+        onThemeChange={handleThemeChange}
         hasCustomBackground={Boolean(customBackground)}
         onCustomBackgroundChange={handleCustomBackgroundChange}
         onCustomBackgroundReset={handleCustomBackgroundReset}
@@ -2607,7 +2636,9 @@ function App() {
         forceShow={forceInstallPrompt || forceIosPrompt}
         forceIos={forceIosPrompt}
         autoOpen={!settingsTransfer.arrived}
+        onVisibleChange={setIsInstallPromptVisible}
       />
+      <ChangelogSheet />
       <PwaUpdateManager
         forceOpen={forceUpdatePrompt}
         onForceOpenChange={setForceUpdatePrompt}

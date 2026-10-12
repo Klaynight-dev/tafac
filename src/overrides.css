@@ -24,12 +24,10 @@
   will-change: opacity, transform;
 }
 
-@media (prefers-color-scheme: dark) {
-  .widget-card {
-    --color-widget-bg: rgb(24 24 24 / 0.6);
-    --color-bg-subtle: rgb(38 38 38 / 0.74);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
+:where([data-theme="dark"]) .widget-card {
+  --color-widget-bg: rgb(24 24 24 / 0.6);
+  --color-bg-subtle: rgb(38 38 38 / 0.74);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Sidebar: floating frosted panel ── */
@@ -42,12 +40,10 @@
   box-shadow: 0 12px 40px -16px rgb(52 18 0 / 0.22);
 }
 
-@media (prefers-color-scheme: dark) {
-  .sidebar-panel {
-    background-color: rgb(20 20 20 / 0.55);
-    border-color: rgb(255 255 255 / 0.08);
-    box-shadow: 0 12px 40px -16px rgb(0 0 0 / 0.6);
-  }
+:where([data-theme="dark"]) .sidebar-panel {
+  background-color: rgb(20 20 20 / 0.55);
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow: 0 12px 40px -16px rgb(0 0 0 / 0.6);
 }
 
 /* ── Wallpaper off (Réglages › Apparence) ──
@@ -74,21 +70,102 @@
   filter: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  .dashboard-no-wallpaper .widget-card {
-    --color-widget-bg: #1c1c1c;
-    --color-bg-subtle: #242424;
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+:where([data-theme="dark"]) .dashboard-no-wallpaper .widget-card {
+  --color-widget-bg: #1c1c1c;
+  --color-bg-subtle: #242424;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+:where([data-theme="dark"]) .dashboard-no-wallpaper .sidebar-panel {
+  background-color: #161616;
+}
+
+:where([data-theme="dark"]) .dashboard-no-wallpaper .header-university-logo {
+  filter: invert(1);
+}
+
+/* ── Sidebar resize (drag handle on its right edge) ──
+   While dragging, keep the resize cursor everywhere and don't select text. */
+
+.sidebar-resizing,
+.sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+/* ── Mobile tab bar: floating frosted pill (iOS 26 style) ──
+   Translucent tint over a strong blur, a light sheen from the top, a bright
+   inner edge and a soft drop shadow so it floats above the page. */
+
+.mobile-tab-bar {
+  background-color: rgb(252 251 248 / 0.55);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.08));
+  border: 1px solid rgb(255 255 255 / 0.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    inset 0 -1px 0 rgb(52 18 0 / 0.04),
+    0 14px 34px -10px rgb(52 18 0 / 0.28),
+    0 2px 8px rgb(52 18 0 / 0.08);
+}
+
+.mobile-tab-bar-item:active {
+  background-color: rgb(255 255 255 / 0.55);
+}
+
+/* Touchscreens keep :hover after a tap; only real pointers get it. */
+@media (hover: hover) {
+  .mobile-tab-bar-item:hover {
+    background-color: rgb(255 255 255 / 0.55);
   }
 
-  .dashboard-no-wallpaper .sidebar-panel {
-    background-color: #161616;
+  :where([data-theme="dark"]) .mobile-tab-bar-item:hover {
+    background-color: rgb(255 255 255 / 0.1);
   }
+}
 
-  .dashboard-no-wallpaper .header-university-logo {
-    filter: invert(1);
-  }
+.mobile-tab-bar-item:focus-visible {
+  outline: 2px solid rgb(52 18 0 / 0.35);
+  outline-offset: -2px;
+}
+
+/* Selected tab: a brighter glass lens behind the icon and label. */
+.mobile-tab-bar-item--selected,
+.mobile-tab-bar-item--selected:hover,
+.mobile-tab-bar-item--selected:active {
+  background-color: rgb(255 255 255 / 0.85);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 2px 8px -2px rgb(52 18 0 / 0.16);
+}
+
+:where([data-theme="dark"]) .mobile-tab-bar {
+  background-color: rgb(28 28 28 / 0.5);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.02));
+  border-color: rgb(255 255 255 / 0.12);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 14px 34px -10px rgb(0 0 0 / 0.6),
+    0 2px 8px rgb(0 0 0 / 0.3);
+}
+
+:where([data-theme="dark"]) .mobile-tab-bar-item:active {
+  background-color: rgb(255 255 255 / 0.1);
+}
+
+:where([data-theme="dark"]) .mobile-tab-bar-item:focus-visible {
+  outline-color: rgb(255 255 255 / 0.4);
+}
+
+:where([data-theme="dark"]) .mobile-tab-bar-item--selected,
+:where([data-theme="dark"]) .mobile-tab-bar-item--selected:hover,
+:where([data-theme="dark"]) .mobile-tab-bar-item--selected:active {
+  background-color: rgb(255 255 255 / 0.16);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 2px 8px -2px rgb(0 0 0 / 0.4);
 }
 
 /* ── Privacy modal illustration sky (Figma "illu" gradient, themed) ── */
@@ -97,15 +174,13 @@
   background-image: linear-gradient(to bottom, #cdf7ff, rgb(245 243 237 / 0));
 }
 
-@media (prefers-color-scheme: dark) {
-  .privacy-illustration {
-    background-image: linear-gradient(to bottom, #12304a, rgb(15 15 15 / 0));
-  }
+:where([data-theme="dark"]) .privacy-illustration {
+  background-image: linear-gradient(to bottom, #12304a, rgb(15 15 15 / 0));
+}
 
-  /* Soft-light clouds read as harsh blotches on the night sky: keep a hint. */
-  .privacy-illustration-clouds {
-    opacity: 0.3;
-  }
+/* Soft-light clouds read as harsh blotches on the night sky: keep a hint. */
+:where([data-theme="dark"]) .privacy-illustration-clouds {
+  opacity: 0.3;
 }
 
 /* ── Dashboard hero image fade ── */
@@ -113,6 +188,17 @@
 .dashboard-hero {
   -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.85) 0%, rgb(0 0 0 / 0.6) 70%, transparent 100%);
   mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.85) 0%, rgb(0 0 0 / 0.6) 70%, transparent 100%);
+}
+
+/* Phones: a soft black fade from the top of the photo, so the white logo and
+   the header buttons read on bright photos. Gone by the first cards. */
+@media (width < 640px) {
+  .dashboard-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgb(0 0 0 / 0.42) 0px, rgb(0 0 0 / 0.16) 130px, transparent 260px);
+  }
 }
 
 /* ── Primary button depth ── */
@@ -139,30 +225,28 @@
     0 2px 6px -2px rgba(0, 0, 0, 0.2);
 }
 
-@media (prefers-color-scheme: dark) {
-  .lent-button {
-    background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%);
-    color: #111;
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.5) inset,
-      0 6px 16px -4px rgba(0, 0, 0, 0.5),
-      0 2px 6px -2px rgba(0, 0, 0, 0.3);
-  }
+:where([data-theme="dark"]) .lent-button {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%);
+  color: #111;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.5) inset,
+    0 6px 16px -4px rgba(0, 0, 0, 0.5),
+    0 2px 6px -2px rgba(0, 0, 0, 0.3);
+}
 
-  .lent-button:hover:not(:disabled) {
-    background: linear-gradient(180deg, #f0f0f0 0%, #dcdcdc 100%);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
-      0 8px 20px -4px rgba(0, 0, 0, 0.55),
-      0 3px 8px -2px rgba(0, 0, 0, 0.35);
-  }
+:where([data-theme="dark"]) .lent-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f0f0f0 0%, #dcdcdc 100%);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
+    0 8px 20px -4px rgba(0, 0, 0, 0.55),
+    0 3px 8px -2px rgba(0, 0, 0, 0.35);
+}
 
-  .lent-button:active:not(:disabled) {
-    background: linear-gradient(180deg, #d4d4d4 0%, #c0c0c0 100%);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.3) inset,
-      0 2px 6px -2px rgba(0, 0, 0, 0.3);
-  }
+:where([data-theme="dark"]) .lent-button:active:not(:disabled) {
+  background: linear-gradient(180deg, #d4d4d4 0%, #c0c0c0 100%);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.3) inset,
+    0 2px 6px -2px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Custom scrollbars ──
@@ -174,11 +258,9 @@
   --scrollbar-thumb-hover: rgba(27, 27, 27, 0.4);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --scrollbar-thumb: rgba(255, 255, 255, 0.18);
-    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.34);
-  }
+:root:where([data-theme="dark"]) {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.34);
 }
 
 /* Chromium / Safari */
@@ -232,19 +314,17 @@
 /* ── Favorite search highlight pulse ── */
 
 .favorite-search-highlight {
+  --favorite-highlight-rgb: 17 24 39;
   animation: favorite-highlight-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes favorite-highlight-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.15); }
-  50% { box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.4); }
+:where([data-theme="dark"]) .favorite-search-highlight {
+  --favorite-highlight-rgb: 255 255 255;
 }
 
-@media (prefers-color-scheme: dark) {
-  @keyframes favorite-highlight-pulse {
-    0%, 100% { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15); }
-    50% { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4); }
-  }
+@keyframes favorite-highlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgb(var(--favorite-highlight-rgb) / 0.15); }
+  50% { box-shadow: 0 0 0 2px rgb(var(--favorite-highlight-rgb) / 0.4); }
 }
 
 /* ── App search input focus override ── */
@@ -553,36 +633,34 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .onboarding-card {
-    --ring-color: rgba(0, 0, 0, 0.88);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
+:where([data-theme="dark"]) .onboarding-card {
+  --ring-color: rgba(0, 0, 0, 0.88);
+  border-color: rgba(255, 255, 255, 0.08);
+}
 
-  .onboarding-card:hover {
-    --ring-color: rgba(0, 0, 0, 0.88);
-    border-color: rgba(255, 255, 255, 0.12);
-  }
+:where([data-theme="dark"]) .onboarding-card:hover {
+  --ring-color: rgba(0, 0, 0, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
 
-  .onboarding-td-card {
-    border-color: rgba(255, 255, 255, 0.14);
-    box-shadow:
-      0 18px 40px -28px rgba(0, 0, 0, 0.8),
-      0 8px 16px -10px rgba(0, 0, 0, 0.5),
-      0 0 0 1px rgba(255, 255, 255, 0.06) inset;
-  }
+:where([data-theme="dark"]) .onboarding-td-card {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 18px 40px -28px rgba(0, 0, 0, 0.8),
+    0 8px 16px -10px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
 
-  .onboarding-td-card:hover:not(:disabled) {
-    box-shadow:
-      0 24px 48px -28px rgba(0, 0, 0, 0.88),
-      0 12px 20px -12px rgba(0, 0, 0, 0.6),
-      0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-  }
+:where([data-theme="dark"]) .onboarding-td-card:hover:not(:disabled) {
+  box-shadow:
+    0 24px 48px -28px rgba(0, 0, 0, 0.88),
+    0 12px 20px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
 
-  .onboarding-td-card__badge {
-    border-color: rgba(255, 255, 255, 0.14);
-    background: rgba(17, 17, 17, 0.66);
-  }
+:where([data-theme="dark"]) .onboarding-td-card__badge {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(17, 17, 17, 0.66);
 }
 
 /* ── Login left panel edge strokes ── */
@@ -593,12 +671,10 @@
     1px 0 0 0 rgba(255, 255, 255, 0.7);
 }
 
-@media (prefers-color-scheme: dark) {
-  .login-left-panel {
-    box-shadow:
-      inset -1px 0 0 0 rgba(255, 255, 255, 0.06),
-      1px 0 0 0 rgba(255, 255, 255, 0.04);
-  }
+:where([data-theme="dark"]) .login-left-panel {
+  box-shadow:
+    inset -1px 0 0 0 rgba(255, 255, 255, 0.06),
+    1px 0 0 0 rgba(255, 255, 255, 0.04);
 }
 
 /* ── Login field depth (matches widget-card ring) ── */
@@ -610,11 +686,9 @@
     0 0 0 1px var(--ring-color);
 }
 
-@media (prefers-color-scheme: dark) {
-  .login-field {
-    --ring-color: rgba(0, 0, 0, 0.88);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
+:where([data-theme="dark"]) .login-field {
+  --ring-color: rgba(0, 0, 0, 0.88);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Weather gradient inner (uses inline CSS variable) ── */
@@ -623,10 +697,8 @@
   background: var(--weather-gradient, transparent), var(--color-widget-bg);
 }
 
-@media (prefers-color-scheme: dark) {
-  .weather-widget-inner {
-    background: var(--weather-gradient-dark, transparent), var(--color-widget-bg);
-  }
+:where([data-theme="dark"]) .weather-widget-inner {
+  background: var(--weather-gradient-dark, transparent), var(--color-widget-bg);
 }
 
 /* ── Greeting wave icon ── */
@@ -662,10 +734,8 @@
   --widget-delay: 70ms;
 }
 
-@media (prefers-color-scheme: dark) {
-  .next-class-widget {
-    background-image: var(--class-gradient-dark, none);
-  }
+:where([data-theme="dark"]) .next-class-widget {
+  background-image: var(--class-gradient-dark, none);
 }
 
 .next-class-widget:hover {
@@ -686,11 +756,9 @@
   background: var(--color-bg-subtle);
 }
 
-@media (prefers-color-scheme: dark) {
-  .latest-grade-widget:hover,
-  .average-grade-widget:hover {
-    background: var(--color-bg-subtle);
-  }
+:where([data-theme="dark"]) .latest-grade-widget:hover,
+:where([data-theme="dark"]) .average-grade-widget:hover {
+  background: var(--color-bg-subtle);
 }
 
 .latest-grade-widget:hover .grade-corner-arrow,
@@ -732,15 +800,13 @@
   color: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .mail-unread-dot,
-  .mail-unread-pill {
-    background-color: #5b9dff;
-  }
+:where([data-theme="dark"]) .mail-unread-dot,
+:where([data-theme="dark"]) .mail-unread-pill {
+  background-color: #5b9dff;
+}
 
-  .mail-unread-pill {
-    color: #0f0f0f;
-  }
+:where([data-theme="dark"]) .mail-unread-pill {
+  color: #0f0f0f;
 }
 
 /* ── Widget row layout with paired list cards ──
@@ -754,7 +820,7 @@
               mail | deadlines share row 2 in halves.
    496–759  : rows of two (greeting | next class when they fit, grade |
               mail), then deadlines full width.
-   < 496    : everything stacks (default max-xs utilities). */
+   < 496    : phone layout (max-xs utilities and "Phone layout" below). */
 
 .widget-row {
   container: widget-row / inline-size;
@@ -809,6 +875,66 @@
   }
 }
 
+/* ── Phone layout (max-xs) ──
+   Compact greeting, then next class | grade in halves (max-xs utilities on
+   the cards), then mail and deadlines side by side in a swipeable strip: one
+   card in view, the next one peeking at the screen edge as the hint. The
+   strip bleeds into the column padding (12px) so cards scroll edge to edge,
+   and pads 8px vertically so the shadows and intro rise aren't clipped. A
+   lone card (the other one rendering nothing) takes the full width and
+   drops the pager (WidgetListStrip). */
+
+.widget-lists-pager {
+  display: none;
+}
+
+@media (width < 520px) {
+  .widget-lists {
+    display: flex;
+    flex: 0 0 calc(100% + 24px);
+    gap: 8px;
+    margin: -8px -12px;
+    padding: 8px 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 12px;
+    scrollbar-width: none;
+  }
+
+  .widget-lists::-webkit-scrollbar {
+    display: none;
+  }
+
+  .widget-lists:empty {
+    display: none;
+  }
+
+  .widget-lists > .widget-card {
+    flex: 0 0 calc(100% - 36px);
+    scroll-snap-align: start;
+  }
+
+  .widget-lists > .widget-card:only-child {
+    flex-basis: 100%;
+  }
+
+  /* A thin 20px row tucked under the strip, with the section gap below
+     pulled in so Favoris follows closely. Its 32px dot buttons reach into
+     the strip's bottom padding (no card loses taps) and the gap below. */
+  .widget-lists-pager {
+    display: flex;
+    flex: 1 1 100%;
+    height: 20px;
+    margin-top: -4px;
+    margin-bottom: -18px;
+  }
+
+  .widget-lists:not(:has(> .widget-card ~ .widget-card)) + .widget-lists-pager {
+    display: none;
+  }
+}
+
 /* ── Moodle deadlines widget ── */
 
 .moodle-deadlines-widget {
@@ -857,28 +983,24 @@
   opacity: 0.75;
 }
 
-@media (prefers-color-scheme: dark) {
-  .deadline-pill {
-    background-color: #fbbf24;
-    color: #0f0f0f;
-  }
+:where([data-theme="dark"]) .deadline-pill {
+  background-color: #fbbf24;
+  color: #0f0f0f;
+}
 
-  .deadline-pill.deadline-pill-overdue {
-    background-color: #f87171;
-    color: #0f0f0f;
-  }
+:where([data-theme="dark"]) .deadline-pill.deadline-pill-overdue {
+  background-color: #f87171;
+  color: #0f0f0f;
+}
 
-  .deadline-due-soon {
-    color: #fbbf24;
-  }
+:where([data-theme="dark"]) .deadline-due-soon {
+  color: #fbbf24;
 }
 
 /* ── Average grade wave dark mode ── */
 
-@media (prefers-color-scheme: dark) {
-  .average-grade-waves {
-    opacity: 0.35;
-  }
+:where([data-theme="dark"]) .average-grade-waves {
+  opacity: 0.35;
 }
 
 /* ── Header refreshed tag depth ── */
@@ -889,13 +1011,11 @@
     0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  .header-refreshed-tag {
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow:
-      0 2px 8px -2px rgba(0, 0, 0, 0.2),
-      0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
+:where([data-theme="dark"]) .header-refreshed-tag {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 2px 8px -2px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 /* ── Header account button depth ── */
@@ -906,11 +1026,95 @@
     0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
-@media (prefers-color-scheme: dark) {
-  .header-account-btn {
+:where([data-theme="dark"]) .header-account-btn {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* Phones: the header buttons float over the photo as frosted glass, like the
+   tab bar (same tint and sheen, with a softer white edge). */
+@media (width < 640px) {
+  .header-account-btn,
+  .header-logout-btn {
+    background-color: rgb(252 251 248 / 0.5);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.08));
+    border-color: rgb(255 255 255 / 0.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.8);
+    backdrop-filter: blur(20px) saturate(1.8);
     box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.2),
-      0 0 0 1px rgba(255, 255, 255, 0.06);
+      inset 0 1px 0 rgb(255 255 255 / 0.4),
+      0 6px 18px -8px rgb(52 18 0 / 0.3);
+  }
+
+  .header-account-btn:active:not(:disabled),
+  .header-logout-btn:active:not(:disabled) {
+    background-color: rgb(255 255 255 / 0.75);
+  }
+
+  :where([data-theme="dark"]) .header-account-btn,
+  :where([data-theme="dark"]) .header-logout-btn {
+    background-color: rgb(28 28 28 / 0.45);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.02));
+    border-color: rgb(255 255 255 / 0.12);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 6px 18px -8px rgb(0 0 0 / 0.6);
+  }
+
+  :where([data-theme="dark"]) .header-account-btn:active:not(:disabled),
+  :where([data-theme="dark"]) .header-logout-btn:active:not(:disabled) {
+    background-color: rgb(255 255 255 / 0.14);
+  }
+}
+
+/* ── « Nouveautés » pill (src/components/ChangelogPill.jsx) ──
+   Quiet surface like the selected sidebar item; on phones it floats over
+   the photo as frosted glass, like the header buttons above it. The dot
+   uses the unread-mail blue: something new, nothing urgent. */
+
+.changelog-pill {
+  background-color: var(--color-widget-bg);
+  border-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.changelog-pill:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+:where([data-theme="dark"]) .changelog-pill {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.changelog-new-dot {
+  background-color: #1a73e8;
+}
+
+:where([data-theme="dark"]) .changelog-new-dot {
+  background-color: #5b9dff;
+}
+
+@media (width < 640px) {
+  .changelog-pill {
+    background-color: rgb(252 251 248 / 0.5);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.08));
+    border-color: rgb(255 255 255 / 0.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.8);
+    backdrop-filter: blur(20px) saturate(1.8);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.4),
+      0 6px 18px -8px rgb(52 18 0 / 0.3);
+  }
+
+  :where([data-theme="dark"]) .changelog-pill {
+    background-color: rgb(28 28 28 / 0.45);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.02));
+    border-color: rgb(255 255 255 / 0.12);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 6px 18px -8px rgb(0 0 0 / 0.6);
   }
 }
 
@@ -938,11 +1142,20 @@
   pointer-events: none;
 }
 
-@media (prefers-color-scheme: dark) {
+:where([data-theme="dark"]) .app-icon::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 70%) border-box;
+}
 
-  .app-icon::after {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 70%) border-box;
-  }
+/* Automatic icon tiles: colours come from the server's palette as custom
+   properties (AvailableApplications.jsx), with a variant for dark mode. */
+.app-icon--auto {
+  background-color: var(--app-tile-bg);
+  color: var(--app-tile-fg);
+}
+
+:where([data-theme="dark"]) .app-icon--auto {
+  background-color: var(--app-tile-bg-dark);
+  color: var(--app-tile-fg-dark);
 }
 
 /* ── Service cards ── */
@@ -1010,8 +1223,15 @@
 
   .weather-modal-backdrop,
   .weather-modal-card,
-  .account-modal-card {
+  .account-modal-card,
+  .changelog-pill,
+  .changelog-backdrop,
+  .changelog-sheet {
     animation: none;
+  }
+
+  .changelog-pill:active {
+    transform: none;
   }
 
   .favorites-strip-item,
@@ -1110,11 +1330,9 @@
   color: var(--color-text);
 }
 
-@media (prefers-color-scheme: dark) {
-  .sidebar-grade-tag {
-    background: hsla(var(--tag-hue), 50%, 32%, 0.45);
-    color: hsl(var(--tag-hue), 78%, 80%);
-  }
+:where([data-theme="dark"]) .sidebar-grade-tag {
+  background: hsla(var(--tag-hue), 50%, 32%, 0.45);
+  color: hsl(var(--tag-hue), 78%, 80%);
 }
 
 /* ── Sidebar grade pocket: gradient background (matches next class widget) ── */
@@ -1129,10 +1347,8 @@
   background-color: var(--color-bg-subtle);
 }
 
-@media (prefers-color-scheme: dark) {
-  .sidebar-grade-pocket {
-    background-image: var(--grade-gradient-dark, none);
-  }
+:where([data-theme="dark"]) .sidebar-grade-pocket {
+  background-image: var(--grade-gradient-dark, none);
 }
 
 /* Disabled grade feature */
@@ -1231,30 +1447,29 @@
   letter-spacing: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .grade-feature-disabled,
-  .latest-grade-widget.grade-feature-disabled:hover,
-  .average-grade-widget.grade-feature-disabled:hover,
-  .sidebar-grade-pocket.grade-feature-disabled:hover {
-    background: #151515;
-    color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.2);
-  }
-
-  .grade-disabled-pill {
-    border-color: rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.92);
-    color: #111111;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-  }
-
-  .grade-disabled-hover-note {
-    border-color: rgba(255, 255, 255, 0.14);
-    background: rgba(245, 245, 245, 0.94);
-    color: #111111;
-  }
-
-  .grade-disabled-hover-detail {
-    color: rgba(17, 17, 17, 0.68);
-  }
+:where([data-theme="dark"]) .grade-feature-disabled,
+:where([data-theme="dark"]) .latest-grade-widget.grade-feature-disabled:hover,
+:where([data-theme="dark"]) .average-grade-widget.grade-feature-disabled:hover,
+:where([data-theme="dark"]) .sidebar-grade-pocket.grade-feature-disabled:hover {
+  background: #151515;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
 }
+
+:where([data-theme="dark"]) .grade-disabled-pill {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111111;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+:where([data-theme="dark"]) .grade-disabled-hover-note {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(245, 245, 245, 0.94);
+  color: #111111;
+}
+
+:where([data-theme="dark"]) .grade-disabled-hover-detail {
+  color: rgba(17, 17, 17, 0.68);
+}
+

@@ -15,11 +15,17 @@ function isStandalone() {
 }
 
 // `autoOpen` false: only opens when forced (the Tafac welcome sheet offers it).
-export default function PwaInstallPrompt({ forceShow = false, forceIos = false, autoOpen = true }) {
+// `onVisibleChange`: told when the sheet opens and closes (the « Nouveautés »
+// pill waits while it's up).
+export default function PwaInstallPrompt({ forceShow = false, forceIos = false, autoOpen = true, onVisibleChange }) {
   const [visible, setVisible] = useState(false)
   const [animatingOut, setAnimatingOut] = useState(false)
   const [showIos, setShowIos] = useState(false)
   const isForced = useRef(false)
+
+  useEffect(() => {
+    onVisibleChange?.(visible)
+  }, [onVisibleChange, visible])
 
   useEffect(() => {
     if (forceShow) {

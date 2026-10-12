@@ -44,7 +44,8 @@ export default {
   // No establishments block: everyone gets the same (minimal) dashboard.
 
   services: {
-    // No icon set: the applications grid falls back to generic icons.
+    // No hand-made icons: tiles get the server's automatic icons
+    // (server/appIcons.js, docs/ADDING_A_UNIVERSITY.md).
     getAppIcon: () => null,
     categories: [],
   },

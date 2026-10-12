@@ -334,6 +334,64 @@ export async function getPlanning() {
 //   404 { ok: false, disabled: true, feature: 'mail' }   feature off for this university
 //   500 { error }
 // Normalized here to { status: 'ok' | 'disabled' | 'unauthenticated' | 'error', ... }.
+// Certificat de scolarité (features.schoolCertificate). Kept for the page's
+// lifetime: the server checks MonDossierWeb, which takes a moment.
+let schoolCertificateStatus = null
+
+export function getCachedSchoolCertificateStatus() {
+  return schoolCertificateStatus
+}
+
+// { available: boolean, schoolYear?: '2026-2027' }. Never throws.
+export async function getSchoolCertificateStatus() {
+  if (!universityConfig.features?.schoolCertificate) {
+    return { available: false }
+  }
+
+  try {
+    const response = await fetch(`${ENT_AUTH_PREFIX}/documents/school-certificate/status`, { credentials: 'same-origin' })
+    const payload = await response.json().catch(() => null)
+    schoolCertificateStatus = response.ok && payload?.available
+      ? { available: true, schoolYear: payload.schoolYear ?? null }
+      : { available: false }
+  } catch {
+    schoolCertificateStatus = { available: false }
+  }
+  return schoolCertificateStatus
+}
+
+function getAttachmentFilename(contentDisposition, fallback) {
+  const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded)
+    } catch {
+      // Fall through to the plain name
+    }
+  }
+  return contentDisposition?.match(/filename="([^"]+)"/i)?.[1] ?? fallback
+}
+
+// Saves the PDF under its real name. Throws an Error with a French,
+// user-facing message.
+export async function downloadSchoolCertificate() {
+  const response = await fetch(`${ENT_AUTH_PREFIX}/documents/school-certificate`, { credentials: 'same-origin' })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw new Error(payload?.error || 'Certificat indisponible pour le moment.')
+  }
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = getAttachmentFilename(response.headers.get('content-disposition'), 'Certificat_de_scolarite.pdf')
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
 export async function getRecentMail() {
   if (!universityConfig.features?.mail) {
     return { status: 'disabled', unreadCount: null, webmailHref: null, messages: [] }

@@ -1,8 +1,10 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon } from '@iconify/react'
+import { Icon, iconLoaded, loadIcons } from '@iconify/react'
 import universityConfig from '@university'
 import { toAppSlug, track } from '../analytics'
+import { fetchAppIcons, getCachedAppIcons } from '../appIcons'
+import { scoreAppSearch, searchApps } from '../appSearch'
 import {
   ENT_ORIGIN,
   buildEntProxyHref,
@@ -76,6 +78,72 @@ function trackApplicationOpened(application, source) {
 }
 
 const FAVORITES_ORDER_KEY = 'l-ent:favorites-order'
+// Last order of the full app list. Starring an app on the portal moves it
+// into the favorites section, which loses its place: this remembers it.
+const APPS_ORDER_KEY = 'l-ent:apps-order'
+
+function loadAppsOrder() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(APPS_ORDER_KEY) || 'null')
+    return Array.isArray(stored) ? stored.filter((key) => typeof key === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function saveAppsOrder(applications) {
+  try {
+    localStorage.setItem(APPS_ORDER_KEY, JSON.stringify(applications.map(getApplicationKey)))
+  } catch {
+    // Storage unavailable
+  }
+}
+
+// Puts each app only found in the favorites section among the other apps,
+// as if it weren't a favorite: where it sat last time (right after the
+// closest app that preceded it and is still listed), or, never seen outside
+// the favorites, at its alphabetical place among the others. Never in a pile
+// at the end.
+function placeInUsualOrder(regularApps, favoriteOnlyApps, rememberedKeys) {
+  const rememberedIndex = new Map(rememberedKeys.map((key, index) => [key, index]))
+  const result = [...regularApps]
+  const unknown = []
+  const known = []
+
+  for (const app of favoriteOnlyApps) {
+    const index = rememberedIndex.get(getApplicationKey(app))
+    if (index === undefined) {
+      unknown.push(app)
+    } else {
+      known.push([index, app])
+    }
+  }
+
+  known.sort(([left], [right]) => left - right)
+  for (const [index, app] of known) {
+    let insertAt = 0
+    for (let previous = index - 1; previous >= 0; previous -= 1) {
+      const position = result.findIndex((listed) => getApplicationKey(listed) === rememberedKeys[previous])
+      if (position !== -1) {
+        insertAt = position + 1
+        break
+      }
+    }
+    result.splice(insertAt, 0, app)
+  }
+
+  unknown.sort((left, right) => compareTitles(left.title, right.title))
+  for (const app of unknown) {
+    const position = result.findIndex((listed) => compareTitles(listed.title, app.title) > 0)
+    result.splice(position === -1 ? result.length : position, 0, app)
+  }
+
+  return result
+}
+
+function compareTitles(left = '', right = '') {
+  return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base' })
+}
 
 function loadFavoritesOrder() {
   try {
@@ -183,18 +251,39 @@ function getAppLetter(title = '') {
   return (title.trim()[0] || '?').toUpperCase()
 }
 
-const AppIcon = memo(function AppIcon({ title, isLaunching = false, className = '', letterClassName = 'text-lg' }) {
+// Icon picked by the server for the whole university (src/appIcons.js), as
+// { icon, isReady, colors: { light: { bg, fg }, dark: { bg, fg } } }. Its
+// colours apply as soon as they're known; the glyph waits for Iconify, with
+// the letter standing in until then (same box, so nothing moves).
+function getAssignmentStyle(assignment) {
+  const { light, dark } = assignment.colors
+  return {
+    '--app-tile-bg': light.bg,
+    '--app-tile-fg': light.fg,
+    '--app-tile-bg-dark': dark.bg,
+    '--app-tile-fg-dark': dark.fg,
+  }
+}
+
+const AppIcon = memo(function AppIcon({ title, assignment = null, isLaunching = false, className = '', letterClassName = 'text-lg' }) {
+  // A university's hand-made icon wins, then the automatic one, then the letter.
   const iconSrc = getAppIcon(title)
-  const letterStyle = iconSrc ? null : getLetterStyle(title)
+  const autoIcon = iconSrc ? null : assignment
+  const letterStyle = iconSrc || autoIcon ? null : getLetterStyle(title)
 
   return (
     <span
-      className={`app-icon inline-flex items-center justify-center bg-widget-bg shadow-sm shrink-0 ${className}`}
+      className={`app-icon inline-flex items-center justify-center bg-widget-bg shadow-sm shrink-0 ${autoIcon ? 'app-icon--auto' : ''} ${className}`}
       aria-hidden="true"
-      style={letterStyle ? { backgroundColor: letterStyle.bg, color: letterStyle.fg } : undefined}
+      style={autoIcon
+        ? getAssignmentStyle(autoIcon)
+        : letterStyle ? { backgroundColor: letterStyle.bg, color: letterStyle.fg } : undefined}
     >
       {isLaunching ? (
         <Icon icon="carbon:renew" className="badge-icon-spinning w-4 h-4 animate-spin-slow" />
+      ) : autoIcon?.isReady ? (
+        // `ssr`: draw on the first render, the icon is already loaded.
+        <Icon icon={autoIcon.icon} ssr className="w-[60%] h-[60%]" />
       ) : iconSrc ? (
         <img
           src={iconSrc}
@@ -271,7 +360,8 @@ function normalizeServiceEntry(entry, metadata = {}, extra = {}) {
     entry?.fname,
     metadata?.fname,
   )
-  const title = TITLE_OVERRIDES[portalTitle.toLowerCase()] ?? portalTitle
+  // NFC: the portal may send accents decomposed ("e" + combining accent).
+  const title = TITLE_OVERRIDES[portalTitle.normalize('NFC').toLowerCase()] ?? portalTitle
 
   const href = toNavigableHref(
     getFirstText(
@@ -454,7 +544,7 @@ function isUnavailableGradeApplication(application = {}) {
   return typeof isUnavailable === 'function' ? Boolean(isUnavailable(application)) : false
 }
 
-function normalizeAllServices(bootstrap) {
+function normalizeAllServices(bootstrap, rememberedOrder = []) {
   const layoutData = bootstrap?.layout?.data
   if (!isRecord(layoutData)) {
     return []
@@ -462,36 +552,45 @@ function normalizeAllServices(bootstrap) {
 
   const portletLookup = buildPortletLookup(layoutData, bootstrap?.layoutDoc?.data)
   const serviceTabs = collectServiceSections(layoutData)
-  const allApps = []
+  const regularApps = []
+  const favoriteOnlyApps = []
   const seenKeys = new Set()
+  // The portal lists its favorites section first, which would pull every
+  // favorite to the top of the full list. Read it last instead: favorites
+  // listed elsewhere keep that place, and those only in the favorites
+  // section get their remembered one (placeInUsualOrder).
+  const sections = serviceTabs.flatMap((tab) => tab.sections)
+  const orderedSections = [
+    ...sections.filter((section) => !isFavoritesLikeLabel(section.title)),
+    ...sections.filter((section) => isFavoritesLikeLabel(section.title)),
+  ]
 
-  for (const tab of serviceTabs) {
-    for (const section of tab.sections) {
-      for (const service of section.services) {
-        const metadata = findPortletMetadata(service, portletLookup)
-        const app = normalizeServiceEntry(service, metadata, {
-          portalNodeId: getPortalNodeId(service, metadata),
-        })
+  for (const section of orderedSections) {
+    const target = isFavoritesLikeLabel(section.title) ? favoriteOnlyApps : regularApps
+    for (const service of section.services) {
+      const metadata = findPortletMetadata(service, portletLookup)
+      const app = normalizeServiceEntry(service, metadata, {
+        portalNodeId: getPortalNodeId(service, metadata),
+      })
 
-        if (!app || isUnavailableGradeApplication(app)) {
-          continue
-        }
+      if (!app || isUnavailableGradeApplication(app)) {
+        continue
+      }
 
-        const category = getAppCategory(app.title)
-        if (category) {
-          app.category = category
-        }
+      const category = getAppCategory(app.title)
+      if (category) {
+        app.category = category
+      }
 
-        const key = `${getApplicationKey(app)}-${app.href}`
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key)
-          allApps.push(app)
-        }
+      const key = `${getApplicationKey(app)}-${app.href}`
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key)
+        target.push(app)
       }
     }
   }
 
-  return allApps
+  return placeInUsualOrder(regularApps, favoriteOnlyApps, rememberedOrder)
 }
 
 function getErrorMessage(error) {
@@ -824,6 +923,8 @@ function AvailableApplications({
     source: 'favorite',
   })
   const [allServices, setAllServices] = useState([])
+  const [appIcons, setAppIcons] = useState(getCachedAppIcons)
+  const [loadedIconKey, setLoadedIconKey] = useState('')
   const [localPins, setLocalPins] = useState(loadLocalPins)
   const [orderedFavorites, setOrderedFavorites] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -873,18 +974,13 @@ function AvailableApplications({
     if (selectedCategory) {
       services = services.filter((s) => s.category === selectedCategory)
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase()
-      services = services.filter((s) => (s.title || s.name || '').toLowerCase().includes(q))
-    }
-    return services
+    return searchApps(services, searchQuery)
   }, [visibleServices, searchQuery, selectedCategory])
   const highlightedFavoriteKeys = useMemo(() => {
     if (!searchQuery.trim()) return new Set()
-    const q = searchQuery.trim().toLowerCase()
     return new Set(
       orderedFavorites
-        .filter((f) => (f.title || f.name || '').toLowerCase().includes(q))
+        .filter((favorite) => scoreAppSearch(favorite, searchQuery) > 0)
         .map(getApplicationKey)
     )
   }, [searchQuery, orderedFavorites])
@@ -895,6 +991,40 @@ function AvailableApplications({
   const shouldShowFavoriteRow = viewState.status === 'ready' && orderedFavorites.length > 0
   const shouldHideFavoritesSection = viewState.status === 'empty'
     || (viewState.status === 'ready' && favoriteApplications.length === 0)
+
+  // Iconify fetches icons on first use: preload every assigned glyph and only
+  // swap a tile's letter for its icon once that icon is in.
+  const appIconNames = useMemo(
+    () => [...new Set(Object.values(appIcons.icons).map((entry) => entry?.icon).filter(Boolean))].sort(),
+    [appIcons],
+  )
+  const appIconNamesKey = appIconNames.join(',')
+  const tileAssignments = useMemo(() => {
+    const loadedNames = new Set(loadedIconKey.split(',').filter(Boolean))
+    const assignments = new Map()
+    for (const [applicationKey, entry] of Object.entries(appIcons.icons)) {
+      const colors = appIcons.palette[entry?.color]
+      if (entry?.icon && colors?.light && colors?.dark) {
+        assignments.set(applicationKey, {
+          icon: entry.icon,
+          isReady: loadedNames.has(entry.icon),
+          colors,
+        })
+      }
+    }
+    return assignments
+  }, [appIcons, loadedIconKey])
+
+  useEffect(() => {
+    const names = appIconNamesKey.split(',').filter(Boolean)
+    const syncLoaded = () => setLoadedIconKey(names.filter((name) => iconLoaded(name)).join(','))
+    syncLoaded()
+    if (names.every((name) => iconLoaded(name))) {
+      return undefined
+    }
+
+    return loadIcons(names, syncLoaded)
+  }, [appIconNamesKey])
 
   useEffect(() => {
     setOrderedFavorites(applyStoredOrder(favoriteApplications))
@@ -1030,7 +1160,20 @@ function AvailableApplications({
         }
 
         const sections = normalizeBootstrapSections(bootstrap)
-        const services = normalizeAllServices(bootstrap)
+        const services = normalizeAllServices(bootstrap, loadAppsOrder())
+        saveAppsOrder(services)
+
+        // Tile icons come in the background: the grid never waits for them.
+        void fetchAppIcons([
+          ...getFavoriteApplications(sections.sections),
+          ...services,
+          ...(universityConfig.establishments?.byId?.[establishment]?.extraServices ?? []),
+        ]).then((assignments) => {
+          // Shared by the whole university, so still right after a refresh.
+          if (assignments) {
+            setAppIcons(assignments)
+          }
+        })
 
         const nextLaunchTargets = await resolveLaunchTargets([
           ...getFavoriteApplications(sections.sections),
@@ -1712,6 +1855,7 @@ function AvailableApplications({
               >
                 <AppIcon
                   title={application.title}
+                  assignment={tileAssignments.get(applicationKey)}
                   isLaunching={isLaunching}
                   className={favoriteIconClassName}
                   letterClassName="text-sm max-md:text-base"
@@ -1818,6 +1962,7 @@ function AvailableApplications({
                 >
                   <AppIcon
                     title={service.title}
+                    assignment={tileAssignments.get(applicationKey)}
                     isLaunching={isLaunching}
                     className="w-10 h-10 rounded-[11px]"
                   />

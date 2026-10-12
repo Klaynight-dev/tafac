@@ -2,12 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import { useWidgetLoadReport } from '../analytics'
-import { ENT_AUTH_PREFIX, getAdeUpcoming, getRecentEntLoginAgeMs, getRequestErrorKind } from '../entApi'
+import { publishBriefingSource } from '../briefingSources'
+import { ENT_AUTH_PREFIX, getRecentEntLoginAgeMs, getRequestErrorKind } from '../entApi'
+import {
+  NEXT_CLASS_LOOKAHEAD_DAYS,
+  buildNextClassCacheEntryKey,
+  buildResourceIdsFromSelection,
+  fetchUpcomingEvents,
+  persistNextClassCache,
+  readNextClassCache,
+} from '../upcomingClasses'
 
 const CLASS_COLORS_KEY = 'l-ent:class-colors'
-const NEXT_CLASS_CACHE_KEY = 'l-ent:next-class-cache'
-const NEXT_CLASS_CACHE_TTL_MS = 48 * 60 * 60 * 1000
-const NEXT_CLASS_LOOKAHEAD_DAYS = 21
 const NEXT_CLASS_TICK_MS = 30 * 1000
 const NEXT_CLASS_REFRESH_MS = 5 * 60 * 1000
 const NEXT_CLASS_LOGIN_QUIET_MS = 90 * 1000
@@ -40,17 +46,6 @@ function getClassHue(title) {
   }
 }
 
-function formatDateOnly(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function getTodayDateString() {
-  return formatDateOnly(new Date())
-}
-
 function getEventKey(event) {
   return [
     event?.start ?? '',
@@ -61,65 +56,15 @@ function getEventKey(event) {
   ].join('||')
 }
 
-function buildNextClassCacheEntryKey(sessionUser, resourceKey, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
-  const normalizedUser = String(sessionUser ?? '').trim()
-  const normalizedResourceKey = String(resourceKey ?? '').trim()
-
-  if (!normalizedUser || !normalizedResourceKey) {
-    return ''
-  }
-
-  return `${normalizedUser}::${normalizedResourceKey}::${lookaheadDays}d`
-}
-
 function readCachedNextClass(cacheKey) {
-  if (!cacheKey) {
+  const cached = readNextClassCache(cacheKey)
+  if (!cached) {
     return null
   }
 
-  try {
-    const rawValue = localStorage.getItem(NEXT_CLASS_CACHE_KEY)
-    if (!rawValue) {
-      return null
-    }
-
-    const parsedValue = JSON.parse(rawValue)
-    if (!parsedValue || typeof parsedValue !== 'object') {
-      return null
-    }
-
-    if (parsedValue.cacheKey !== cacheKey || !Array.isArray(parsedValue.events)) {
-      return null
-    }
-
-    if (Date.now() - Number(parsedValue.cachedAt ?? 0) > NEXT_CLASS_CACHE_TTL_MS) {
-      return null
-    }
-
-    return {
-      events: parsedValue.events.map(decorateUpcomingEvent).filter(Boolean).sort(compareEvents),
-      complete: parsedValue.complete !== false,
-      cachedAt: Number(parsedValue.cachedAt ?? 0),
-    }
-  } catch {
-    return null
-  }
-}
-
-function persistCachedNextClass(cacheKey, result) {
-  if (!cacheKey || !Array.isArray(result?.events)) {
-    return
-  }
-
-  try {
-    localStorage.setItem(NEXT_CLASS_CACHE_KEY, JSON.stringify({
-      cacheKey,
-      complete: result.complete !== false,
-      events: result.events,
-      cachedAt: Date.now(),
-    }))
-  } catch {
-    // Storage unavailable
+  return {
+    ...cached,
+    events: cached.events.map(decorateUpcomingEvent).filter(Boolean).sort(compareEvents),
   }
 }
 
@@ -322,24 +267,6 @@ function buildFakeNextClass() {
   }
 }
 
-function buildResourceIdsFromSelection(selection) {
-  const candidates = [
-    selection?.tpResourceId,
-    selection?.tdResourceId,
-    selection?.yearResourceId,
-    selection?.resourceId,
-  ]
-
-  return candidates.filter((value, index) => {
-    const normalizedValue = String(value ?? '').trim()
-    if (!normalizedValue) {
-      return false
-    }
-
-    return candidates.findIndex((candidate) => String(candidate ?? '').trim() === normalizedValue) === index
-  }).map((value) => String(value).trim())
-}
-
 function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
   switch (widgetState.status) {
     case 'loading':
@@ -383,29 +310,12 @@ function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
   }
 }
 
-async function loadUpcomingClasses({
-  selection,
-  signal,
-  startDate = getTodayDateString(),
-  lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS,
-}) {
-  const data = await getAdeUpcoming({
-    date: startDate,
-    lookaheadDays,
-    selection,
-    signal,
-  })
-
-  if (!data?.authenticated) {
-    throw new Error('Connexion requise pour charger le planning')
-  }
-
-  const events = Array.isArray(data?.upcoming?.events)
-    ? data.upcoming.events.map(decorateUpcomingEvent).filter(Boolean).sort(compareEvents)
-    : []
+async function loadUpcomingClasses(options) {
+  const data = await fetchUpcomingEvents(options)
+  const events = data.events.map(decorateUpcomingEvent).filter(Boolean).sort(compareEvents)
 
   return {
-    complete: data?.upcoming?.complete !== false,
+    complete: data.complete,
     events,
     nextClass: findNextClass(events),
   }
@@ -572,7 +482,8 @@ function WidgetNextClass({
       loadedEventsRef.current = result.events
       loadedCompleteRef.current = result.complete
       lastRefreshAtRef.current = Date.now()
-      persistCachedNextClass(cacheKey, result)
+      persistNextClassCache(cacheKey, result)
+      publishBriefingSource('classes', { cacheKey, loadedAt: lastRefreshAtRef.current })
 
       if (result.nextClass) {
         setWidgetState(createWidgetState({
@@ -593,6 +504,8 @@ function WidgetNextClass({
       }
 
       lastRefreshAtRef.current = Date.now()
+      // The briefing keeps whatever the cache still holds.
+      publishBriefingSource('classes', { cacheKey, loadedAt: lastRefreshAtRef.current })
       setWidgetState((current) => {
         // A failed background refresh keeps the class already on screen.
         if (background && current.status === 'ready' && current.nextClass) {
@@ -794,6 +707,9 @@ function WidgetNextClass({
   const exactDateLabel = formatExactDateLabel(nextClass?.start)
   const shouldShowExactDateTooltip = Boolean(exactDateLabel && timeLabel && timeLabel !== 'En cours')
   const statusCopy = getStatusCopy(widgetState, lookaheadDays)
+  // Also takes the full row on phones, where a class shares it with the grade.
+  // There the card is a size container: at half width the title gets two
+  // lines, teacher and group go (@max-[240px]) and the time range wraps.
   const isStatusWide = ['unconfigured', 'limited', 'empty', 'paused'].includes(widgetState.status)
   const openAdePlanning = useCallback(() => {
     if (!ADE_HREF) {
@@ -819,7 +735,7 @@ function WidgetNextClass({
 
   return (
     <article
-      className={`next-class-widget widget-card relative z-0 hover:z-10 shadow-md flex-[0_1_190px] h-[140px] p-4 border border-white rounded-[22px] overflow-visible text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-[min(320px,100%)] max-md:h-[132px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_100%] max-xs:min-w-0 flex flex-col gap-[6px] text-text cursor-pointer ${wide ? '2xl:flex-[0_1_380px]' : isStatusWide ? '2xl:flex-[0_1_300px]' : ''} ${visible ? 'widget-card-visible' : ''}`}
+      className={`next-class-widget widget-card relative z-0 hover:z-10 shadow-md flex-[0_1_190px] h-[140px] p-4 border border-white rounded-[22px] overflow-visible text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-[min(320px,100%)] max-md:h-[132px] max-md:p-3 max-md:rounded-[20px] max-xs:h-[140px] max-xs:min-w-0 max-xs:@container flex flex-col gap-[6px] text-text cursor-pointer ${isStatusWide ? 'max-xs:flex-[1_1_100%]' : 'max-xs:flex-[1_1_calc(50%-4px)]'} ${wide ? '2xl:flex-[0_1_380px]' : isStatusWide ? '2xl:flex-[0_1_300px]' : ''} ${visible ? 'widget-card-visible' : ''}`}
       style={{ '--class-gradient': classGradient, '--class-gradient-dark': classGradientDark }}
       aria-label="Prochain cours ouvrir ADE"
       onClick={openAdePlanning}
@@ -835,7 +751,7 @@ function WidgetNextClass({
       <div className="flex-1 flex flex-col justify-between min-h-0">
         {widgetState.status === 'ready' && nextClass ? (
           <>
-            <div className="flex items-center gap-2 flex-1 min-h-0 my-1.5">
+            <div className="flex items-center gap-2 flex-1 min-h-0 my-1.5 max-xs:my-1">
               <div className="flex self-stretch items-center">
                 <div
                   className="w-[6px] h-full rounded-[25px] shrink-0 relative overflow-hidden"
@@ -846,7 +762,7 @@ function WidgetNextClass({
                 </div>
               </div>
               <div className="flex flex-col justify-center gap-[3px] min-w-0 flex-1">
-                <span ref={titleRef} className="block m-0 min-w-0 leading-[1.06] text-[15px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px]" title={nextClass.title}>{nextClass.title}</span>
+                <span ref={titleRef} className="block m-0 min-w-0 leading-[1.06] text-[15px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px] max-xs:whitespace-normal max-xs:line-clamp-2" title={nextClass.title}>{nextClass.title}</span>
                 <div className="flex flex-col gap-[2px] min-w-0">
                   {nextClass.location ? (
                     <span className="flex items-center gap-[3px] min-w-0 text-text-muted">
@@ -855,7 +771,7 @@ function WidgetNextClass({
                     </span>
                   ) : null}
                   {nextClass.teacher ? (
-                    <span className="flex items-center gap-[3px] min-w-0 text-text-muted">
+                    <span className="flex items-center gap-[3px] min-w-0 text-text-muted max-xs:@max-[240px]:hidden">
                       <Icon icon="carbon:user-avatar" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
                       <span ref={teacherRef} className="block min-w-0 leading-[1.06] text-[13px] overflow-hidden text-ellipsis whitespace-nowrap" title={nextClass.teacher}>{nextClass.teacher}</span>
                     </span>
@@ -866,7 +782,7 @@ function WidgetNextClass({
 
             <div className="flex items-center justify-between gap-3 min-w-0">
               <div className="flex flex-col gap-[2px] min-w-0">
-                <div className="flex items-center gap-[7px] min-w-0">
+                <div className="flex items-center gap-[7px] min-w-0 max-xs:flex-wrap max-xs:gap-y-[3px]">
                   <span
                     className={`relative inline-flex min-w-0 items-center gap-[5px] ${shouldShowExactDateTooltip ? 'group/next-class cursor-help' : ''}`}
                     title={shouldShowExactDateTooltip ? exactDateLabel : undefined}
@@ -885,7 +801,7 @@ function WidgetNextClass({
                 </div>
               </div>
               {firstGroup ? (
-                <span ref={groupRef} className="block leading-[1.06] text-[12px] font-semibold text-text-muted shrink-0 max-w-[38%] overflow-hidden text-ellipsis whitespace-nowrap text-right" title={firstGroup}>{firstGroup}</span>
+                <span ref={groupRef} className="block leading-[1.06] text-[12px] font-semibold text-text-muted shrink-0 max-w-[38%] overflow-hidden text-ellipsis whitespace-nowrap text-right max-xs:@max-[240px]:hidden" title={firstGroup}>{firstGroup}</span>
               ) : null}
             </div>
           </>

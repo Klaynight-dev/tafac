@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
+import { openChangelog, useChangelog } from '../changelogStore'
+import { downloadSchoolCertificate, getCachedSchoolCertificateStatus, getSchoolCertificateStatus } from '../entApi'
 import { AboutContent } from './AboutModal'
 import { PrivacyContent } from './PrivacyModal'
 
@@ -358,6 +360,130 @@ function LookaheadSetting({ days, options, onChange }) {
   )
 }
 
+// « Documents »: the certificat de scolarité, only once the server confirmed
+// one exists (it asks MonDossierWeb, see server/schoolCertificate.js).
+function SchoolCertificateGroup() {
+  const [status, setStatus] = useState(getCachedSchoolCertificateStatus)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isCancelled = false
+    void getSchoolCertificateStatus().then((nextStatus) => {
+      if (!isCancelled) setStatus(nextStatus)
+    })
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
+  if (!status?.available) {
+    return null
+  }
+
+  const handleDownload = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await downloadSchoolCertificate()
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : String(downloadError))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-[7px]">
+      <SettingsGroup title="Documents">
+        <button
+          type="button"
+          className={`${ROW_CLASSES} w-full border-0 bg-transparent text-left cursor-pointer transition-colors duration-[120ms] hover:bg-[#f8f7f3] disabled:cursor-wait dark:hover:bg-[var(--color-bg-subtle)]`}
+          onClick={() => void handleDownload()}
+          disabled={busy}
+        >
+          <RowText
+            icon="carbon:document-pdf"
+            label="Certificat de scolarité"
+            description={busy ? 'Téléchargement…' : status.schoolYear ? `Année ${status.schoolYear} · PDF` : 'PDF'}
+          />
+          <Icon icon={busy ? 'carbon:renew' : 'carbon:download'} className={`h-4 w-4 shrink-0 text-text-60 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+        </button>
+      </SettingsGroup>
+      {error ? (
+        <p className="m-0 px-1 font-body text-[13px] font-semibold leading-[1.2] text-[#b91c1c] dark:text-[var(--color-error)]" role="alert">{error}</p>
+      ) : null}
+    </div>
+  )
+}
+
+// « Nouveautés » (À propos): the whole changelog, pill or not. The list
+// opens above Réglages and closes back to it.
+function ChangelogGroup() {
+  const { entries, unseenIds } = useChangelog()
+
+  if (entries.length === 0) {
+    return null
+  }
+
+  return (
+    <SettingsGroup>
+      <button
+        type="button"
+        className={`${ROW_CLASSES} w-full border-0 bg-transparent text-left cursor-pointer transition-colors duration-[120ms] hover:bg-[#f8f7f3] dark:hover:bg-[var(--color-bg-subtle)]`}
+        onClick={openChangelog}
+      >
+        <RowText icon="ph:sparkle" label="Nouveautés" description="Ce qui a changé récemment" />
+        <span className="flex shrink-0 items-center gap-2">
+          {unseenIds.length > 0 ? (
+            <>
+              <span className="changelog-new-dot h-[7px] w-[7px] rounded-full" aria-hidden="true" />
+              <span className="sr-only">{`${unseenIds.length} à découvrir`}</span>
+            </>
+          ) : null}
+          <Icon icon="carbon:chevron-right" className="h-4 w-4 text-text-60" aria-hidden="true" />
+        </span>
+      </button>
+    </SettingsGroup>
+  )
+}
+
+const THEME_CHOICES = [
+  { id: 'auto', label: 'Automatique', icon: 'carbon:screen' },
+  { id: 'light', label: 'Clair', icon: 'carbon:sun' },
+  { id: 'dark', label: 'Sombre', icon: 'carbon:moon' },
+]
+
+// Three-way pill: follow the device, or force light or dark.
+function ThemeSetting({ value, onChange }) {
+  return (
+    <div className="flex flex-col gap-[7px]">
+      <h4 className="m-0 px-1 font-body text-[13px] font-semibold leading-none text-text-60">Thème</h4>
+      <div className={`flex gap-1 rounded-full ${MUTED_FILL_CLASSES} p-1`}>
+        {THEME_CHOICES.map((choice) => {
+          const isActive = choice.id === value
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onChange(choice.id)}
+              className={`inline-flex h-9 min-w-0 flex-auto items-center justify-center gap-[6px] rounded-full border px-3 font-body text-[14px] font-medium text-[var(--color-text)] cursor-pointer transition-[background-color,box-shadow,border-color] duration-150 ease-in-out max-sm:text-[13px] ${
+                isActive
+                  ? 'bg-widget-bg border-white dark:border-[rgba(255,255,255,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+                  : 'bg-transparent border-transparent hover:bg-brand-subtle'
+              }`}
+            >
+              <Icon icon={choice.icon} className="h-4 w-4 shrink-0 max-sm:hidden" aria-hidden="true" />
+              <span className="truncate">{choice.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // Dashboard background: large preview, an on/off switch, and (when on) pick
 // an image or go back to the default photo.
 function WallpaperSetting({ previewSrc, hasCustom, enabled, onEnabledChange, onChange, onReset }) {
@@ -454,6 +580,8 @@ function AccountModal({
   backgroundPreviewSrc = null,
   showWallpaper = true,
   onShowWallpaperChange,
+  theme = 'auto',
+  onThemeChange,
   hasCustomBackground = false,
   onCustomBackgroundChange,
   onCustomBackgroundReset,
@@ -512,7 +640,8 @@ function AccountModal({
   // The lookahead only tunes the "Prochain cours" card, so it lives under that
   // card's switch. Without the card in the list it falls back to Planning.
   const lookaheadInDashboard = canConfigureLookahead && Boolean(nextClassToggle)
-  const hasAppearance = typeof onCustomBackgroundChange === 'function'
+  const hasAppearance = typeof onThemeChange === 'function'
+    || typeof onCustomBackgroundChange === 'function'
     || typeof onShowWallpaperChange === 'function'
     || typeof onShowAppDescriptionsChange === 'function'
   const hasPrivacy = typeof onAnonymousAnalyticsChange === 'function'
@@ -600,6 +729,8 @@ function AccountModal({
                 </button>
               </SettingsGroup>
             ) : null}
+
+            <SchoolCertificateGroup />
           </>
         )
 
@@ -682,6 +813,9 @@ function AccountModal({
       case 'appearance':
         return (
           <>
+            {typeof onThemeChange === 'function' ? (
+              <ThemeSetting value={theme} onChange={onThemeChange} />
+            ) : null}
             {typeof onCustomBackgroundChange === 'function' || typeof onShowWallpaperChange === 'function' ? (
               <WallpaperSetting
                 previewSrc={backgroundPreviewSrc}
@@ -726,9 +860,12 @@ function AccountModal({
 
       case 'about':
         return (
-          <div className={`${CARD_CLASSES} p-[18px]`}>
-            <AboutContent onPrivacyClick={hasPrivacy ? () => selectSection('privacy') : null} />
-          </div>
+          <>
+            <ChangelogGroup />
+            <div className={`${CARD_CLASSES} p-[18px]`}>
+              <AboutContent onPrivacyClick={hasPrivacy ? () => selectSection('privacy') : null} />
+            </div>
+          </>
         )
 
       default:

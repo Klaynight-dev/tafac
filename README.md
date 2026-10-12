@@ -89,6 +89,7 @@ Le serveur Express écoute sur le port `3000` (configurable via `PORT`).
 | `TENANTS`        | Universités servies/buildées en multi-tenant (ids séparés par `,`) | Non              |
 | `POSTHOG_PROJECT_KEY` | Clé PostHog : active la mesure d'audience anonyme côté serveur (absente = désactivée) | Non |
 | `POSTHOG_HOST`   | Hôte PostHog (défaut : `https://eu.i.posthog.com`, UE)              | Non              |
+| `DATA_DIR`       | Dossier où le serveur mémorise les icônes automatiques des applications (défaut : `./data`, voir [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#icônes-automatiques-des-applications)) | Non |
 
 ## Multi-université par sous-domaine
 
@@ -167,6 +168,14 @@ Tafac communique avec les systèmes suivants :
 - **Planning** : planning détaillé via GWT RPC
 - **Notes** : relevé ScoDoc (moyenne, dernière note, photo étudiante)
 - **Open-Meteo** : météo (API libre)
+
+## Nouveautés (changelog)
+
+Les nouveautés visibles par les étudiants vivent dans [`src/changelog.js`](src/changelog.js). Quand un appareil a des entrées qu'il n'a pas encore vues, une petite pastille « Nouveautés » apparaît sur le tableau de bord ; elle disparaît dès que la liste est ouverte. La liste complète reste accessible dans Réglages › À propos.
+
+Pour annoncer une nouveauté, ajoutez **un objet en tête de `CHANGELOG`** : `id` unique (jamais modifié ensuite), `date` (`AAAA-MM-JJ`), `title`, `body` (une ou deux phrases, en tutoyant, sans jargon) et, au besoin, une `icon` Iconify. Une entrée qui ne concerne pas tout le monde déclare `universities: ['univ-rennes']` et/ou `features: ['mail']` (toutes les fonctionnalités listées doivent être actives dans `universityConfig.features`) ; ailleurs, elle est invisible et n'allume pas la pastille. Le commentaire en tête du fichier détaille les règles.
+
+La première visite d'un appareil marque silencieusement toutes les entrées existantes comme vues (clé `l-ent:changelog-seen`) : seules les nouveautés publiées ensuite allument la pastille.
 
 ## Contribution
 
