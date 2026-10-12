@@ -13,6 +13,8 @@ import PwaInstallPrompt from './components/PwaInstallPrompt'
 import OnboardingPage from './components/OnboardingPage'
 import PwaUpdateManager from './components/PwaUpdateManager'
 import UpdateNotice from './components/UpdateNotice'
+import WelcomeFromLent from './components/WelcomeFromLent'
+import { settingsTransfer } from './settingsTransferBoot'
 import { DEMO_CREDENTIALS, DEMO_SESSION_MODE } from './demoAccount'
 import { storeBrowserPasswordCredential } from './browserCredentials'
 import { syncRuntimeSeo } from './seo'
@@ -947,6 +949,16 @@ function getFrenchTpLoadErrorMessage(error) {
   return 'ADE est indisponible pour le moment'
 }
 
+let settingsTransferReported = false
+
+// One event per arrival from the old l'ent address. Called right after the
+// session says whether analytics is on: track() drops anything sent earlier.
+function reportSettingsTransfer() {
+  if (!settingsTransfer.arrived || settingsTransferReported) return
+  settingsTransferReported = true
+  track('settings_imported', { has_settings: settingsTransfer.importedKeys.length > 0 })
+}
+
 function App() {
   const debugCopyTimeoutRef = useRef(null)
   const [debugOpen, setDebugOpen] = useState(false)
@@ -958,6 +970,18 @@ function App() {
   const [forceInstallPrompt, setForceInstallPrompt] = useState(false)
   const [forceIosPrompt, setForceIosPrompt] = useState(false)
   const [forceUpdatePrompt, setForceUpdatePrompt] = useState(false)
+  const [welcomeFromLentOpen, setWelcomeFromLentOpen] = useState(false)
+
+  useEffect(() => {
+    if (!settingsTransfer.arrived) return undefined
+    const timer = setTimeout(() => setWelcomeFromLentOpen(true), 600)
+    return () => clearTimeout(timer)
+  }, [])
+
+  const showInstallPrompt = useCallback(() => {
+    setForceInstallPrompt(true)
+    setTimeout(() => setForceInstallPrompt(false), 100)
+  }, [])
   const [hasPendingUpdate, setHasPendingUpdate] = useState(false)
   const applyUpdateRef = useRef(null)
   const handleApplyUpdate = useCallback(async () => {
@@ -1062,6 +1086,7 @@ function App() {
     try {
       const session = await getAuthSession()
       setAnalyticsAvailable(session?.analyticsEnabled)
+      reportSettingsTransfer()
       let givenName = null
       let account = null
 
@@ -2557,7 +2582,18 @@ function App() {
         anonymousAnalytics={anonymousAnalytics}
         onAnonymousAnalyticsChange={isAnalyticsAvailable ? handleAnonymousAnalyticsChange : null}
       />
-      <PwaInstallPrompt forceShow={forceInstallPrompt || forceIosPrompt} forceIos={forceIosPrompt} />
+      <WelcomeFromLent
+        visible={welcomeFromLentOpen}
+        importedKeys={settingsTransfer.importedKeys}
+        signedIn={sessionState.authenticated}
+        onInstall={showInstallPrompt}
+        onDismiss={() => setWelcomeFromLentOpen(false)}
+      />
+      <PwaInstallPrompt
+        forceShow={forceInstallPrompt || forceIosPrompt}
+        forceIos={forceIosPrompt}
+        autoOpen={!settingsTransfer.arrived}
+      />
       <PwaUpdateManager
         forceOpen={forceUpdatePrompt}
         onForceOpenChange={setForceUpdatePrompt}
@@ -2685,7 +2721,7 @@ function App() {
                 <button
                 type="button"
                 className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1]"
-                onClick={() => { setForceInstallPrompt(true); setTimeout(() => setForceInstallPrompt(false), 100) }}
+                onClick={showInstallPrompt}
               >
                 PWA Prompt
               </button>
@@ -2702,6 +2738,13 @@ function App() {
                 onClick={() => setForceUpdatePrompt(true)}
               >
                 PWA Update Prompt
+              </button>
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1]"
+                onClick={() => setWelcomeFromLentOpen(true)}
+              >
+                Arrivée depuis l'ent
               </button>
               <button
                 type="button"

@@ -102,6 +102,14 @@ test('events without a session are limited to the anonymous-safe ones', () => {
   assert.ok(sanitizeAnalyticsEvent({ event: 'login_result', properties: { result: 'failure' } }, { hasSession: false }))
 })
 
+test('settings_imported only carries a boolean', () => {
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'settings_imported', properties: { has_settings: true, keys: ['l-ent:weather-city'] } }, { hasSession: false }),
+    { event: 'settings_imported', properties: { has_settings: true } },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'settings_imported', properties: { has_settings: 'yes' } }, { hasSession: false }), null)
+})
+
 test('batch parsing accepts sendBeacon text bodies and caps the batch size', () => {
   const events = Array.from({ length: 50 }, () => ({ event: 'dashboard_viewed' }))
   assert.equal(sanitizeAnalyticsBatch(JSON.stringify({ events }), { hasSession: true }).length, ANALYTICS_MAX_EVENTS_PER_BATCH)

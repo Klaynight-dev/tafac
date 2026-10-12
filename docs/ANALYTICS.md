@@ -55,6 +55,7 @@ Contexte ajouté automatiquement à chaque événement :
 | `setting_changed` | changement d'un réglage dans Mon compte | `setting` : `widget_visibility`, `app_descriptions`, `custom_background`, `analytics` · `value` : `on`, `off` · `widget` (pour `widget_visibility`) : mêmes valeurs que ci-dessus. La désactivation des statistiques n'est **jamais** envoyée. |
 | `login_result` | après la réponse du serveur de connexion | `result` : `success`, `failure` · `demo` : booléen |
 | `pwa_update_applied` | application d'une mise à jour de la PWA | — |
+| `settings_imported` | arrivée depuis l'ancienne adresse l'ent avec un lien de transfert des réglages (une fois par arrivée, souvent avant la connexion) | `has_settings` : booléen, au moins un réglage a été repris |
 
 PostHog ajoute aussi `$lib`, `$lib_version`, `$is_server` et `$geoip_disable` (métadonnées du SDK serveur), ainsi qu'un `timestamp` et un `uuid` d'événement.
 

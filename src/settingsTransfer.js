@@ -3,7 +3,7 @@
 // with its settings in the fragment, which browsers never send to a server.
 // Only known settings keys are taken, and a key already set here is kept.
 
-const TRANSFER_PREFIX = '#import='
+export const TRANSFER_PREFIX = '#import='
 const MAX_PAYLOAD_LENGTH = 100_000
 const MAX_VALUE_LENGTH = 20_000
 

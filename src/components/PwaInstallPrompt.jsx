@@ -14,7 +14,8 @@ function isStandalone() {
     || window.navigator.standalone === true
 }
 
-export default function PwaInstallPrompt({ forceShow = false, forceIos = false }) {
+// `autoOpen` false: only opens when forced (the Tafac welcome sheet offers it).
+export default function PwaInstallPrompt({ forceShow = false, forceIos = false, autoOpen = true }) {
   const [visible, setVisible] = useState(false)
   const [animatingOut, setAnimatingOut] = useState(false)
   const [showIos, setShowIos] = useState(false)
@@ -29,7 +30,7 @@ export default function PwaInstallPrompt({ forceShow = false, forceIos = false }
       return
     }
 
-    if (!isMobile() || isStandalone()) return
+    if (!autoOpen || !isMobile() || isStandalone()) return
     if (localStorage.getItem(PROMPT_DISMISSED_KEY)) return
 
     const count = Number(localStorage.getItem(VISIT_COUNT_KEY) || '0') + 1
@@ -40,7 +41,7 @@ export default function PwaInstallPrompt({ forceShow = false, forceIos = false }
       const timer = setTimeout(() => setVisible(true), 1200)
       return () => clearTimeout(timer)
     }
-  }, [forceShow, forceIos])
+  }, [forceShow, forceIos, autoOpen])
 
   const dismiss = useCallback(() => {
     setAnimatingOut(true)

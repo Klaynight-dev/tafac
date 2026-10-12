@@ -98,6 +98,15 @@ export const ANALYTICS_EVENTS = {
     properties: {},
     allowWithoutSession: true,
   },
+  // Arrival from the old l'ent address (see src/settingsTransferBoot.js).
+  // Usually before signing in, hence allowed without a session.
+  settings_imported: {
+    properties: {
+      has_settings: boolean,
+    },
+    required: ['has_settings'],
+    allowWithoutSession: true,
+  },
 }
 
 function pickAllowed(source, validators) {
