@@ -668,14 +668,16 @@ async function resolveLaunchTarget(application) {
   }
 }
 
-async function resolveLaunchTargets(applications) {
+// `knownTargets` are reused as-is, so a refresh only fetches the fragments of
+// applications it has never seen.
+async function resolveLaunchTargets(applications, knownTargets = {}) {
   const uniqueApplications = []
   const seenKeys = new Set()
 
   for (const application of applications) {
     const applicationKey = getApplicationKey(application)
 
-    if (!application?.fname || seenKeys.has(applicationKey)) {
+    if (!application?.fname || seenKeys.has(applicationKey) || knownTargets[applicationKey]) {
       continue
     }
 
@@ -694,7 +696,7 @@ async function resolveLaunchTargets(applications) {
     }
   }))
 
-  return Object.fromEntries(resolvedEntries)
+  return { ...knownTargets, ...Object.fromEntries(resolvedEntries) }
 }
 
 
@@ -803,6 +805,11 @@ function AvailableApplications({
   const [launchBehaviors, setLaunchBehaviors] = useState({})
   const [launchingKeys, setLaunchingKeys] = useState({})
   const [exitingFavoriteKeys, setExitingFavoriteKeys] = useState({})
+  // Favorite changes show up right away; the ENT request runs behind them and
+  // is rolled back if it fails. Added apps wait here until a portal refresh
+  // lists them, removed ones stay hidden until it stops listing them.
+  const [pendingFavoriteAdds, setPendingFavoriteAdds] = useState({})
+  const [pendingFavoriteRemovals, setPendingFavoriteRemovals] = useState({})
   const [favoriteActionState, setFavoriteActionState] = useState({
     removingKey: '',
     error: '',
@@ -825,20 +832,32 @@ function AvailableApplications({
   const launchRequestsRef = useRef(new Map())
   const launchBehaviorRequestsRef = useRef(new Map())
   const removalTimeoutsRef = useRef(new Map())
+  // Removals asked for while the add is still unconfirmed: the remove request
+  // needs the layout ids only the refreshed portal gives.
+  const deferredRemovalsRef = useRef(new Set())
+  const launchTargetsRef = useRef({})
   const isMountedRef = useRef(true)
   const contextMenuRef = useRef(null)
   const dragRef = useRef({ index: -1, didDrag: false })
   const favoritesRowRef = useRef(null)
   const flipRectsRef = useRef(new Map())
 
+  const entFavoriteApplications = useMemo(
+    () => getFavoriteApplications(viewState.sections),
+    [viewState.sections],
+  )
   const favoriteApplications = useMemo(() => {
-    const entFavorites = getFavoriteApplications(viewState.sections)
+    const entFavorites = entFavoriteApplications
       .filter((application) => !isUnavailableGradeApplication(application))
+    const entKeys = new Set(entFavorites.map(getApplicationKey))
+    const addedFavorites = Object.values(pendingFavoriteAdds)
+      .filter((application) => !entKeys.has(getApplicationKey(application)))
     const pinnedLocalServices = allServices.filter(
       (service) => isLocalService(service) && localPins.includes(getApplicationKey(service)),
     )
-    return [...entFavorites, ...pinnedLocalServices]
-  }, [viewState.sections, allServices, localPins])
+    return [...entFavorites, ...addedFavorites, ...pinnedLocalServices]
+      .filter((application) => !pendingFavoriteRemovals[getApplicationKey(application)])
+  }, [entFavoriteApplications, pendingFavoriteAdds, pendingFavoriteRemovals, allServices, localPins])
   const visibleServices = useMemo(() => {
     const pinnedLocalKeys = new Set(localPins)
     return allServices.filter(
@@ -881,10 +900,42 @@ function AvailableApplications({
     setOrderedFavorites(applyStoredOrder(favoriteApplications))
   }, [favoriteApplications])
 
+  // Once the portal reflects a change, the optimistic entry is no longer needed.
+  // A removal deferred until its add was confirmed goes out now.
+  useEffect(() => {
+    const entByKey = new Map(entFavoriteApplications.map((application) => [getApplicationKey(application), application]))
+    setPendingFavoriteAdds((current) => {
+      const keys = Object.keys(current).filter((key) => entByKey.has(key))
+      if (keys.length === 0) return current
+      const next = { ...current }
+      for (const key of keys) delete next[key]
+      return next
+    })
+    setPendingFavoriteRemovals((current) => {
+      const keys = Object.keys(current).filter((key) => !entByKey.has(key) && !deferredRemovalsRef.current.has(key))
+      if (keys.length === 0) return current
+      const next = { ...current }
+      for (const key of keys) delete next[key]
+      return next
+    })
+    for (const key of [...deferredRemovalsRef.current]) {
+      const confirmed = entByKey.get(key)
+      if (confirmed) {
+        deferredRemovalsRef.current.delete(key)
+        void sendFavoriteRemoval(confirmed)
+      }
+    }
+    // sendFavoriteRemoval only uses setters and refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entFavoriteApplications])
+
   useEffect(() => {
     const launchRequests = launchRequestsRef.current
     const launchBehaviorRequests = launchBehaviorRequestsRef.current
     const removalTimeouts = removalTimeoutsRef.current
+    // Set again on mount: StrictMode runs this cleanup once in development,
+    // which used to leave the flag off and drop every favorite update.
+    isMountedRef.current = true
 
     return () => {
       isMountedRef.current = false
@@ -984,7 +1035,7 @@ function AvailableApplications({
         const nextLaunchTargets = await resolveLaunchTargets([
           ...getFavoriteApplications(sections.sections),
           ...services,
-        ].filter((application) => !isUnavailableGradeApplication(application)))
+        ].filter((application) => !isUnavailableGradeApplication(application)), launchTargetsRef.current)
         if (isCancelled) {
           return
         }
@@ -1006,6 +1057,7 @@ function AvailableApplications({
         })
         services.unshift(...pinnedServices)
 
+        launchTargetsRef.current = nextLaunchTargets
         setLaunchTargets(nextLaunchTargets)
         setAllServices(services)
 
@@ -1385,11 +1437,78 @@ function AvailableApplications({
     }
   }
 
-  async function handleUnfavorite(application) {
+  function setPendingFavorite(setter, applicationKey, value) {
+    setter((current) => {
+      if (!value && !current[applicationKey]) return current
+      const next = { ...current }
+      if (value) next[applicationKey] = value
+      else delete next[applicationKey]
+      return next
+    })
+  }
+
+  function postFavoriteLayoutChange(requestPath) {
+    return requestEnt(requestPath, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json, text/javascript, */*; q=0.01',
+        Origin: ENT_ORIGIN,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    })
+  }
+
+  function cancelFavoriteRemoval(applicationKey) {
+    window.clearTimeout(removalTimeoutsRef.current.get(applicationKey))
+    removalTimeoutsRef.current.delete(applicationKey)
+    deferredRemovalsRef.current.delete(applicationKey)
+    setPendingFavorite(setExitingFavoriteKeys, applicationKey, null)
+    setPendingFavorite(setPendingFavoriteRemovals, applicationKey, null)
+  }
+
+  // Sends the remove request for a favorite already leaving the row, and puts
+  // it back if the ENT refuses. `exitAnimation` lets the tile finish animating
+  // before a fast reply drops it from the list.
+  async function sendFavoriteRemoval(application, exitAnimation = Promise.resolve()) {
     const applicationKey = getApplicationKey(application)
+    const requestPath = buildRemoveFavoriteRequestPath(application)
+
+    try {
+      if (!requestPath) {
+        throw new Error('Impossible de retirer ce favori pour le moment')
+      }
+      const response = await postFavoriteLayoutChange(requestPath)
+      if (!response.ok) {
+        throw new Error(
+          (typeof response.data === 'object' ? response.data?.error : '')
+          || response.text
+          || 'Impossible de retirer ce favori pour le moment',
+        )
+      }
+      await exitAnimation
+      if (!isMountedRef.current) return
+      setViewState((current) => {
+        const nextSections = removeApplicationFromSections(current.sections, applicationKey)
+        return {
+          ...current,
+          rawCount: Math.max(0, current.rawCount - 1),
+          sections: nextSections,
+          status: nextSections.length > 0 ? 'ready' : 'empty',
+        }
+      })
+      setReloadKey((current) => current + 1)
+    } catch (error) {
+      if (!isMountedRef.current) return
+      cancelFavoriteRemoval(applicationKey)
+      setFavoriteActionState({ removingKey: '', error: getErrorMessage(error) })
+    }
+  }
+
+  function handleUnfavorite(application) {
+    const applicationKey = getApplicationKey(application)
+    closeContextMenu()
 
     if (isLocalService(application)) {
-      closeContextMenu()
       setLocalPins((current) => {
         const next = current.filter((key) => key !== applicationKey)
         saveLocalPins(next)
@@ -1398,92 +1517,47 @@ function AvailableApplications({
       return
     }
 
-    const requestPath = buildRemoveFavoriteRequestPath(application)
+    setFavoriteActionState({ removingKey: '', error: '' })
+    // The star empties right away; the tile plays its exit animation, then
+    // leaves the row.
+    setExitingFavoriteKeys((current) => ({ ...current, [applicationKey]: true }))
+    window.clearTimeout(removalTimeoutsRef.current.get(applicationKey))
+    removalTimeoutsRef.current.set(applicationKey, window.setTimeout(() => {
+      removalTimeoutsRef.current.delete(applicationKey)
+      if (!isMountedRef.current) return
+      setPendingFavorite(setPendingFavoriteRemovals, applicationKey, true)
+      setPendingFavorite(setExitingFavoriteKeys, applicationKey, null)
+    }, FAVORITE_REMOVAL_ANIMATION_MS))
 
-    if (!requestPath) {
-      setFavoriteActionState({
-        removingKey: '',
-        error: 'Impossible de retirer ce favori pour le moment',
-      })
-      closeContextMenu()
+    const isConfirmed = entFavoriteApplications.some((favorite) => getApplicationKey(favorite) === applicationKey)
+    if (!isConfirmed) {
+      deferredRemovalsRef.current.add(applicationKey)
       return
     }
 
-    setFavoriteActionState({
-      removingKey: applicationKey,
-      error: '',
-    })
-    closeContextMenu()
-
-    try {
-      const response = await requestEnt(requestPath, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json, text/javascript, */*; q=0.01',
-          Origin: ENT_ORIGIN,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      })
-      if (!response.ok) {
-        throw new Error(
-          (typeof response.data === 'object' ? response.data?.error : '')
-          || response.text
-          || 'Impossible de retirer ce favori pour le moment',
-        )
-      }
-      setFavoriteActionState({
-        removingKey: '',
-        error: '',
-      })
-
-      setExitingFavoriteKeys((current) => ({
-        ...current,
-        [applicationKey]: true,
-      }))
-
-      const timeoutId = window.setTimeout(() => {
-        if (!isMountedRef.current) {
-          return
-        }
-
-        setViewState((current) => {
-          const nextSections = removeApplicationFromSections(current.sections, applicationKey)
-          return {
-            ...current,
-            rawCount: Math.max(0, current.rawCount - 1),
-            sections: nextSections,
-            status: nextSections.length > 0 ? 'ready' : 'empty',
-          }
-        })
-        setExitingFavoriteKeys((current) => {
-          const nextState = { ...current }
-          delete nextState[applicationKey]
-          return nextState
-        })
-        removalTimeoutsRef.current.delete(applicationKey)
-        setReloadKey((current) => current + 1)
-      }, FAVORITE_REMOVAL_ANIMATION_MS)
-
-      removalTimeoutsRef.current.set(applicationKey, timeoutId)
-    } catch (error) {
-      setFavoriteActionState({
-        removingKey: '',
-        error: getErrorMessage(error),
-      })
-    }
+    void sendFavoriteRemoval(
+      application,
+      new Promise((resolve) => window.setTimeout(resolve, FAVORITE_REMOVAL_ANIMATION_MS)),
+    )
   }
 
   async function handleAddFavorite(application) {
     const applicationKey = getApplicationKey(application)
+    closeContextMenu()
 
     if (isLocalService(application)) {
-      closeContextMenu()
       setLocalPins((current) => {
         if (current.includes(applicationKey)) return current
         const next = [...current, applicationKey]
         saveLocalPins(next)
         return next
       })
+      return
+    }
+
+    // Undo of a removal that hasn't gone out yet: just show it again.
+    if (deferredRemovalsRef.current.has(applicationKey)) {
+      cancelFavoriteRemoval(applicationKey)
       return
     }
 
@@ -1495,41 +1569,25 @@ function AvailableApplications({
         removingKey: '',
         error: "Impossible d'ajouter ce favori pour le moment",
       })
-      closeContextMenu()
       return
     }
 
-    setFavoriteActionState({
-      removingKey: applicationKey,
-      error: '',
-    })
-    closeContextMenu()
+    setFavoriteActionState({ removingKey: '', error: '' })
+    cancelFavoriteRemoval(applicationKey)
+    setPendingFavorite(setPendingFavoriteAdds, applicationKey, application)
 
     try {
-      const response = await requestEnt(requestPath, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json, text/javascript, */*; q=0.01',
-          Origin: ENT_ORIGIN,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      })
-
+      const response = await postFavoriteLayoutChange(requestPath)
       if (!response.ok) {
         throw new Error("Impossible d'ajouter ce favori pour le moment")
       }
-
-      setFavoriteActionState({
-        removingKey: '',
-        error: '',
-      })
-
+      if (!isMountedRef.current) return
       setReloadKey((current) => current + 1)
     } catch (error) {
-      setFavoriteActionState({
-        removingKey: '',
-        error: getErrorMessage(error),
-      })
+      if (!isMountedRef.current) return
+      cancelFavoriteRemoval(applicationKey)
+      setPendingFavorite(setPendingFavoriteAdds, applicationKey, null)
+      setFavoriteActionState({ removingKey: '', error: getErrorMessage(error) })
     }
   }
 
@@ -1742,7 +1800,7 @@ function AvailableApplications({
               const isLaunching = Boolean(launchingKeys[applicationKey])
               const isContextOpen = contextMenuState.open && getApplicationKey(contextMenuState.application ?? {}) === applicationKey
               const favoriteEntry = favoritesByKey.get(applicationKey)
-              const isFavorite = Boolean(favoriteEntry)
+              const isFavorite = Boolean(favoriteEntry) && !exitingFavoriteKeys[applicationKey]
 
               return (
                 <a
