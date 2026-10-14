@@ -753,6 +753,7 @@
 /* ── Grade widget intro order ── */
 
 .latest-grade-widget,
+.absences-widget,
 .average-grade-widget {
   --widget-delay: 140ms;
 }
@@ -760,16 +761,19 @@
 /* ── Grade widget hover state ── */
 
 .latest-grade-widget:hover,
+.absences-widget:hover,
 .average-grade-widget:hover {
   background: var(--color-bg-subtle);
 }
 
 :where([data-theme="dark"]) .latest-grade-widget:hover,
+:where([data-theme="dark"]) .absences-widget:hover,
 :where([data-theme="dark"]) .average-grade-widget:hover {
   background: var(--color-bg-subtle);
 }
 
 .latest-grade-widget:hover .grade-corner-arrow,
+.absences-widget:hover .grade-corner-arrow,
 .average-grade-widget:hover .grade-corner-arrow,
 .next-class-widget:hover .grade-corner-arrow,
 .greeting-card-widget:hover .grade-corner-arrow,
@@ -854,6 +858,7 @@
   }
 
   .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .latest-grade-widget,
+  .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .absences-widget,
   .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .recent-mail-widget {
     flex: 1 1 calc(50% - 6px);
     min-width: 0;
@@ -1403,6 +1408,7 @@
 
 .grade-feature-disabled,
 .latest-grade-widget.grade-feature-disabled:hover,
+.absences-widget.grade-feature-disabled:hover,
 .average-grade-widget.grade-feature-disabled:hover,
 .sidebar-grade-pocket.grade-feature-disabled:hover {
   background: #f4f4f4;
@@ -1497,6 +1503,7 @@
 
 :where([data-theme="dark"]) .grade-feature-disabled,
 :where([data-theme="dark"]) .latest-grade-widget.grade-feature-disabled:hover,
+:where([data-theme="dark"]) .absences-widget.grade-feature-disabled:hover,
 :where([data-theme="dark"]) .average-grade-widget.grade-feature-disabled:hover,
 :where([data-theme="dark"]) .sidebar-grade-pocket.grade-feature-disabled:hover {
   background: #151515;
