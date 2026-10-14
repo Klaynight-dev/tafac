@@ -1,6 +1,7 @@
 import universityConfig from '@university'
 import { track } from './analytics'
-import { ENT_AUTH_PREFIX, GRADES_LAUNCH_HREF } from './entApi'
+import { navigateTo } from './appRoute'
+import { ENT_AUTH_PREFIX } from './entApi'
 import {
   GRADES_FEATURE_DISABLED,
   GRADES_FEATURE_ENABLED,
@@ -23,16 +24,14 @@ const MOODLE_HREF = universityConfig.features?.moodle && MOODLE_ORIGIN
 // already signed in (or falls back to its launch URL).
 const MAIL_HREF = universityConfig.features?.mail ? `${ENT_AUTH_PREFIX}/mail/open` : null
 
-// "Mes notes" follows the tri-state grades feature: a link to the grade
-// service when live, a greyed-out item with the unavailability notice when
+// "Mes notes" follows the tri-state grades feature: the in-app grades page
+// when live, a greyed-out item with the unavailability notice when
 // 'disabled', nothing otherwise.
 function buildGradesNavItem() {
   const base = { id: 'grades', label: 'Mes notes', icon: 'carbon:chart-pie' }
 
   if (GRADES_FEATURE_ENABLED) {
-    return GRADES_LAUNCH_HREF
-      ? { ...base, href: GRADES_LAUNCH_HREF, target: '_blank' }
-      : { ...base, targetId: 'sidebar-section-grades' }
+    return { ...base, route: 'grades' }
   }
 
   if (GRADES_FEATURE_DISABLED) {
@@ -47,18 +46,27 @@ function buildGradesNavItem() {
   return null
 }
 
+// Grades only for establishments whose config enables grade widgets.
+function hasGradeWidgets(establishment) {
+  return Boolean(universityConfig.establishments?.byId?.[establishment]?.gradeWidgets)
+}
+
+// Whether /notes can show the grades page (otherwise it falls back to the
+// dashboard).
+export function isGradesPageAvailable(establishment) {
+  return GRADES_FEATURE_ENABLED && hasGradeWidgets(establishment)
+}
+
 export function buildNavItems(establishment) {
-  // Grades nav only for establishments whose config enables grade widgets.
-  const gradesNavItem = universityConfig.establishments?.byId?.[establishment]?.gradeWidgets
-    ? buildGradesNavItem()
-    : null
+  const gradesNavItem = hasGradeWidgets(establishment) ? buildGradesNavItem() : null
 
   return [
     {
       id: 'applications',
       label: 'Toutes les applications',
       icon: 'carbon:app-switcher',
-      targetId: 'sidebar-section-applications',
+      // The dashboard home, where the applications grid lives.
+      route: 'dashboard',
     },
     ...(gradesNavItem ? [gradesNavItem] : []),
     ...(universityConfig.features?.planning && PLANNING_HREF
@@ -80,10 +88,20 @@ export function buildNavItems(establishment) {
   ]
 }
 
-// Opens a link item (grades service, planning) and records which app it was
+// Opens an item (in-app page, planning, mail…) and records which app it was
 // and where it was opened from.
 export function openNavItemLink(item, source) {
+  if (item.route === 'dashboard') {
+    navigateTo('dashboard')
+    return
+  }
+
   track('app_opened', { app: item.id, source })
+  if (item.route) {
+    navigateTo(item.route)
+    return
+  }
+
   if (item.target === '_blank') {
     window.open(item.href, '_blank', 'noopener,noreferrer')
     return

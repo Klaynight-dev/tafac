@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import favicon from './assets/favicon.png'
@@ -45,7 +45,9 @@ import WidgetContainer from './components/WidgetContainer'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
-import { getMobileTabItems } from './navItems'
+import { getMobileTabItems, isGradesPageAvailable } from './navItems'
+import { navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
+import GradesPage from './components/GradesPage'
 import { getAvailableWidgets } from './dashboardWidgets'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
@@ -457,6 +459,22 @@ function findTpOptionByLabel(options, labelOrLabels) {
   }
 
   return null
+}
+
+// What a page transition fades: each frosted card on its own (its blur keeps
+// working, unlike under a fading ancestor) and every block without one.
+// Cards with their own arrival animation (.grades-reveal) are left to it.
+function collectFadeBlocks(root, blocks = []) {
+  for (const child of root.children) {
+    if (child.classList.contains('widget-card')) {
+      if (!child.classList.contains('grades-reveal')) blocks.push(child)
+    } else if (child.querySelector('.widget-card')) {
+      collectFadeBlocks(child, blocks)
+    } else {
+      blocks.push(child)
+    }
+  }
+  return blocks
 }
 
 async function loadTdOptionsForAccountModal(yearOption) {
@@ -1818,6 +1836,13 @@ function App() {
   ), [customBackground, establishment, heroOffset])
   const heroImageCount = useMemo(() => listHeroImages(establishment).length, [establishment])
   const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment).length > 0, [establishment])
+  const route = useAppRoute()
+  // The sidebar and tab bar follow `route` right away (their highlight slides
+  // over); the page content renders from the deferred value, in the
+  // background, so mounting it doesn't freeze that animation.
+  const deferredRoute = useDeferredValue(route)
+  const gradesPageAvailable = isGradesPageAvailable(establishment)
+  const activeRoute = deferredRoute === 'grades' && gradesPageAvailable ? 'grades' : 'dashboard'
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -2467,6 +2492,46 @@ function App() {
     sessionState.user,
     sessionState.givenName,
   )
+  const isDashboardShellVisible = sessionState.authenticated && !shouldHoldInitialRender && !isProfileSwitching
+    && !shouldShowTpSetup && !shouldShowCompletionScreen
+
+  // /notes for someone without the grades page (feature off, establishment
+  // without grades): show the dashboard and drop the dead URL.
+  useEffect(() => {
+    if (isDashboardShellVisible && route === 'grades' && !gradesPageAvailable) {
+      navigateTo('dashboard', { replace: true })
+    }
+  }, [gradesPageAvailable, isDashboardShellVisible, route])
+
+  const gradesPageRef = useRef(null)
+  const dashboardPageRef = useRef(null)
+  const previousRouteRef = useRef(activeRoute)
+
+  // Each page starts at the top and slides in from the side it comes from:
+  // from the right toward "Mes notes", from the left back home.
+  useEffect(() => {
+    if (previousRouteRef.current === activeRoute) {
+      return
+    }
+
+    previousRouteRef.current = activeRoute
+    scrollAppToTop()
+
+    const page = activeRoute === 'grades' ? gradesPageRef.current : dashboardPageRef.current
+    if (!page?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return
+    }
+
+    const offset = activeRoute === 'dashboard' ? -28 : 28
+    const timing = { duration: 460, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+    // The page itself only slides: opacity on an ancestor would cut the
+    // cards' backdrop blur off from the photo until the end of the fade.
+    page.animate([{ transform: `translateX(${offset}px)` }, { transform: 'none' }], timing)
+    for (const block of collectFadeBlocks(page)) {
+      block.animate([{ opacity: 0 }, { opacity: 1 }], timing)
+    }
+  }, [activeRoute])
+
   const simpleLoadingDots = (
     <span className="inline-flex items-center justify-center gap-[6px] text-text-muted" role="status" aria-live="polite" aria-label="Chargement">
       <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
@@ -2526,14 +2591,19 @@ function App() {
             showChangelogPill={showChangelogPill}
             establishment={establishment}
           />
-          <div ref={dashboardColumnRef} className={`relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
+          <div ref={dashboardColumnRef} data-app-scroll-root className={`relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
             {showWallpaper ? (
               <div
                 aria-hidden="true"
-                className="dashboard-hero pointer-events-none absolute inset-x-0 top-0 -z-10 h-[230px] bg-cover bg-[center_40%] max-md:h-[260px] dark:opacity-60"
+                // Behind "Mes notes" the photo runs past the title down to the
+                // first cards, as it does behind the dashboard widgets.
+                className={`dashboard-hero pointer-events-none absolute inset-x-0 top-0 -z-10 bg-cover bg-[center_40%] transition-[height] duration-500 ease-out dark:opacity-60 ${
+                  activeRoute === 'grades' ? 'h-[420px] max-md:h-[440px]' : 'h-[230px] max-md:h-[260px]'
+                }`}
                 style={{
-                  ...(heroHeight ? { height: heroHeight } : null),
+                  // The measured height follows the widget row, hidden on other pages.
+                  ...(heroHeight && activeRoute === 'dashboard' ? { height: heroHeight } : null),
                   backgroundImage: `url("${heroImage.src}")`,
                   ...(heroImage.position ? { backgroundPosition: heroImage.position } : null),
                 }}
@@ -2565,7 +2635,14 @@ function App() {
                 </div>
               </div>
             ) : null}
-            <div className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
+            {activeRoute === 'grades' ? (
+              <div ref={gradesPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
+                <GradesPage storageScope={sessionState.user} />
+              </div>
+            ) : null}
+            {/* Kept mounted on other pages: coming back is instant and the
+                widgets don't refetch or report a second dashboard view. */}
+            <div ref={dashboardPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0" hidden={activeRoute !== 'dashboard'}>
               <WidgetContainer
                 userName={sessionState.givenName ?? sessionState.user}
                 isSessionReady={!sessionState.checking}
