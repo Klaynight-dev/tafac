@@ -149,16 +149,16 @@ export default function PageGuidedTour({
   useEffect(() => {
     if (!running) return undefined
 
-    const target = findTarget(step.target)
-    if (step.target && !target) {
-      goTo(directionRef.current)
+    const target = findTarget(step?.target)
+    if (!target) {
+      setHighlight(null)
       return undefined
     }
 
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
 
     const measure = () => {
-      const element = findTarget(step.target)
+      const element = findTarget(step?.target)
       if (!element) {
         setHighlight(null)
         return

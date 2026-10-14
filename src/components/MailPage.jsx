@@ -3,8 +3,9 @@ import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import { getMailMessage, getMailMessages, markMailAsRead } from '../entApi'
 import { MAIL_HREF } from '../navItems'
-import { CARD_CLASSES, SECONDARY_BUTTON } from '../scodocPageUtils'
+import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
+import PageGuidedTour from './PageGuidedTour'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
 import {
   SHIMMER_CLASSES,
@@ -12,6 +13,36 @@ import {
   formatClockTime,
   parseDate,
 } from './widgetListUtils'
+
+const MAIL_TOUR_STEPS = [
+  {
+    id: 'intro',
+    title: 'Bienvenue sur ta messagerie',
+    body: 'Consulte tes e-mails universitaires en direct, lis tes messages récents et accède directement à Partage.',
+    icon: 'carbon:email',
+  },
+  {
+    id: 'search',
+    target: 'mail-search',
+    title: 'Recherche et filtres',
+    body: 'Recherche par mot-clé, enseignant ou objet, et bascule entre tous les messages et les non lus.',
+    icon: 'carbon:search',
+  },
+  {
+    id: 'list',
+    target: 'mail-list',
+    title: 'Boîte de réception',
+    body: 'Parcours tes e-mails avec aperçu du contenu, statut de lecture et date de réception.',
+    icon: 'carbon:list-boxes',
+  },
+  {
+    id: 'detail',
+    target: 'mail-preview',
+    title: 'Panneau de lecture',
+    body: 'Lis le corps du message complet, marque-le comme lu/non lu ou ouvre-le dans le webmail Partage.',
+    icon: 'carbon:view',
+  },
+]
 
 const weekdayFormatter = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
 const dayMonthFormatter = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
@@ -272,6 +303,7 @@ function EmailBodyViewer({ html, text }) {
 }
 
 export default function MailPage() {
+  const [tourTrigger, setTourTrigger] = useState(0)
   const [messages, setMessages] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [webmailHref, setWebmailHref] = useState(MAIL_HREF)
@@ -481,6 +513,16 @@ export default function MailPage() {
               <span className="max-xs:hidden">Rafraîchir</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setTourTrigger((c) => c + 1)}
+              className={HELP_TOUR_BUTTON}
+              title="Aide & Visite guidée de la messagerie"
+              aria-label="Visite guidée"
+            >
+              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
+            </button>
+
             {effectiveWebmailHref && (
               <a
                 href={effectiveWebmailHref}
@@ -497,7 +539,7 @@ export default function MailPage() {
         </header>
 
         {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div data-tour="mail-search" className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="relative flex-1 max-w-md">
             <Icon
               icon="carbon:search"
@@ -576,6 +618,7 @@ export default function MailPage() {
           <div className="flex gap-5 min-h-[560px] relative items-start">
             {/* Left Pane: Message List */}
             <div
+              data-tour="mail-list"
               className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col gap-2 max-md:max-h-none md:max-h-[calc(100dvh-200px)] overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] ${
                 selectedId ? 'max-md:hidden' : 'block'
               }`}
@@ -660,6 +703,7 @@ export default function MailPage() {
 
             {/* Right Pane: Reading Pane */}
             <div
+              data-tour="mail-preview"
               className={`flex-1 min-w-0 max-md:max-h-none md:max-h-[calc(100dvh-200px)] overflow-y-auto overscroll-contain [scrollbar-width:thin] ${
                 selectedId ? 'block' : 'max-md:hidden'
               }`}
@@ -865,6 +909,11 @@ export default function MailPage() {
           </div>
         )}
       </div>
+      <PageGuidedTour
+        storageKey="l-ent:tour:mail"
+        steps={MAIL_TOUR_STEPS}
+        manualTrigger={tourTrigger}
+      />
     </section>
   )
 }

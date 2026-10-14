@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import { ENT_AUTH_PREFIX, getAdeTeachers } from '../entApi'
-import { SECONDARY_BUTTON } from '../scodocPageUtils'
+import { HELP_TOUR_BUTTON, SECONDARY_BUTTON } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
 import { buildResourceIdsFromSelection, fetchUpcomingEvents, formatDateOnly } from '../upcomingClasses'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
@@ -406,11 +406,11 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
             <button
               type="button"
               onClick={() => setTourTrigger((c) => c + 1)}
-              className={`${SECONDARY_BUTTON} size-9 p-0 inline-flex items-center justify-center rounded-full text-text-muted hover:text-text`}
+              className={HELP_TOUR_BUTTON}
               title="Aide & Visite guidée du planning"
               aria-label="Visite guidée"
             >
-              <Icon icon="carbon:help" className="size-4" aria-hidden="true" />
+              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
             </button>
             {adeButton}
           </div>
@@ -553,6 +553,16 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
               )}
             </button>
 
+            <button
+              type="button"
+              onClick={() => setTourTrigger((c) => c + 1)}
+              className={HELP_TOUR_BUTTON}
+              title="Aide & Visite guidée du planning"
+              aria-label="Visite guidée"
+            >
+              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
+            </button>
+
             {adeButton}
           </div>
         </header>
@@ -636,7 +646,6 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
       <PageGuidedTour
         storageKey="l-ent:tour:planning"
         steps={PLANNING_TOUR_STEPS}
-        enabled={state.status !== 'loading'}
         manualTrigger={tourTrigger}
       />
     </section>

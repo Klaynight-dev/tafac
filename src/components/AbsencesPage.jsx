@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { buildAbsenceReport, buildJustificationMail, formatDuration, hoursToJustify, summarizeAbsencesBySubject } from '../gradesReport'
-import { CARD_CLASSES, SECONDARY_BUTTON, formatLongDate, getSecretariatEmail, parseIsoDate, revealStyle } from '../scodocPageUtils'
+import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON, formatLongDate, getSecretariatEmail, parseIsoDate, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
 import { useScodocReleve } from '../useScodocReleve'
 import PageGuidedTour from './PageGuidedTour'
@@ -372,17 +372,22 @@ function AbsencesPage() {
             <button
               type="button"
               onClick={() => setTourTrigger((c) => c + 1)}
-              className={`${SECONDARY_BUTTON} size-9 p-0 inline-flex items-center justify-center rounded-full text-text-muted hover:text-text`}
+              className={HELP_TOUR_BUTTON}
               title="Aide & Visite guidée des absences"
               aria-label="Visite guidée"
             >
-              <Icon icon="carbon:help" className="size-4" aria-hidden="true" />
+              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
             </button>
           )}
         />
         {entry.status === 'ok' ? <DepartmentNotice message={departmentMessage} /> : null}
         {body}
       </div>
+      <PageGuidedTour
+        storageKey="l-ent:tour:absences"
+        steps={ABSENCES_TOUR_STEPS}
+        manualTrigger={tourTrigger}
+      />
     </section>
   )
 }

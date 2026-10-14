@@ -12,7 +12,7 @@ import {
   parseGradeNumber,
   projectAverages,
 } from '../gradesReport'
-import { CARD_CLASSES, SECONDARY_BUTTON, formatLongDate, formatShortDate, revealStyle } from '../scodocPageUtils'
+import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON, formatLongDate, formatShortDate, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
 import { useScodocReleve } from '../useScodocReleve'
 import PageGuidedTour from './PageGuidedTour'
@@ -969,11 +969,11 @@ function GradesPage({ storageScope = null }) {
               <button
                 type="button"
                 onClick={() => setTourTrigger((c) => c + 1)}
-                className={`${SECONDARY_BUTTON} size-9 p-0 inline-flex items-center justify-center rounded-full text-text-muted hover:text-text`}
+                className={HELP_TOUR_BUTTON}
                 title="Aide & Visite guidée des notes"
                 aria-label="Visite guidée"
               >
-                <Icon icon="carbon:help" className="size-4" aria-hidden="true" />
+                <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
               </button>
               {showPdf ? (
                 <a href={getGradesReportPdfHref(activeId, releve?.type)} target="_blank" rel="noopener noreferrer" className={SECONDARY_BUTTON}>
@@ -989,6 +989,11 @@ function GradesPage({ storageScope = null }) {
 
         {body}
       </div>
+      <PageGuidedTour
+        storageKey="l-ent:tour:grades"
+        steps={GRADES_TOUR_STEPS}
+        manualTrigger={tourTrigger}
+      />
     </section>
   )
 }
