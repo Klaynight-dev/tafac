@@ -5,7 +5,7 @@ import universityConfig from '@university'
 import { toAppSlug, track } from '../analytics'
 import { fetchAppIcons, getCachedAppIcons } from '../appIcons'
 import { navigateTo } from '../appRoute'
-import { isGradesPageAvailable, isMailPageAvailable, isPlanningPageAvailable } from '../navItems'
+import { isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from '../navItems'
 import { scoreAppSearch, searchApps } from '../appSearch'
 import {
   ENT_ORIGIN,
@@ -2118,6 +2118,19 @@ function AvailableApplications({
       if (isMailPageAvailable()) {
         event.preventDefault()
         navigateTo('mail')
+        return
+      }
+    }
+
+    if (
+      titleLower.includes('moodle')
+      || titleLower.includes('foad')
+      || idLower.includes('moodle')
+      || hrefLower.includes('moodle')
+    ) {
+      if (isMoodlePageAvailable()) {
+        event.preventDefault()
+        navigateTo('moodle')
         return
       }
     }

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
+import universityConfig from '@university'
 import { openChangelog, useChangelog } from '../changelogStore'
 import { downloadSchoolCertificate, getCachedSchoolCertificateStatus, getSchoolCertificateStatus } from '../entApi'
 import { useSlidingIndicator } from '../useSlidingIndicator'
@@ -598,9 +599,34 @@ function AccountModal({
   onShowAppDescriptionsChange,
   anonymousAnalytics = true,
   onAnonymousAnalyticsChange = null,
+  establishment = null,
+  onEstablishmentChange = null,
 }) {
   const [activeSectionId, setActiveSectionId] = useState('account')
   const tabRefs = useRef({})
+
+  const [moodleEmptySections, setMoodleEmptySections] = useState(() => {
+    try {
+      return localStorage.getItem('l-ent:moodle-show-empty-sections') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const handleMoodleEmptySectionsChange = (nextVal) => {
+    setMoodleEmptySections(nextVal)
+    try {
+      localStorage.setItem('l-ent:moodle-show-empty-sections', String(nextVal))
+    } catch {}
+  }
+
+  const establishmentOptions = useMemo(() => {
+    const byId = universityConfig.establishments?.byId || {}
+    return Object.entries(byId).map(([id, conf]) => ({
+      id,
+      label: conf.label || id,
+    }))
+  }, [])
 
   const canToggleWidgets = typeof onWidgetVisibilityChange === 'function' && widgetToggles.length > 0
   const hasAppearance = typeof onThemeChange === 'function'
@@ -741,6 +767,36 @@ function AccountModal({
               </SettingsGroup>
             ) : null}
 
+            {establishmentOptions.length > 1 && typeof onEstablishmentChange === 'function' ? (
+              <SettingsGroup
+                title="Établissement & Formation"
+                footer="Adapte les fonctionnalités (notes, absences, services) et les fonds d'écran selon ton école ou composante."
+              >
+                <div className={ROW_CLASSES}>
+                  <RowText icon="carbon:education" label="Établissement" />
+                  <div className="relative">
+                    <select
+                      value={establishment || ''}
+                      onChange={(e) => onEstablishmentChange(e.target.value)}
+                      className={`h-9 rounded-full border-0 ${MUTED_FILL_CLASSES} px-3.5 pr-8 font-body text-[14px] font-medium text-[var(--color-text)] outline-none cursor-pointer appearance-none dark:hover:bg-[var(--color-bg-subtle)]`}
+                      aria-label="Sélectionner l'établissement"
+                    >
+                      {establishmentOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Icon
+                      icon="carbon:chevron-down"
+                      className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-text-60"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+              </SettingsGroup>
+            ) : null}
+
             <SchoolCertificateGroup />
           </>
         )
@@ -848,6 +904,15 @@ function AccountModal({
                 />
               </SettingsGroup>
             ) : null}
+            <SettingsGroup title="Moodle">
+              <SwitchRow
+                icon="carbon:view"
+                label="Afficher les sections vides"
+                description="Conserver les rubriques de cours sans document lors du filtrage"
+                checked={moodleEmptySections}
+                onChange={handleMoodleEmptySectionsChange}
+              />
+            </SettingsGroup>
           </>
         )
 
