@@ -236,7 +236,7 @@ export default function GuidedTour({ enabled = false, blocked = false }) {
             <p className="m-0 font-body text-[0.9rem] leading-snug text-text-muted">{step.body}</p>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-3">
           <ol className="m-0 flex list-none items-center gap-1.5 p-0" aria-label={`Étape ${dotPosition + 1} sur ${targetedSteps.length}`}>
             {targetedSteps.map((candidate, dotIndex) => (
               <li
@@ -245,7 +245,7 @@ export default function GuidedTour({ enabled = false, blocked = false }) {
               />
             ))}
           </ol>
-          <div className="flex items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {isLast ? null : (
               <button
                 type="button"
