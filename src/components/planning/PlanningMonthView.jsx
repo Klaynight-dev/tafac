@@ -127,9 +127,9 @@ export default function PlanningMonthView({
       </div>
 
       {/* Month calendar grid */}
-      <div className={`${CARD_CLASSES} overflow-hidden p-3 max-md:p-2`}>
+      <div className={`${CARD_CLASSES} relative max-md:max-h-none md:max-h-[calc(100dvh-220px)] overflow-y-auto overflow-x-hidden p-3 max-md:p-2 [scrollbar-width:thin] overscroll-contain`}>
         {/* Day name column headers */}
-        <div className="grid grid-cols-7 border-b border-border/60 pb-2 text-center">
+        <div className="sticky top-0 z-10 -mt-3 -mx-3 max-md:-mt-2 max-md:-mx-2 grid grid-cols-7 border-b border-border/60 px-3 pt-3 pb-2 max-md:px-2 max-md:pt-2 text-center bg-widget-bg/95 backdrop-blur-md rounded-t-[22px] max-md:rounded-t-[20px]">
           {WEEKDAY_NAMES.map((name, index) => (
             <div
               key={name}
@@ -143,7 +143,7 @@ export default function PlanningMonthView({
         </div>
 
         {/* Days grid */}
-        <div className="grid grid-cols-7 gap-1 pt-1">
+        <div className="grid grid-cols-7 gap-1 pt-2">
           {days.map((cell) => {
             const isToday = cell.dateStr === todayStr
             const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6
