@@ -8,7 +8,10 @@ import { resolveDataDir } from './server/appIcons.js'
 import { createEntAuthApp } from './server/entAuthApp.js'
 import { clientConfigPath, listUniversityIds, loadServerConfig, loadSharedConfig, resolveUniversityId } from './universities/index.js'
 
-const universityId = resolveUniversityId()
+if (!process.env.UNIVERSITY || process.env.UNIVERSITY === 'univ-exemple') {
+  process.env.UNIVERSITY = 'univ-rennes'
+}
+const universityId = resolveUniversityId(process.env.UNIVERSITY)
 const universityServerConfig = await loadServerConfig(universityId)
 const { branding } = await loadSharedConfig(universityId)
 
@@ -144,3 +147,4 @@ export default defineConfig({
     // /__ent_proxy is handled by the shared entAuthApp middleware above.
   },
 })
+
