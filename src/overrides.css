@@ -1198,6 +1198,44 @@
   }
 }
 
+.app-card--editing {
+  background-color: var(--color-widget-bg);
+  border-color: var(--color-border);
+  transition:
+    scale 150ms ease,
+    box-shadow 150ms ease,
+    background-color 160ms ease;
+}
+
+.app-card.app-card--lifted {
+  position: relative;
+  z-index: 20;
+  scale: 1.03;
+  border-color: var(--color-brand);
+  box-shadow: 0 16px 36px -12px var(--color-shadow);
+}
+
+.app-card-grip {
+  animation: app-card-grip-in 200ms ease both;
+}
+
+@keyframes app-card-grip-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.apps-grid--reordering,
+.apps-grid--reordering * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-card-grip {
+    animation: none;
+  }
+}
+
 /* Keep the dragged-over favorites flat while reordering. */
 .is-dragging .app-card:hover {
   background-color: transparent;
