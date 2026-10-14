@@ -891,6 +891,18 @@ export async function getAverageGrade() {
 
   const currentReleve = resolved.releve
 
+  // ScoDoc's own semester average (the one on the relevé) wins; the estimate
+  // below is only for relevés that don't carry it.
+  const officialAverage = parseGradeValue(currentReleve.semestre?.notes?.value)
+  if (officialAverage != null) {
+    const officialPromoAverage = parseGradeValue(currentReleve.semestre?.notes?.moy)
+    return {
+      average: officialAverage.toFixed(2),
+      promoAverage: officialPromoAverage != null ? officialPromoAverage.toFixed(2) : null,
+      debug: { source: 'semestre.notes' },
+    }
+  }
+
   // Collect all graded entries from ressources and saes
   const allGrades = []
   const allPromoGrades = []
@@ -992,13 +1004,17 @@ export async function getLatestGrade() {
     for (const [code, resource] of Object.entries(section)) {
       for (const evaluation of resource.evaluations ?? []) {
         const val = evaluation.note?.value
-        if (!evaluation.date || !val || val === 'abs' || val === 'EXC' || val === '~') continue
-        if (!latest || evaluation.date > latest.date) {
+        // `date` is ScoDoc's deprecated alias of date_debut.
+        const date = evaluation.date_debut ?? evaluation.date
+        if (!date || parseGradeValue(val) == null) continue
+        if (!latest || date > latest.date) {
+          // ScoDoc sends evaluation notes already on /20; note.max is the
+          // best grade of the promo, not the scale.
           latest = {
-            date: evaluation.date,
+            date,
             description: evaluation.description || resource.titre || code,
             note: val,
-            noteSur: evaluation.note?.max ?? '20',
+            noteSur: '20',
             noteMoy: evaluation.note?.moy ?? null,
             resource: code,
             resourceTitle: resource.titre ?? code,
