@@ -152,7 +152,7 @@ function Sidebar({
             <UniversityLockup variant="sidebar" />
           </a>
 
-          <nav className="flex flex-col w-full" aria-label="Sections">
+          <nav className="flex flex-col w-full" aria-label="Sections" data-tour="nav">
             {navItems.map((item) => {
               const isActive = activeSection === item.id
               return (
@@ -206,6 +206,7 @@ function Sidebar({
               type="button"
               onClick={onAccountClick}
               disabled={checking}
+              data-tour="account"
               className="flex items-center gap-2 min-w-0 flex-1 bg-transparent border-0 p-0 text-left cursor-pointer disabled:opacity-40 disabled:cursor-wait"
               aria-label="Mon compte"
             >

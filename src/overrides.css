@@ -1511,3 +1511,9 @@
   color: rgba(17, 17, 17, 0.68);
 }
 
+
+/* Guided tour: the desktop favourite star only shows on hover, keep it lit
+   while the tour points at it. */
+html[data-tour-active] [data-tour="favorite-star"] {
+  opacity: 1;
+}

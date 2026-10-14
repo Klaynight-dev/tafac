@@ -85,6 +85,7 @@ function MobileTabBar({ establishment }) {
     <nav
       className="4xl:hidden pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+14px)] z-30 flex flex-col items-center gap-2 px-4"
       aria-label="Raccourcis"
+      data-tour="nav"
     >
       {noticeItem ? (
         <p className="mobile-tab-bar-notice m-0 max-w-[300px] rounded-[16px] bg-black px-3 py-2 text-center font-body text-[12px] font-medium leading-tight text-white shadow-[0_12px_32px_rgba(0,0,0,0.18)] animate-modal-card-in dark:bg-white dark:text-black" role="status">
