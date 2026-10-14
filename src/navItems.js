@@ -22,7 +22,7 @@ const MOODLE_HREF = universityConfig.features?.moodle && MOODLE_ORIGIN
   : null
 // Same link as the "Mails récents" card: the server opens the webmail
 // already signed in (or falls back to its launch URL).
-const MAIL_HREF = universityConfig.features?.mail ? `${ENT_AUTH_PREFIX}/mail/open` : null
+export const MAIL_HREF = universityConfig.features?.mail ? `${ENT_AUTH_PREFIX}/mail/open` : null
 
 // "Mes notes" follows the tri-state grades feature: the in-app grades page
 // when live, a greyed-out item with the unavailability notice when
@@ -51,10 +51,22 @@ function hasGradeWidgets(establishment) {
   return Boolean(universityConfig.establishments?.byId?.[establishment]?.gradeWidgets)
 }
 
-// Whether /notes can show the grades page (otherwise it falls back to the
-// dashboard).
+// Whether /notes and /absences can show their ScoDoc page (otherwise they
+// fall back to the dashboard).
 export function isGradesPageAvailable(establishment) {
   return GRADES_FEATURE_ENABLED && hasGradeWidgets(establishment)
+}
+
+// Whether /planning can show the in-app timetable (otherwise it falls back
+// to the dashboard).
+export function isPlanningPageAvailable() {
+  return Boolean(universityConfig.features?.planning && PLANNING_HREF)
+}
+
+// Whether /mail can show the in-app webmail (otherwise it falls back
+// to the dashboard).
+export function isMailPageAvailable() {
+  return Boolean(universityConfig.features?.mail)
 }
 
 export function buildNavItems(establishment) {
@@ -63,25 +75,22 @@ export function buildNavItems(establishment) {
   return [
     {
       id: 'applications',
-      label: 'Toutes les applications',
-      icon: 'carbon:app-switcher',
+      label: 'Accueil',
+      icon: 'carbon:home',
       // The dashboard home, where the applications grid lives.
       route: 'dashboard',
     },
     ...(gradesNavItem ? [gradesNavItem] : []),
-    ...(universityConfig.features?.planning && PLANNING_HREF
-      ? [{
-          id: 'planning',
-          label: 'Planning',
-          icon: 'carbon:calendar',
-          href: PLANNING_HREF,
-          target: '_blank',
-        }]
+    // Same ScoDoc data as the grades, so only alongside a live grades page.
+    ...(gradesNavItem?.route ? [{ id: 'absences', label: 'Absences', icon: 'carbon:event-schedule', route: 'absences' }] : []),
+    ...(isPlanningPageAvailable()
+      ? [{ id: 'planning', label: 'Planning', icon: 'carbon:calendar', route: 'planning' }]
       : []),
-    // shortLabel: the tab bar's narrower tabs.
-    ...(MAIL_HREF
-      ? [{ id: 'mail', label: 'Messagerie', shortLabel: 'Mail', icon: 'carbon:email', href: MAIL_HREF, target: '_blank' }]
-      : []),
+    ...(isMailPageAvailable()
+      ? [{ id: 'mail', label: 'Messagerie', shortLabel: 'Mail', icon: 'carbon:email', route: 'mail' }]
+      : MAIL_HREF
+        ? [{ id: 'mail', label: 'Messagerie', shortLabel: 'Mail', icon: 'carbon:email', href: MAIL_HREF, target: '_blank' }]
+        : []),
     ...(MOODLE_HREF
       ? [{ id: 'moodle', label: 'Moodle', icon: 'devicon-plain:moodle', href: MOODLE_HREF, target: '_blank' }]
       : []),

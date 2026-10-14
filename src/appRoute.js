@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
-// The app's two screens behind the sidebar: the dashboard and "Mes notes".
+// The app's screens behind the sidebar: the dashboard, "Mes notes",
+// "Absences" and "Planning".
 // No router library: one pathname per route, History API for back/forward.
 // The server and the PWA service worker already answer every path with the
 // app shell.
@@ -8,12 +9,16 @@ import { useSyncExternalStore } from 'react'
 const ROUTE_PATHS = {
   dashboard: '/',
   grades: '/notes',
+  absences: '/absences',
+  planning: '/planning',
+  mail: '/mail',
 }
 
 const ROUTE_CHANGE_EVENT = 'tafac:route-change'
 
 export function getRouteFromPath(pathname) {
   const path = String(pathname ?? '/').replace(/\/+$/, '') || '/'
+  if (path === '/messagerie') return 'mail'
   return Object.keys(ROUTE_PATHS).find((route) => ROUTE_PATHS[route] === path) ?? 'dashboard'
 }
 

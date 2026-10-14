@@ -730,18 +730,23 @@
 
 /* ── Next class widget gradient + transition ── */
 
-.next-class-widget {
+.next-class-widget,
+.course-card-widget {
+  opacity: 1;
+  transform: none;
   background-color: var(--color-widget-bg);
   background-image: var(--class-gradient, none);
   background-repeat: no-repeat;
   --widget-delay: 70ms;
 }
 
-:where([data-theme="dark"]) .next-class-widget {
+:where([data-theme="dark"]) .next-class-widget,
+:where([data-theme="dark"]) .course-card-widget {
   background-image: var(--class-gradient-dark, none);
 }
 
-.next-class-widget:hover {
+.next-class-widget:hover,
+.course-card-widget:hover {
   background-color: var(--color-bg-subtle);
 }
 
@@ -766,7 +771,9 @@
 
 .latest-grade-widget:hover .grade-corner-arrow,
 .average-grade-widget:hover .grade-corner-arrow,
-.next-class-widget:hover .grade-corner-arrow {
+.next-class-widget:hover .grade-corner-arrow,
+.greeting-card-widget:hover .grade-corner-arrow,
+.course-card-widget:hover .grade-corner-arrow {
   opacity: 0.45;
 }
 
@@ -1548,5 +1555,17 @@ html[data-tour-active] [data-tour="favorite-star"] {
 @media (prefers-reduced-motion: reduce) {
   .grades-reveal {
     animation: none;
+  }
+}
+
+/* "Actualisation…" next to a page title: only shows when the background
+   refresh actually takes a moment, so a quick answer doesn't flash it. */
+.scodoc-refreshing {
+  animation: scodoc-refreshing-in 200ms ease-out 400ms both;
+}
+
+@keyframes scodoc-refreshing-in {
+  from {
+    opacity: 0;
   }
 }

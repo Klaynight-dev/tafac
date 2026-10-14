@@ -81,4 +81,10 @@ export const gradesCopy = {
   unavailableTitle: 'Notes indisponibles',
   unavailableDetail: 'ScoDoc ne répond pas pour le moment',
   disabledPillLabel: 'Notes indisponibles',
+  // Secrétariat qui reçoit les justificatifs d'absence, par acronyme de
+  // département ScoDoc (« MMI », « INFO »…), `default` pour les autres. Le bouton
+  // « Justifier » ouvre un mail pré-rempli (mailto:) : rien ne transite par
+  // Tafac. Sans adresse, le bouton n'apparaît pas.
+  // Exemple : { MMI: 'secretariat-mmi@univ-rennes.fr' }
+  absenceSecretariats: {},
 }

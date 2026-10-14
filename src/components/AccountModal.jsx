@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { openChangelog, useChangelog } from '../changelogStore'
 import { downloadSchoolCertificate, getCachedSchoolCertificateStatus, getSchoolCertificateStatus } from '../entApi'
+import { useSlidingIndicator } from '../useSlidingIndicator'
 import { AboutContent } from './AboutModal'
 import { PrivacyContent } from './PrivacyModal'
+import { SlidingIndicator } from './SlidingIndicator'
 
 function buildSelectOptions(options, selectedOption) {
   const normalizedOptions = Array.isArray(options) ? [...options] : []
@@ -456,10 +458,16 @@ const THEME_CHOICES = [
 
 // Three-way pill: follow the device, or force light or dark.
 function ThemeSetting({ value, onChange }) {
+  const [themeRef, activeThemeBox] = useSlidingIndicator(value)
+
   return (
     <div className="flex flex-col gap-[7px]">
       <h4 className="m-0 px-1 font-body text-[13px] font-semibold leading-none text-text-60">Thème</h4>
-      <div className={`flex gap-1 rounded-full ${MUTED_FILL_CLASSES} p-1`}>
+      <div ref={themeRef} className={`relative flex gap-1 rounded-full ${MUTED_FILL_CLASSES} p-1`}>
+        <SlidingIndicator
+          box={activeThemeBox}
+          className="rounded-full border bg-widget-bg border-white dark:border-[rgba(255,255,255,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+        />
         {THEME_CHOICES.map((choice) => {
           const isActive = choice.id === value
           return (
@@ -467,11 +475,12 @@ function ThemeSetting({ value, onChange }) {
               key={choice.id}
               type="button"
               aria-pressed={isActive}
+              data-active={isActive ? 'true' : undefined}
               onClick={() => onChange(choice.id)}
-              className={`inline-flex h-9 min-w-0 flex-auto items-center justify-center gap-[6px] rounded-full border px-3 font-body text-[14px] font-medium text-[var(--color-text)] cursor-pointer transition-[background-color,box-shadow,border-color] duration-150 ease-in-out max-sm:text-[13px] ${
+              className={`relative inline-flex h-9 min-w-0 flex-auto items-center justify-center gap-[6px] rounded-full border border-transparent px-3 font-body text-[14px] font-medium text-[var(--color-text)] cursor-pointer transition-[background-color] duration-150 ease-in-out max-sm:text-[13px] ${
                 isActive
-                  ? 'bg-widget-bg border-white dark:border-[rgba(255,255,255,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
-                  : 'bg-transparent border-transparent hover:bg-brand-subtle'
+                  ? 'bg-transparent'
+                  : 'bg-transparent hover:bg-brand-subtle'
               }`}
             >
               <Icon icon={choice.icon} className="h-4 w-4 shrink-0 max-sm:hidden" aria-hidden="true" />
@@ -593,6 +602,24 @@ function AccountModal({
   const [activeSectionId, setActiveSectionId] = useState('account')
   const tabRefs = useRef({})
 
+  const canToggleWidgets = typeof onWidgetVisibilityChange === 'function' && widgetToggles.length > 0
+  const hasAppearance = typeof onThemeChange === 'function'
+    || typeof onCustomBackgroundChange === 'function'
+    || typeof onShowWallpaperChange === 'function'
+    || typeof onShowAppDescriptionsChange === 'function'
+  const hasPrivacy = typeof onAnonymousAnalyticsChange === 'function'
+
+  const sections = [
+    { id: 'account', label: 'Compte', icon: 'carbon:user-avatar' },
+    { id: 'planning', label: 'Planning', icon: 'carbon:calendar' },
+    canToggleWidgets ? { id: 'dashboard', label: 'Tableau de bord', icon: 'carbon:dashboard' } : null,
+    hasAppearance ? { id: 'appearance', label: 'Apparence', icon: 'carbon:image' } : null,
+    hasPrivacy ? { id: 'privacy', label: 'Confidentialité', icon: 'carbon:locked' } : null,
+    { id: 'about', label: 'À propos', icon: 'carbon:information' },
+  ].filter(Boolean)
+  const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0]
+  const [settingsNavRef, activeSectionBox] = useSlidingIndicator(open ? `${activeSection.id}:${sections.length}` : null)
+
   useEffect(() => {
     if (!open) {
       return undefined
@@ -635,26 +662,10 @@ function AccountModal({
   const canConfigureLookahead = typeof onLookaheadChange === 'function'
     && Array.isArray(lookaheadOptions)
     && lookaheadOptions.length > 1
-  const canToggleWidgets = typeof onWidgetVisibilityChange === 'function' && widgetToggles.length > 0
   const nextClassToggle = canToggleWidgets ? widgetToggles.find((widget) => widget.id === 'nextClass') : null
   // The lookahead only tunes the "Prochain cours" card, so it lives under that
   // card's switch. Without the card in the list it falls back to Planning.
   const lookaheadInDashboard = canConfigureLookahead && Boolean(nextClassToggle)
-  const hasAppearance = typeof onThemeChange === 'function'
-    || typeof onCustomBackgroundChange === 'function'
-    || typeof onShowWallpaperChange === 'function'
-    || typeof onShowAppDescriptionsChange === 'function'
-  const hasPrivacy = typeof onAnonymousAnalyticsChange === 'function'
-
-  const sections = [
-    { id: 'account', label: 'Compte', icon: 'carbon:user-avatar' },
-    { id: 'planning', label: 'Planning', icon: 'carbon:calendar' },
-    canToggleWidgets ? { id: 'dashboard', label: 'Tableau de bord', icon: 'carbon:dashboard' } : null,
-    hasAppearance ? { id: 'appearance', label: 'Apparence', icon: 'carbon:image' } : null,
-    hasPrivacy ? { id: 'privacy', label: 'Confidentialité', icon: 'carbon:locked' } : null,
-    { id: 'about', label: 'À propos', icon: 'carbon:information' },
-  ].filter(Boolean)
-  const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0]
 
   // On phones the tabs scroll sideways: bring the picked one fully into view.
   const selectSection = (sectionId) => {
@@ -906,11 +917,16 @@ function AccountModal({
 
         <div className="flex min-h-0 flex-1 max-sm:flex-col">
           <nav
-            className="flex w-[208px] shrink-0 flex-col gap-1 overflow-y-auto px-[13px] pb-[21px] max-sm:w-auto max-sm:flex-row max-sm:overflow-x-auto max-sm:px-[14px] max-sm:pb-[10px] max-sm:[scrollbar-width:none]"
+            ref={settingsNavRef}
+            className="relative flex w-[208px] shrink-0 flex-col gap-1 overflow-y-auto px-[13px] pb-[21px] max-sm:w-auto max-sm:flex-row max-sm:overflow-x-auto max-sm:px-[14px] max-sm:pb-[10px] max-sm:[scrollbar-width:none]"
             role="tablist"
             aria-orientation="vertical"
             aria-label="Sections des réglages"
           >
+            <SlidingIndicator
+              box={activeSectionBox}
+              className="rounded-full border bg-widget-bg border-white dark:border-[rgba(255,255,255,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+            />
             {sections.map((section) => {
               const isActive = section.id === activeSection.id
               return (
@@ -923,12 +939,13 @@ function AccountModal({
                   aria-selected={isActive}
                   aria-controls="settings-panel"
                   tabIndex={isActive ? 0 : -1}
+                  data-active={isActive ? 'true' : undefined}
                   onClick={() => selectSection(section.id)}
                   onKeyDown={handleTabKeyDown}
-                  className={`inline-flex h-10 w-full shrink-0 items-center gap-2 rounded-full border px-3 text-left font-body text-[15px] font-medium leading-6 whitespace-nowrap text-text cursor-pointer transition-[background-color,box-shadow,border-color] duration-150 ease-in-out max-sm:w-auto max-sm:h-9 max-sm:text-[14px] ${
+                  className={`group relative inline-flex h-10 w-full shrink-0 items-center gap-2 rounded-full border border-transparent px-3 text-left font-body text-[15px] font-medium leading-6 whitespace-nowrap text-text cursor-pointer transition-[background-color] duration-150 ease-in-out max-sm:w-auto max-sm:h-9 max-sm:text-[14px] ${
                     isActive
-                      ? 'bg-widget-bg border-white dark:border-[rgba(255,255,255,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
-                      : 'bg-transparent border-transparent hover:bg-brand-subtle'
+                      ? 'bg-transparent'
+                      : 'bg-transparent hover:bg-brand-subtle'
                   }`}
                 >
                   <Icon icon={section.icon} className="h-[17px] w-[17px] shrink-0" aria-hidden="true" />

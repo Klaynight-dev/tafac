@@ -124,7 +124,7 @@ function MobileTabBar({ establishment }) {
               rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
               className={className}
               onClick={(event) => handleSelect(event, item)}
-              onPointerDown={item.route === 'grades' ? prefetchGradesPage : undefined}
+              onPointerDown={item.route === 'grades' || item.route === 'absences' ? prefetchGradesPage : undefined}
             >
               {content}
             </a>
@@ -137,7 +137,7 @@ function MobileTabBar({ establishment }) {
               data-active={item.selected ? 'true' : undefined}
               className={className}
               onClick={(event) => handleSelect(event, item)}
-              onPointerDown={item.route === 'grades' ? prefetchGradesPage : undefined}
+              onPointerDown={item.route === 'grades' || item.route === 'absences' ? prefetchGradesPage : undefined}
             >
               {content}
             </button>

@@ -45,6 +45,7 @@ import {
   DEMO_ACCOUNT,
   DEMO_GRADES_DEPARTMENT_MESSAGE,
   DEMO_SESSION_MODE,
+  DEMO_TEACHERS,
   applyDemoLayoutMutation,
   buildDemoAdeTreePayload,
   buildDemoAlertsPayload,
@@ -53,6 +54,7 @@ import {
   buildDemoLayoutData,
   buildDemoLayoutDocData,
   buildDemoMailPayload,
+  buildDemoMailMessagePayload,
   buildDemoMarketplaceEntries,
   buildDemoMoodleDeadlinesPayload,
   buildDemoPlanningPayload,
@@ -1994,6 +1996,7 @@ const {
   fetchPortalEvents = null,
   fetchPortalStatus = null,
   fetchPortalTree = null,
+  listPortalInstructors = null,
   searchPortalTree = null,
 } = portalClient ?? {}
 
@@ -2068,6 +2071,12 @@ app.post('/__ent_auth/analytics', (req, res) => {
 })
 
 app.use('/__ent_auth', express.json()) // Automatically parse incoming JSON requests for auth endpoints
+app.use('/__ent_auth', (err, req, res, next) => {
+  if (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400)) {
+    return res.status(400).json({ error: 'Corps JSON invalide' })
+  }
+  next(err)
+})
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/__ent_auth') || req.path.startsWith('/__ent_proxy')) {
@@ -3028,14 +3037,64 @@ function normalizeZimbraMessage(message) {
   }
 }
 
-async function queryZimbraInbox(context) {
+function extractZimbraBody(rootMp) {
+  let bodyHtml = ''
+  let bodyText = ''
+  const attachments = []
+  const inlineParts = new Map()
+
+  function walk(part) {
+    if (!part) return
+    if (Array.isArray(part)) {
+      part.forEach(walk)
+      return
+    }
+
+    const ct = String(part.ct || '').toLowerCase()
+    const isAttachment = part.cd === 'attachment' || Boolean(part.filename)
+    const ci = part.ci ? String(part.ci).replace(/^<|>$/g, '').trim() : null
+
+    if (ci && part.part) {
+      inlineParts.set(ci, String(part.part))
+    }
+
+    if (isAttachment) {
+      attachments.push({
+        part: String(part.part || ''),
+        filename: part.filename || 'pièce-jointe',
+        contentType: ct,
+        size: Number(part.s) || null,
+        contentId: ci,
+      })
+      if (!ct.includes('text/html') && !ct.includes('text/plain')) {
+        return
+      }
+    }
+
+    if (ct.includes('text/html') && part.content && !bodyHtml) {
+      bodyHtml = part.content
+    } else if (ct.includes('text/plain') && part.content && !bodyText) {
+      bodyText = part.content
+    }
+
+    if (part.mp) {
+      walk(part.mp)
+    }
+  }
+
+  walk(rootMp)
+  return { bodyHtml, bodyText, attachments, inlineParts }
+}
+
+async function queryZimbraInbox(context, { limit = MAIL_MAX_MESSAGES, query = 'in:inbox', offset = 0 } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || MAIL_MAX_MESSAGES, 1), 50)
   const [searchResult, folderResult] = await Promise.allSettled([
     zimbraSoapRequest(context, 'SearchRequest', {
       types: 'message',
-      query: 'in:inbox',
+      query: query || 'in:inbox',
       sortBy: 'dateDesc',
-      limit: MAIL_MAX_MESSAGES,
-      offset: 0,
+      limit: safeLimit,
+      offset: Number(offset) || 0,
     }),
     // Folder id 2 is the Inbox in every Zimbra mailbox.
     zimbraSoapRequest(context, 'GetFolderRequest', { folder: { l: '2' }, depth: 0 }),
@@ -3061,7 +3120,7 @@ async function queryZimbraInbox(context) {
     .map((message) => normalizeZimbraMessage(message))
     .filter((message) => message.id)
     .sort((left, right) => String(right.receivedAt ?? '').localeCompare(String(left.receivedAt ?? '')))
-    .slice(0, MAIL_MAX_MESSAGES)
+    .slice(0, safeLimit)
 
   return { unreadCount, webmailHref: getMailWebmailHref(), messages }
 }
@@ -3075,7 +3134,7 @@ async function getZimbraContext(session, { fresh = false } = {}) {
   return context
 }
 
-async function fetchZimbraRecentMail(session) {
+async function fetchZimbraRecentMail(session, options = {}) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let context = attempt === 0 ? runtimeMailContexts.get(session.id) : null
 
@@ -3085,7 +3144,7 @@ async function fetchZimbraRecentMail(session) {
     }
 
     try {
-      return await queryZimbraInbox(context)
+      return await queryZimbraInbox(context, options)
     } catch (error) {
       runtimeMailContexts.delete(session.id)
       if (!(error instanceof MailAuthError) || attempt > 0) {
@@ -3097,17 +3156,120 @@ async function fetchZimbraRecentMail(session) {
   throw new Error('Unable to load mail.')
 }
 
+async function fetchZimbraMessageDetail(session, messageId) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let context = attempt === 0 ? runtimeMailContexts.get(session.id) : null
+    if (!context) {
+      context = await establishZimbraContext(session)
+      runtimeMailContexts.set(session.id, context)
+    }
+
+    try {
+      const response = await zimbraSoapRequest(context, 'GetMsgRequest', {
+        m: { id: messageId, html: 1, raw: 0, max: 500000, needExp: 1 },
+      })
+      const rawMsg = response?.m
+      const msg = Array.isArray(rawMsg) ? rawMsg[0] : rawMsg
+      if (!msg) {
+        throw new Error('Message not found')
+      }
+
+      const addresses = Array.isArray(msg?.e) ? msg.e : msg?.e ? [msg.e] : []
+      const sender = addresses.find((a) => a?.t === 'f') ?? null
+      const recipients = addresses.filter((a) => a?.t === 't').map((a) => ({ name: a?.p || a?.d || a?.a || '', email: a?.a || '' }))
+      const ccRecipients = addresses.filter((a) => a?.t === 'c').map((a) => ({ name: a?.p || a?.d || a?.a || '', email: a?.a || '' }))
+      const timestamp = Number(msg?.d)
+      let { bodyHtml, bodyText, attachments, inlineParts } = extractZimbraBody(msg?.mp)
+
+      // Fallback: If body is empty, try Zimbra REST API directly
+      if (!bodyHtml && !bodyText && (!attachments || attachments.length === 0)) {
+        try {
+          const restUrl = `${context.origin}/service/home/~/?id=${encodeURIComponent(messageId)}`
+          const restResp = await fetchWithJar(restUrl, context.jar, {
+            headers: { Accept: 'text/html, text/plain, */*', Referer: `${context.origin}/` },
+          })
+          if (restResp.ok) {
+            const rawBody = await restResp.text()
+            if (rawBody) {
+              const ct = restResp.headers.get('content-type') || ''
+              if (ct.includes('text/html') || rawBody.includes('<html') || rawBody.includes('<body') || rawBody.includes('<div')) {
+                bodyHtml = rawBody
+              } else {
+                bodyText = rawBody
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const resolvedId = String(msg.id || messageId)
+
+      // Attach download URLs
+      const safeAttachments = (attachments || []).map((att) => ({
+        ...att,
+        url: `/__ent_auth/mail/attachment?id=${encodeURIComponent(resolvedId)}&part=${encodeURIComponent(att.part)}`,
+      }))
+
+      // Rewrite inline images and attachments in bodyHtml
+      if (bodyHtml) {
+        if (inlineParts && inlineParts.size > 0) {
+          for (const [cid, partId] of inlineParts.entries()) {
+            const url = `/__ent_auth/mail/attachment?id=${encodeURIComponent(resolvedId)}&part=${encodeURIComponent(partId)}`
+            bodyHtml = bodyHtml.split(`cid:${cid}`).join(url)
+            bodyHtml = bodyHtml.split(`cid:<${cid}>`).join(url)
+          }
+        }
+        for (const att of safeAttachments) {
+          if (att.contentId) {
+            bodyHtml = bodyHtml.split(`cid:${att.contentId}`).join(att.url)
+            bodyHtml = bodyHtml.split(`cid:<${att.contentId}>`).join(att.url)
+          }
+        }
+        // Rewrite relative Zimbra URLs like /service/home/~/?id=...
+        bodyHtml = bodyHtml.replace(
+          /(src|href)=["'](?:\/service\/home\/~?\/?\?id=([^"'\s&]+)(?:&amp;|&)part=([^"'\s&]+))["']/gi,
+          (match, attr, mId, pId) => `${attr}="/__ent_auth/mail/attachment?id=${mId}&part=${pId}"`
+        )
+      }
+
+      return {
+        id: resolvedId,
+        subject: typeof msg.su === 'string' ? msg.su : '',
+        from: {
+          name: sender?.p || sender?.d || sender?.a || '',
+          email: sender?.a || null,
+        },
+        to: recipients,
+        cc: ccRecipients,
+        receivedAt: Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp).toISOString() : null,
+        unread: typeof msg.f === 'string' && msg.f.includes('u'),
+        bodyHtml: bodyHtml || null,
+        bodyText: bodyText || msg.fr || '',
+        snippet: typeof msg.fr === 'string' ? msg.fr.slice(0, 280) : '',
+        attachments: safeAttachments,
+      }
+    } catch (error) {
+      runtimeMailContexts.delete(session.id)
+      if (!(error instanceof MailAuthError) || attempt > 0) {
+        throw error
+      }
+    }
+  }
+
+  throw new Error('Unable to load message details.')
+}
+
 const MAIL_PROVIDERS = {
   zimbra: fetchZimbraRecentMail,
 }
 
-async function fetchRecentMail(session) {
+async function fetchRecentMail(session, options = {}) {
   const provider = MAIL_PROVIDERS[MAIL_PROVIDER]
   if (!provider) {
     throw new Error('Mail provider not configured')
   }
 
-  return provider(session)
+  return provider(session, options)
 }
 
 // 6c. Open the webmail already signed in. Zimbra's /service/preauth accepts
@@ -3147,7 +3309,7 @@ app.get('/__ent_auth/mail/open', async (req, res) => {
   }
 })
 
-// 6b. Recent mail endpoint
+// 6b. Recent mail endpoint (for widget)
 app.get('/__ent_auth/mail/recent', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store')
@@ -3190,6 +3352,167 @@ app.get('/__ent_auth/mail/recent', async (req, res) => {
     return res.status(500).json({
       error: error instanceof Error ? error.message : String(error),
     })
+  }
+})
+
+// 6d. Full inbox / search messages endpoint (for in-app MailPage)
+app.get('/__ent_auth/mail/messages', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, mail: null })
+    }
+
+    const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 50)
+    const userQuery = typeof req.query.q === 'string' ? req.query.q.trim() : ''
+    const filterQuery = userQuery ? `in:inbox ${userQuery}` : 'in:inbox'
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const demoPayload = buildDemoMailPayload()
+      let messages = demoPayload.messages
+      if (userQuery) {
+        const q = userQuery.toLowerCase()
+        messages = messages.filter(
+          (m) =>
+            m.subject?.toLowerCase().includes(q) ||
+            m.snippet?.toLowerCase().includes(q) ||
+            m.from?.name?.toLowerCase().includes(q) ||
+            m.from?.email?.toLowerCase().includes(q)
+        )
+      }
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        mail: {
+          ...demoPayload,
+          messages: messages.slice(0, limit),
+        },
+      })
+    }
+
+    const mail = await fetchRecentMail(session, { limit, query: filterQuery })
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      mail,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6e. Single message detail endpoint (for in-app MailPage reader)
+app.get('/__ent_auth/mail/message/:id', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ authenticated: false, error: 'Non authentifié' })
+    }
+
+    const messageId = req.params.id
+    if (!messageId) {
+      return res.status(400).json({ error: 'Identifiant de message manquant' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const message = buildDemoMailMessagePayload(messageId)
+      if (!message) {
+        return res.status(404).json({ error: 'Message introuvable' })
+      }
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        message,
+      })
+    }
+
+    const message = await fetchZimbraMessageDetail(session, messageId)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      message,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6f. Mark message as read/unread
+app.post('/__ent_auth/mail/read', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ authenticated: false, error: 'Non authentifié' })
+    }
+
+    const { id, read = true } = req.body || {}
+    if (!id) {
+      return res.status(400).json({ error: 'Identifiant de message manquant' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({ ok: true })
+    }
+
+    const context = await getZimbraContext(session)
+    await zimbraSoapRequest(context, 'MsgActionRequest', {
+      action: { id, op: read ? 'read' : '!read' },
+    })
+    setSessionCookie(res, session)
+    return res.status(200).json({ ok: true })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6g. Attachment / inline image proxy endpoint
+app.get('/__ent_auth/mail/attachment', async (req, res) => {
+  try {
+    const session = getSessionFromRequest(req)
+    if (!session) {
+      return res.status(401).end()
+    }
+
+    const { id, part } = req.query
+    if (!id) {
+      return res.status(400).end()
+    }
+
+    const context = await getZimbraContext(session)
+    const upstreamUrl = `${context.origin}/service/home/~/?id=${encodeURIComponent(id)}${part ? `&part=${encodeURIComponent(part)}` : ''}`
+    const upstream = await fetchWithJar(upstreamUrl, context.jar)
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).end()
+    }
+
+    const ct = upstream.headers.get('content-type') || 'application/octet-stream'
+    const cd = upstream.headers.get('content-disposition')
+    res.setHeader('Content-Type', ct)
+    if (cd) res.setHeader('Content-Disposition', cd)
+    res.setHeader('Cache-Control', 'private, max-age=86400')
+
+    const buffer = await upstream.arrayBuffer()
+    return res.send(Buffer.from(buffer))
+  } catch {
+    return res.status(500).end()
   }
 })
 
@@ -4093,6 +4416,47 @@ app.get('/__ent_auth/ade/search', async (req, res) => {
         ...authResult,
       },
     })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// 10b. ADE Teachers
+app.get('/__ent_auth/ade/teachers', async (req, res) => {
+  try {
+    const entSession = getSessionFromRequest(req)
+    if (!entSession) return res.status(200).json({ authenticated: false, teachers: [] })
+
+    const query = String(req.query.q || '').trim()
+
+    if (isDemoSession(entSession)) {
+      setSessionCookie(res, entSession)
+      const q = query.toLowerCase()
+      const filtered = q
+        ? DEMO_TEACHERS.filter((t) => t.name.toLowerCase().includes(q))
+        : DEMO_TEACHERS
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        teachers: filtered,
+        available: true,
+      })
+    }
+
+    if (USE_PLANNING_PORTAL_REST && listPortalInstructors) {
+      const result = await listPortalInstructors(entSession.jar, query, {
+        cacheScope: getPlanningCacheScope(entSession),
+      })
+      setSessionCookie(res, entSession)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: entSession.mode ?? null,
+        teachers: result.teachers,
+        available: result.available,
+      })
+    }
+
+    res.status(200).json({ authenticated: true, teachers: [], available: false })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
   }

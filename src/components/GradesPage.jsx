@@ -1,71 +1,76 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import {
-  GRADES_LAUNCH_HREF,
-  getGrades,
-  getGradesDepartmentMessage,
-  getGradesReportPdfHref,
-  getRequestErrorKind,
-  getSemesterGrades,
-  openGradesService,
-  peekGrades,
-  peekSemesterGrades,
-  prefetchSemesterGrades,
-} from '../entApi'
+import { navigateTo } from '../appRoute'
+import { getGradesReportPdfHref } from '../entApi'
 import {
   GRADE_SCALE,
-  buildAbsenceReport,
   buildGradesReport,
   canDownloadReportPdf,
   findNewGrades,
   formatGrade,
-  getReleveDepartment,
-  htmlToPlainText,
   listGradeSignatures,
-  listGradesSemesters,
   parseGradeNumber,
   projectAverages,
 } from '../gradesReport'
+import { CARD_CLASSES, SECONDARY_BUTTON, formatLongDate, formatShortDate, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
-import { useSlidingIndicator } from '../useSlidingIndicator'
-import { SlidingIndicator } from './SlidingIndicator'
+import { useScodocReleve } from '../useScodocReleve'
+import PageGuidedTour from './PageGuidedTour'
+import {
+  DepartmentNotice,
+  OpenScodocButton,
+  ScodocLoadState,
+  ScodocPageHeader,
+  SectionTitle,
+  SegmentedControl,
+  StatusMessage,
+} from './ScodocUi'
 
 // "Mes notes": the ScoDoc relevé inside the app, organised around what a
 // student comes to check: what's new, which UEs are at risk, and what a
 // coming grade would change (simulation).
 
-const CARD_CLASSES = 'widget-card widget-card-visible border bg-widget-bg rounded-[22px] max-md:rounded-[20px]'
+
+const GRADES_TOUR_STEPS = [
+  {
+    id: 'intro',
+    title: 'Bienvenue sur tes notes',
+    body: 'Consulte l’ensemble de tes notes et évaluations ScoDoc en direct, avec le calcul officiel des moyennes et des UEs.',
+    icon: 'carbon:chart-line',
+  },
+  {
+    id: 'overview',
+    target: 'grades-overview',
+    title: 'Moyenne générale et progression',
+    body: 'Suis ta moyenne générale actualisée en temps réel, le statut de validation de chaque UE et tes rangs de promo.',
+    icon: 'carbon:meter',
+  },
+  {
+    id: 'ues',
+    target: 'grades-ues',
+    title: 'Blocs de compétences (UE)',
+    body: 'Chaque UE synthétise tes résultats sur les ressources et SAÉ associées. Tu peux filtrer la liste des matières par UE en un clic.',
+    icon: 'carbon:certificate',
+  },
+  {
+    id: 'simulate',
+    target: 'grades-simulate',
+    title: 'Simulateur de moyenne',
+    body: 'Envie de savoir quelle note il te faut au prochain DS ? Clique sur « Simuler » pour tester des notes et voir instantanément leur impact sur tes moyennes.',
+    icon: 'carbon:calculator',
+  },
+  {
+    id: 'modules',
+    target: 'grades-modules',
+    title: 'Détail des modules & SAÉ',
+    body: 'Déplie n’importe quelle matière pour découvrir toutes les notes de tes évaluations, coefficients et statistiques de promotion (min, moyenne, max).',
+    icon: 'carbon:list-boxes',
+  },
+]
+
 const PASSING_GRADE = GRADE_SCALE / 2
-// Cards rise in one after another on arrival, like the dashboard widgets
-// (see .grades-reveal in overrides.css). Capped so late cards don't lag.
-const MAX_REVEAL_ORDER = 8
-
-function revealStyle(order = 0) {
-  return { '--reveal-order': Math.min(order, MAX_REVEAL_ORDER) }
-}
 const SEEN_GRADES_KEY = 'l-ent:grades-seen'
-const ABSENCES_PREVIEW_COUNT = 4
-
 // ── Small helpers ──
-
-function parseIsoDate(value) {
-  if (!value) return null
-  // Date-only strings are local days, not UTC midnight.
-  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function formatShortDate(value) {
-  const date = parseIsoDate(value)
-  if (!date) return null
-  const sameYear = date.getFullYear() === new Date().getFullYear()
-  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', ...(sameYear ? null : { year: 'numeric' }) })
-}
-
-function formatLongDate(value) {
-  const date = parseIsoDate(value)
-  return date ? date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : null
-}
 
 function gradeToneClass(value) {
   return value != null && value < PASSING_GRADE ? 'text-error' : 'text-text'
@@ -92,19 +97,6 @@ function writeSeenGrades(scope, semesters) {
   } catch {
     // Private mode or full storage: "new" badges just won't persist.
   }
-}
-
-function describeLoadError(data, error) {
-  if (data && data.authenticated === false && !data.error) {
-    return 'Ta session a expiré. Reconnecte-toi pour voir tes notes.'
-  }
-
-  const kind = error ? getRequestErrorKind(error) : data?.errorKind
-  if (kind === 'network' || kind === 'timeout') {
-    return 'Impossible de joindre le serveur. Vérifie ta connexion puis réessaie.'
-  }
-
-  return 'ScoDoc ne répond pas pour le moment. Réessaie dans quelques minutes, ou ouvre-le directement.'
 }
 
 function revealModule(code) {
@@ -184,56 +176,6 @@ function AverageValue({ official, projected = null, size }) {
   )
 }
 
-function SectionTitle({ id, children, count = null, aside = null }) {
-  return (
-    <div className="flex items-center justify-between gap-3 flex-wrap">
-      <h2 id={id} className="m-0 text-[22px] leading-[1.1] max-md:text-[20px]">
-        {children}
-        {count != null ? <span className="ml-2 font-body text-[15px] font-medium text-text-muted">{count}</span> : null}
-      </h2>
-      {aside}
-    </div>
-  )
-}
-
-// Segmented control whose selection slides from one option to the next.
-function SegmentedControl({ label, options, value, onChange, size = 'md' }) {
-  const [groupRef, box] = useSlidingIndicator(`${value}:${options.map((option) => option.value).join(',')}`)
-
-  return (
-    <div
-      ref={groupRef}
-      role="radiogroup"
-      aria-label={label}
-      className="relative inline-flex max-w-full gap-1 rounded-full border border-border bg-widget-bg p-1"
-    >
-      <SlidingIndicator box={box} className="rounded-full bg-brand" />
-      {options.map((option) => {
-        const selected = option.value === value
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            data-active={selected ? 'true' : undefined}
-            onClick={() => onChange(option.value)}
-            className={`relative flex shrink-0 flex-col items-center justify-center rounded-full border-0 bg-transparent font-body font-semibold leading-none transition-colors duration-200 ${
-              size === 'lg' ? 'gap-1 px-4 py-2' : 'px-3.5 py-1.5 text-[14px]'
-            } ${selected ? 'text-bg' : 'text-text-secondary hover:text-text'}`}
-          >
-            <span className={size === 'lg' ? 'text-[15px]' : ''}>
-              {option.label}
-              {option.count != null ? <span className="ml-1.5 opacity-60">{option.count}</span> : null}
-            </span>
-            {option.detail ? <span className="text-[11px] font-medium opacity-65">{option.detail}</span> : null}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 function GradeValue({ grade, size = 'md' }) {
   if (grade.kind !== 'number') {
     return (
@@ -259,47 +201,6 @@ function NewBadge() {
   return <span className="rounded-full bg-brand px-1.5 py-0.5 font-body text-[10px] font-bold uppercase tracking-[0.04em] text-bg">Nouveau</span>
 }
 
-function StatusMessage({ icon, title, detail = null, action = null }) {
-  return (
-    <div className={`${CARD_CLASSES} grades-reveal flex flex-col items-start gap-3 p-5`}>
-      <Icon icon={icon} className="size-6 text-text-muted" aria-hidden="true" />
-      <div className="flex flex-col gap-1">
-        <p className="m-0 font-body text-[16px] font-semibold text-text">{title}</p>
-        {detail ? <p className="m-0 font-body text-[14px] leading-snug text-text-secondary whitespace-pre-line">{detail}</p> : null}
-      </div>
-      {action}
-    </div>
-  )
-}
-
-function LoadingDots({ label }) {
-  return (
-    <div className="flex items-center gap-3 py-10 text-text-muted" role="status" aria-live="polite">
-      <span className="inline-flex gap-[6px]" aria-hidden="true">
-        {[0, 140, 280].map((delay) => (
-          <span key={delay} className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: `${delay}ms` }} />
-        ))}
-      </span>
-      <span className="font-body text-[14px]">{label}</span>
-    </div>
-  )
-}
-
-const SECONDARY_BUTTON = 'inline-flex items-center gap-1.5 rounded-full border border-border bg-widget-bg px-3.5 py-2 font-body text-[14px] font-semibold text-text no-underline transition-colors duration-150 hover:bg-bg-subtle'
-
-function OpenScodocButton() {
-  if (!GRADES_LAUNCH_HREF) {
-    return null
-  }
-
-  return (
-    <button type="button" onClick={openGradesService} className={SECONDARY_BUTTON}>
-      ScoDoc
-      <Icon icon="carbon:arrow-up-right" className="size-3.5" aria-hidden="true" />
-    </button>
-  )
-}
-
 // ── Sections ──
 
 function OverviewCard({ report, projection, revealOrder }) {
@@ -323,6 +224,7 @@ function OverviewCard({ report, projection, revealOrder }) {
       label: 'Absences injustifiées',
       value: `${formatGrade(absenceSummary.unjustified ?? 0)}${absenceSummary.unit ? ` ${absenceSummary.unit}` : ''}`,
       detail: `${formatGrade(absenceSummary.total)}${absenceSummary.unit ? ` ${absenceSummary.unit}` : ''} au total`,
+      route: 'absences',
     } : null,
     semester.groups.length ? { label: 'Groupes', value: semester.groups.join(', '), detail: null } : null,
   ].filter(Boolean)
@@ -363,7 +265,18 @@ function OverviewCard({ report, projection, revealOrder }) {
           {facts.map((fact) => (
             <div key={fact.label} className="flex flex-col gap-1 min-w-0">
               <dt className="font-body text-[13px] font-medium text-text-muted">{fact.label}</dt>
-              <dd className="m-0 font-body text-[17px] font-semibold leading-tight text-text">{fact.value}</dd>
+              <dd className="m-0 font-body text-[17px] font-semibold leading-tight text-text">
+                {fact.route ? (
+                  <button
+                    type="button"
+                    onClick={() => navigateTo(fact.route)}
+                    className="inline-flex items-center gap-1 border-0 bg-transparent p-0 text-left font-body text-[17px] font-semibold leading-tight text-text underline decoration-text-30 underline-offset-4 hover:decoration-text"
+                  >
+                    {fact.value}
+                    <Icon icon="carbon:arrow-right" className="size-4" aria-hidden="true" />
+                  </button>
+                ) : fact.value}
+              </dd>
               {fact.detail ? <dd className="m-0 font-body text-[12px] leading-snug text-text-muted">{fact.detail}</dd> : null}
             </div>
           ))}
@@ -779,72 +692,6 @@ function ModulesSection({ revealOrder, report, kindFilter, onKindFilterChange, u
   )
 }
 
-const ABSENCE_STATUS = {
-  justified: { label: 'Justifiée', className: 'bg-success-bg text-success-text' },
-  unjustified: { label: 'Injustifiée', className: 'bg-error-bg text-error' },
-  late: { label: 'Retard', className: 'bg-bg-subtle text-text-secondary' },
-}
-
-function AbsencesSection({ absences, revealOrder }) {
-  const [showAll, setShowAll] = useState(false)
-  if (!absences.visible) {
-    return null
-  }
-
-  const entries = showAll ? absences.entries : absences.entries.slice(0, ABSENCES_PREVIEW_COUNT)
-
-  return (
-    <section className="flex flex-col gap-3" aria-labelledby="grades-absences-title">
-      <SectionTitle id="grades-absences-title" count={absences.entries.length || null}>Absences</SectionTitle>
-      <div style={revealStyle(revealOrder)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-4 p-4`}>
-        {absences.totals ? (
-          <dl className="m-0 grid grid-cols-3 gap-3 max-xs:grid-cols-1">
-            {[
-              ['Injustifiées', absences.totals.unjustified],
-              ['Justifiées', absences.totals.justified],
-              ['Retards', absences.totals.late],
-            ].map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5">
-                <dt className="font-body text-[13px] font-medium text-text-muted">{label}</dt>
-                <dd className="m-0 font-display text-[22px] font-bold leading-tight text-text">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-        {entries.length ? (
-          <ul className="m-0 flex flex-col p-0 list-none">
-            {entries.map((entry) => {
-              const status = ABSENCE_STATUS[entry.status]
-              return (
-                <li key={entry.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-t border-border py-3">
-                  <span className="font-body text-[15px] font-semibold leading-snug text-text">
-                    {formatLongDate(entry.date)}{entry.endDate ? ` → ${formatLongDate(entry.endDate)}` : ''}
-                    <span className="font-medium text-text-secondary"> · {entry.start} – {entry.end}</span>
-                  </span>
-                  <span className={`row-span-2 self-center rounded-full px-2.5 py-1 font-body text-[12px] font-semibold ${status.className}`}>{status.label}</span>
-                  <span className="font-body text-[13px] leading-snug text-text-muted">
-                    {[entry.subject ?? 'Matière non précisée', entry.teacher].filter(Boolean).join(' · ')}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="m-0 font-body text-[14px] text-text-muted">Aucune absence enregistrée sur ce semestre.</p>
-        )}
-        {absences.entries.length > ABSENCES_PREVIEW_COUNT ? (
-          <button type="button" className={`${SECONDARY_BUTTON} self-start`} onClick={() => setShowAll((current) => !current)} aria-expanded={showAll}>
-            {showAll ? 'Voir moins' : `Voir les ${absences.entries.length} absences`}
-          </button>
-        ) : null}
-        {absences.notice ? (
-          <p className="m-0 border-t border-border pt-3 font-body text-[12px] leading-snug text-text-muted whitespace-pre-line">{absences.notice}</p>
-        ) : null}
-      </div>
-    </section>
-  )
-}
-
 // Stays in view while typing grades further down: sticky at the top of the
 // self-scrolling column on wide screens; on phones (window scroll under
 // overflow-x: hidden ancestors, where sticky can't hold) fixed above the tab
@@ -886,16 +733,9 @@ function SimulationBar({ projection, overrideCount, onReset, onClose }) {
 // ── Page ──
 
 function GradesPage({ storageScope = null }) {
-  // Straight from the in-memory cache when the grades were loaded recently.
-  const [base, setBase] = useState(() => {
-    const cached = peekGrades()
-    return cached ? { status: 'ok', payload: cached.grades, error: null } : { status: 'loading', payload: null, error: null }
-  })
-  const [reloadNonce, setReloadNonce] = useState(0)
-  const [selectedId, setSelectedId] = useState(null)
-  const [semesterPayloads, setSemesterPayloads] = useState({})
-  const [departmentMessages, setDepartmentMessages] = useState({})
-  const [newIdsBySemester, setNewIdsBySemester] = useState({})
+  const data = useScodocReleve()
+  const { activeId, releve, config, department, departmentMessage } = data
+  const [seenBaselines, setSeenBaselines] = useState({})
   const [kindFilter, setKindFilter] = useState('all')
   const [ueFilter, setUeFilter] = useState(null)
   const [openIds, setOpenIds] = useState(() => new Set())
@@ -903,6 +743,7 @@ function GradesPage({ storageScope = null }) {
   const [overrides, setOverrides] = useState({})
   // Bumped on reset so the grade inputs drop what was typed.
   const [simulationNonce, setSimulationNonce] = useState(0)
+  const [tourTrigger, setTourTrigger] = useState(0)
 
   useEffect(() => {
     const previousTitle = document.title
@@ -910,137 +751,45 @@ function GradesPage({ storageScope = null }) {
     return () => { document.title = previousTitle }
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-
-    getGrades({ force: reloadNonce > 0 })
-      .then((data) => {
-        if (cancelled) return
-        if (!data?.authenticated || data.error || !data.grades) {
-          setBase({ status: 'error', payload: null, error: describeLoadError(data, null) })
-          return
-        }
-        setBase({ status: 'ok', payload: data.grades, error: null })
-      })
-      .catch((error) => {
-        if (!cancelled) setBase({ status: 'error', payload: null, error: describeLoadError(null, error) })
-      })
-
-    return () => { cancelled = true }
-  }, [reloadNonce])
-
-  const basePayload = base.payload
-  const semesters = useMemo(() => listGradesSemesters(basePayload?.semestres), [basePayload])
-  // The first-connection answer already holds the newest semester's relevé.
-  const newestId = semesters[0]?.id ?? 'current'
-  const activeId = selectedId ?? newestId
-  const cachedSemester = activeId === newestId ? null : peekSemesterGrades(activeId)
-  const activeEntry = activeId === newestId && basePayload
-    ? { status: 'ok', payload: basePayload }
-    : semesterPayloads[activeId] ?? (cachedSemester ? { status: 'ok', payload: cachedSemester.grades } : { status: 'loading' })
-
-  // The other semesters load in the background once the page has settled, so
-  // switching to them is instant.
-  useEffect(() => {
-    if (!basePayload || semesters.length < 2) {
-      return undefined
-    }
-
-    const otherIds = semesters.slice(1).map((semester) => semester.id)
-    const start = () => { void prefetchSemesterGrades(otherIds) }
-    if (typeof window.requestIdleCallback === 'function') {
-      const idleId = window.requestIdleCallback(start, { timeout: 2000 })
-      return () => window.cancelIdleCallback(idleId)
-    }
-    const timeoutId = window.setTimeout(start, 800)
-    return () => window.clearTimeout(timeoutId)
-  }, [basePayload, semesters])
-
-  useEffect(() => {
-    if (!basePayload || activeId === newestId || semesterPayloads[activeId] || cachedSemester) {
-      return
-    }
-
-    setSemesterPayloads((current) => ({ ...current, [activeId]: { status: 'loading' } }))
-    getSemesterGrades(activeId)
-      .then((data) => {
-        const ok = data?.authenticated && data.grades && !data.error
-        setSemesterPayloads((current) => ({
-          ...current,
-          [activeId]: ok ? { status: 'ok', payload: data.grades } : { status: 'error', error: describeLoadError(data, null) },
-        }))
-      })
-      .catch((error) => {
-        setSemesterPayloads((current) => ({ ...current, [activeId]: { status: 'error', error: describeLoadError(null, error) } }))
-      })
-  }, [activeId, basePayload, cachedSemester, newestId, semesterPayloads])
-
-  const config = activeEntry.payload?.config ?? basePayload?.config ?? null
-  const releve = activeEntry.payload?.['relevé'] ?? null
   const report = useMemo(() => (releve ? buildGradesReport(releve, { config }) : null), [releve, config])
-  const absences = useMemo(
-    () => (releve ? buildAbsenceReport(activeEntry.payload, releve, config) : { visible: false }),
-    [activeEntry.payload, releve, config],
-  )
-  const department = releve ? getReleveDepartment(releve) : null
-  const isReportReady = report?.status === 'ok'
+  const isReportReady = data.entry.status === 'ok' && report?.status === 'ok'
 
-  // "New" is decided once per semester per visit, then everything shown
+  // "New" compares with what was seen before this visit (the baseline, read
+  // once per semester); everything shown, refreshed data included, then
   // counts as seen for next time.
   useEffect(() => {
-    if (!isReportReady || activeId in newIdsBySemester) {
+    if (!isReportReady) {
       return
     }
 
     const seen = readSeenGrades(storageScope)
-    setNewIdsBySemester((current) => ({ ...current, [activeId]: findNewGrades(report, seen[activeId] ?? null) }))
-    writeSeenGrades(storageScope, { ...seen, [activeId]: listGradeSignatures(report) })
-  }, [activeId, isReportReady, newIdsBySemester, report, storageScope])
-
-  useEffect(() => {
-    if (!department || department in departmentMessages) {
-      return
+    if (!(activeId in seenBaselines)) {
+      setSeenBaselines((current) => ({ ...current, [activeId]: seen[activeId] ?? null }))
     }
+    writeSeenGrades(storageScope, { ...seen, [activeId]: listGradeSignatures(report) })
+  }, [activeId, isReportReady, report, seenBaselines, storageScope])
 
-    setDepartmentMessages((current) => ({ ...current, [department]: null }))
-    getGradesDepartmentMessage(department)
-      .then((data) => {
-        const text = htmlToPlainText(data?.message)
-        if (text) setDepartmentMessages((current) => ({ ...current, [department]: text }))
-      })
-      .catch(() => {})
-  }, [department, departmentMessages])
-
+  const newIds = useMemo(
+    () => (isReportReady && activeId in seenBaselines ? findNewGrades(report, seenBaselines[activeId]) : new Set()),
+    [activeId, isReportReady, report, seenBaselines],
+  )
   const projection = useMemo(
     () => (simulating && releve && isReportReady ? projectAverages(releve, overrides) : null),
     [isReportReady, overrides, releve, simulating],
   )
-  const newIds = newIdsBySemester[activeId] ?? new Set()
   const canSimulate = isReportReady && [...report.resources, ...report.saes]
     .some((module) => module.evaluations.some((evaluation) => evaluation.canSimulate))
 
-  const handleSelectSemester = useCallback((id) => {
-    setSelectedId(id)
+  // A new semester starts with clean filters and no simulation.
+  const [filtersSemesterId, setFiltersSemesterId] = useState(activeId)
+  if (filtersSemesterId !== activeId) {
+    setFiltersSemesterId(activeId)
     setKindFilter('all')
     setUeFilter(null)
     setOpenIds(new Set())
     setOverrides({})
     setSimulating(false)
-  }, [])
-
-  const handleRetry = useCallback(() => {
-    if (base.status === 'error') {
-      setBase({ status: 'loading', payload: null, error: null })
-      setReloadNonce((current) => current + 1)
-      return
-    }
-
-    setSemesterPayloads((current) => {
-      const next = { ...current }
-      delete next[activeId]
-      return next
-    })
-  }, [activeId, base.status])
+  }
 
   const openModule = useCallback((code) => {
     const module = [...(report?.resources ?? []), ...(report?.saes ?? [])].find((entry) => entry.code === code)
@@ -1092,47 +841,14 @@ function GradesPage({ storageScope = null }) {
     })
   }, [])
 
-  const activeSemester = semesters.find((semester) => semester.id === activeId) ?? null
-  const departmentMessage = department ? departmentMessages[department] : null
   const showPdf = isReportReady && activeId !== 'current' && canDownloadReportPdf(config, department)
   const subtitle = isReportReady
     ? [report.formation.acronym, report.semester.year, report.semester.groups.join(', ')].filter(Boolean).join(' · ')
-    : [activeSemester?.title, activeSemester?.year].filter(Boolean).join(' · ')
-  const semesterOptions = semesters.map((semester) => ({
-    value: semester.id,
-    label: semester.number != null ? `S${semester.number}` : semester.title ?? 'Semestre',
-    detail: semester.year,
-  }))
-
-  const retryButton = (
-    <button type="button" onClick={handleRetry} className="rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover">
-      Réessayer
-    </button>
-  )
+    : [data.activeSemester?.title, data.activeSemester?.year].filter(Boolean).join(' · ')
 
   let body
-  if (base.status === 'loading') {
-    body = <LoadingDots label="Récupération de ton relevé sur ScoDoc…" />
-  } else if (base.status === 'error') {
-    body = (
-      <StatusMessage
-        icon="carbon:cloud-offline"
-        title="Notes indisponibles"
-        detail={base.error}
-        action={<div className="flex flex-wrap gap-2">{retryButton}<OpenScodocButton /></div>}
-      />
-    )
-  } else if (activeEntry.status === 'loading') {
-    body = <LoadingDots label={`Chargement du ${activeSemester?.number != null ? `semestre ${activeSemester.number}` : 'semestre'}…`} />
-  } else if (activeEntry.status === 'error') {
-    body = (
-      <StatusMessage
-        icon="carbon:cloud-offline"
-        title="Ce semestre n'a pas pu être chargé"
-        detail={activeEntry.error}
-        action={<div className="flex flex-wrap gap-2">{retryButton}<OpenScodocButton /></div>}
-      />
-    )
+  if (data.base.status !== 'ok' || data.entry.status !== 'ok') {
+    body = <ScodocLoadState data={data} unavailableTitle="Notes indisponibles" />
   } else if (!report || report.status === 'empty') {
     body = <StatusMessage icon="carbon:document-blank" title="Aucun relevé pour ce semestre" detail="ScoDoc n'a encore rien publié ici." />
   } else if (report.status === 'unpublished') {
@@ -1170,11 +886,11 @@ function GradesPage({ storageScope = null }) {
           />
         ) : null}
 
-        <OverviewCard report={report} projection={projection} revealOrder={0} />
+        <div data-tour="grades-overview"><OverviewCard report={report} projection={projection} revealOrder={0} /></div>
         <RecentGrades evaluations={recent} newIds={newIds} onOpen={openModule} revealOrder={1} />
 
         {report.ues.length ? (
-          <section className="flex flex-col gap-3" aria-labelledby="grades-ues-title">
+          <section data-tour="grades-ues" className="flex flex-col gap-3" aria-labelledby="grades-ues-title">
             <SectionTitle id="grades-ues-title" count={report.ues.length}>Compétences (UE)</SectionTitle>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-3 gap-y-3 max-md:grid-cols-1">
               {report.ues.map((ue, index) => (
@@ -1191,6 +907,7 @@ function GradesPage({ storageScope = null }) {
           </section>
         ) : null}
 
+        <div data-tour="grades-modules">
         <ModulesSection
           revealOrder={2 + ueCount}
           report={report}
@@ -1203,13 +920,12 @@ function GradesPage({ storageScope = null }) {
           newIds={newIds}
           simulation={{ active: simulating, overrides, setOverride, nonce: simulationNonce }}
         />
-
-        <AbsencesSection absences={absences} revealOrder={3 + ueCount} />
+        </div>
 
         {report.appreciations.length ? (
           <section className="flex flex-col gap-3" aria-labelledby="grades-appreciations-title">
             <SectionTitle id="grades-appreciations-title">Appréciations</SectionTitle>
-            <div style={revealStyle(4 + ueCount)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-3 p-4`}>
+            <div style={revealStyle(3 + ueCount)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-3 p-4`}>
               {report.appreciations.map((text) => (
                 <p key={text} className="m-0 font-body text-[15px] leading-relaxed text-text whitespace-pre-line">{text}</p>
               ))}
@@ -1229,15 +945,16 @@ function GradesPage({ storageScope = null }) {
   return (
     <section className={`grades-page w-full pt-4 px-6 pb-10 4xl:pt-5 max-md:px-3 max-md:pt-3 ${simulating ? 'max-4xl:pb-36' : ''}`} aria-labelledby="grades-page-title">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-8 max-md:gap-6">
-        <header className="flex flex-col gap-4">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex flex-col gap-1 min-w-0">
-              <h1 id="grades-page-title" className="m-0 text-[36px] leading-none tracking-[-0.02em] max-md:text-[30px]">Mes notes</h1>
-              {subtitle ? <p className="m-0 font-body text-[15px] font-medium text-text-secondary">{subtitle}</p> : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
+        <ScodocPageHeader
+          titleId="grades-page-title"
+          title="Mes notes"
+          subtitle={subtitle}
+          data={data}
+          actions={(
+            <>
               {canSimulate ? (
                 <button
+                  data-tour="grades-simulate"
                   type="button"
                   aria-pressed={simulating}
                   onClick={simulating ? stopSimulation : startSimulation}
@@ -1249,31 +966,26 @@ function GradesPage({ storageScope = null }) {
                   Simuler
                 </button>
               ) : null}
+              <button
+                type="button"
+                onClick={() => setTourTrigger((c) => c + 1)}
+                className={`${SECONDARY_BUTTON} size-9 p-0 inline-flex items-center justify-center rounded-full text-text-muted hover:text-text`}
+                title="Aide & Visite guidée des notes"
+                aria-label="Visite guidée"
+              >
+                <Icon icon="carbon:help" className="size-4" aria-hidden="true" />
+              </button>
               {showPdf ? (
                 <a href={getGradesReportPdfHref(activeId, releve?.type)} target="_blank" rel="noopener noreferrer" className={SECONDARY_BUTTON}>
                   <Icon icon="carbon:document-pdf" className="size-4" aria-hidden="true" />
                   PDF
                 </a>
               ) : null}
-              {base.status === 'ok' ? <OpenScodocButton /> : null}
-            </div>
-          </div>
-          {semesterOptions.length > 1 ? (
-            <div className="-mx-6 overflow-x-auto px-6 py-1 [scrollbar-width:none] max-md:-mx-3 max-md:px-3">
-              <SegmentedControl label="Semestre" options={semesterOptions} value={activeId} onChange={handleSelectSemester} size="lg" />
-            </div>
-          ) : null}
-        </header>
+            </>
+          )}
+        />
 
-        {departmentMessage && isReportReady ? (
-          <aside className={`${CARD_CLASSES} grades-reveal flex gap-3 p-4`} aria-label="Message du département">
-            <Icon icon="carbon:information" className="mt-0.5 size-5 shrink-0 text-text-secondary" aria-hidden="true" />
-            <div className="flex flex-col gap-1 min-w-0">
-              <p className="m-0 font-body text-[14px] font-semibold text-text">Message de ton département</p>
-              <p className="m-0 font-body text-[14px] leading-relaxed text-text-secondary whitespace-pre-line">{departmentMessage}</p>
-            </div>
-          </aside>
-        ) : null}
+        {isReportReady ? <DepartmentNotice message={departmentMessage} /> : null}
 
         {body}
       </div>

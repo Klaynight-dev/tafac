@@ -4,6 +4,8 @@ import { Icon, iconLoaded, loadIcons } from '@iconify/react'
 import universityConfig from '@university'
 import { toAppSlug, track } from '../analytics'
 import { fetchAppIcons, getCachedAppIcons } from '../appIcons'
+import { navigateTo } from '../appRoute'
+import { isGradesPageAvailable, isMailPageAvailable, isPlanningPageAvailable } from '../navItems'
 import { scoreAppSearch, searchApps } from '../appSearch'
 import {
   ENT_ORIGIN,
@@ -2062,6 +2064,62 @@ function AvailableApplications({
 
     if (!isPlainLeftClick(event)) {
       return
+    }
+
+    const titleLower = (application.title || '').toLowerCase()
+    const hrefLower = (application.href || '').toLowerCase()
+    const idLower = (application.id || '').toLowerCase()
+
+    if (
+      titleLower.includes('planning')
+      || titleLower.includes('emploi du temps')
+      || idLower.includes('ade')
+      || hrefLower.includes('planning')
+    ) {
+      if (isPlanningPageAvailable()) {
+        event.preventDefault()
+        navigateTo('planning')
+        return
+      }
+    }
+
+    if (
+      titleLower.includes('notes')
+      || titleLower.includes('scodoc')
+      || idLower.includes('notes')
+      || idLower.includes('scodoc')
+      || hrefLower.includes('notes')
+    ) {
+      if (isGradesPageAvailable(establishment)) {
+        event.preventDefault()
+        navigateTo('grades')
+        return
+      }
+    }
+
+    if (titleLower === 'absences' || idLower.includes('absences')) {
+      if (isGradesPageAvailable(establishment)) {
+        event.preventDefault()
+        navigateTo('absences')
+        return
+      }
+    }
+
+    if (
+      titleLower.includes('messagerie')
+      || titleLower.includes('mail')
+      || titleLower.includes('zimbra')
+      || titleLower.includes('partage')
+      || idLower.includes('mail')
+      || idLower.includes('partage')
+      || hrefLower.includes('partage')
+      || hrefLower.includes('mail')
+    ) {
+      if (isMailPageAvailable()) {
+        event.preventDefault()
+        navigateTo('mail')
+        return
+      }
     }
 
     if (!application.fname) {

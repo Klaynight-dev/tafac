@@ -433,6 +433,80 @@ export async function getRecentMail() {
   }
 }
 
+export async function getMailMessages({ limit = 30, query = '' } = {}) {
+  if (!universityConfig.features?.mail) {
+    return { status: 'disabled', unreadCount: null, webmailHref: null, messages: [] }
+  }
+
+  try {
+    const params = new URLSearchParams()
+    if (limit) params.set('limit', String(limit))
+    if (query) params.set('q', query.trim())
+    const queryString = params.toString() ? `?${params.toString()}` : ''
+
+    const response = await fetch(`${ENT_AUTH_PREFIX}/mail/messages${queryString}`, {
+      credentials: 'same-origin',
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (payload?.disabled) {
+      return { status: 'disabled', unreadCount: null, webmailHref: null, messages: [] }
+    }
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Mail messages request failed (${response.status}).`, response.status)
+    }
+
+    if (!payload.authenticated || !payload.mail) {
+      return { status: 'unauthenticated', unreadCount: null, webmailHref: null, messages: [] }
+    }
+
+    return {
+      status: 'ok',
+      unreadCount: Number.isFinite(payload.mail.unreadCount) ? payload.mail.unreadCount : null,
+      webmailHref: payload.mail.webmailHref ?? null,
+      messages: Array.isArray(payload.mail.messages) ? payload.mail.messages : [],
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      unreadCount: null,
+      webmailHref: null,
+      messages: [],
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
+export async function getMailMessage(id) {
+  if (!id) throw new Error('ID de message manquant')
+
+  const response = await fetch(`${ENT_AUTH_PREFIX}/mail/message/${encodeURIComponent(id)}`, {
+    credentials: 'same-origin',
+  })
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok || !payload) {
+    throw createHttpError(payload?.error || `Impossible de charger le message (${response.status}).`, response.status)
+  }
+
+  return payload.message
+}
+
+export async function markMailAsRead(id, read = true) {
+  if (!id) return false
+
+  const response = await fetch(`${ENT_AUTH_PREFIX}/mail/read`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, read }),
+    credentials: 'same-origin',
+  })
+
+  return response.ok
+}
+
 const GRADES_CACHE_KEY = 'l-ent:grades-cache'
 
 // Upcoming Moodle deadlines for the "Échéances Moodle" widget.
@@ -492,11 +566,17 @@ export async function getMoodleDeadlines() {
 // grades on load: share one in-flight request instead of hitting ScoDoc N times.
 let gradesInflight = null
 
-// Grades answers kept in memory for a few minutes, so dashboard ↔ "Mes notes"
-// round trips and semester switches are instant. Memory only: grades are
-// sensitive, nothing goes to storage (legacy storage caches are purged at
-// boot). Cleared on login/logout by clearGradesCache().
+// Grades caching, two levels:
+// - memory, fresh for a few minutes: dashboard ↔ "Mes notes" round trips and
+//   semester switches don't refetch at all;
+// - sessionStorage, for this tab only: after a reload the pages show the last
+//   answer straight away and refresh it in the background. Grades are
+//   sensitive, so never localStorage; the session copy is dropped on login,
+//   logout and expired sessions (clearGradesCache).
 const GRADES_MEMORY_TTL_MS = 5 * 60 * 1000
+const GRADES_SESSION_CACHE_KEY = 'l-ent:grades-session-cache'
+// Older than this, a session copy isn't worth showing.
+const GRADES_SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000
 let gradesMemory = null
 // semesterId → { at, promise, data? }
 const semesterGradesMemory = new Map()
@@ -509,9 +589,38 @@ function isUsableGradesAnswer(data) {
   return Boolean(data?.authenticated && data.grades && !data.error)
 }
 
-// The cached answer when there is a fresh one, without waiting.
+// { at, data, semesters: { [id]: { at, data } } }
+function readGradesSessionCache() {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(GRADES_SESSION_CACHE_KEY) || 'null')
+    return stored && typeof stored === 'object' ? stored : { semesters: {} }
+  } catch {
+    return { semesters: {} }
+  }
+}
+
+function writeGradesSessionCache(update) {
+  try {
+    const current = readGradesSessionCache()
+    sessionStorage.setItem(GRADES_SESSION_CACHE_KEY, JSON.stringify(update(current)))
+  } catch {
+    // Storage full or blocked: the memory level still works.
+  }
+}
+
+function readSessionEntry(entry) {
+  return entry?.data && Date.now() - entry.at < GRADES_SESSION_MAX_AGE_MS ? entry.data : null
+}
+
+// The latest known answer, without waiting: fresh from memory, or the
+// (possibly older) copy kept for this tab. Callers still call getGrades()
+// to get an up-to-date one.
 export function peekGrades() {
-  return isFreshGradesEntry(gradesMemory) ? gradesMemory.data : null
+  if (isFreshGradesEntry(gradesMemory)) {
+    return gradesMemory.data
+  }
+
+  return readSessionEntry(readGradesSessionCache())
 }
 
 export function getGrades({ force = false } = {}) {
@@ -525,7 +634,13 @@ export function getGrades({ force = false } = {}) {
 
   gradesInflight = requestGrades()
     .then((data) => {
-      gradesMemory = isUsableGradesAnswer(data) ? { at: Date.now(), data } : null
+      if (isUsableGradesAnswer(data)) {
+        const at = Date.now()
+        gradesMemory = { at, data }
+        writeGradesSessionCache((current) => ({ ...current, at, data }))
+      } else {
+        gradesMemory = null
+      }
       return data
     })
     .finally(() => {
@@ -568,10 +683,19 @@ export async function getStudentProfilePictureMeta() {
   return parseJsonPayload(response)
 }
 
-export function clearGradesCache() {
+// `keepSessionCache`: the boot-time purge of legacy storage caches must not
+// wipe this tab's copy, which is what makes a reload instant.
+export function clearGradesCache({ keepSessionCache = false } = {}) {
   gradesMemory = null
   semesterGradesMemory.clear()
-  localStorage.removeItem(GRADES_CACHE_KEY)
+  try {
+    localStorage.removeItem(GRADES_CACHE_KEY)
+    if (!keepSessionCache) {
+      sessionStorage.removeItem(GRADES_SESSION_CACHE_KEY)
+    }
+  } catch {
+    // Storage blocked: nothing was cached there either.
+  }
 }
 
 export function openGradesService() {
@@ -604,6 +728,10 @@ export function getSemesterGrades(semesterId) {
   entry.promise = requestSemesterGrades(id).then((data) => {
     if (isUsableGradesAnswer(data)) {
       entry.data = data
+      writeGradesSessionCache((current) => ({
+        ...current,
+        semesters: { ...current.semesters, [id]: { at: entry.at, data } },
+      }))
     } else if (semesterGradesMemory.get(id) === entry) {
       semesterGradesMemory.delete(id)
     }
@@ -618,9 +746,15 @@ export function getSemesterGrades(semesterId) {
   return entry.promise
 }
 
+// Like peekGrades(): fresh from memory, or this tab's possibly older copy.
 export function peekSemesterGrades(semesterId) {
-  const cached = semesterGradesMemory.get(String(semesterId))
-  return isFreshGradesEntry(cached) ? cached.data : null
+  const id = String(semesterId)
+  const cached = semesterGradesMemory.get(id)
+  if (isFreshGradesEntry(cached) && cached.data) {
+    return cached.data
+  }
+
+  return readSessionEntry(readGradesSessionCache().semesters?.[id])
 }
 
 // Loads the other semesters in the background, one at a time so ScoDoc isn't
@@ -1173,6 +1307,16 @@ export async function searchAde(query) {
     `${ENT_AUTH_PREFIX}/ade/search?q=${encodeURIComponent(query.trim())}`,
     { credentials: 'same-origin' },
   )
+
+  return parseJsonPayload(response)
+}
+
+export async function getAdeTeachers(query = '') {
+  const q = String(query ?? '').trim()
+  const params = q ? `?q=${encodeURIComponent(q)}` : ''
+  const response = await fetch(`${ENT_AUTH_PREFIX}/ade/teachers${params}`, {
+    credentials: 'same-origin',
+  })
 
   return parseJsonPayload(response)
 }

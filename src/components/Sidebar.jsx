@@ -8,6 +8,9 @@ import { prefetchGradesPage } from '../entApi'
 import { buildNavItems, openNavItemLink } from '../navItems'
 import { useSlidingIndicator } from '../useSlidingIndicator'
 import { SlidingIndicator } from './SlidingIndicator'
+
+// Pages fed by ScoDoc, prefetched on hover.
+const SCODOC_ROUTES = new Set(['grades', 'absences'])
 import {
   DEFAULT_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
@@ -163,9 +166,9 @@ function Sidebar({
                   key={item.id}
                   type="button"
                   onClick={() => handleNavigate(item)}
-                  // Warm the grades page while the pointer is on its way.
-                  onPointerEnter={item.route === 'grades' ? prefetchGradesPage : undefined}
-                  onFocus={item.route === 'grades' ? prefetchGradesPage : undefined}
+                  // Warm the ScoDoc pages while the pointer is on its way.
+                  onPointerEnter={SCODOC_ROUTES.has(item.route) ? prefetchGradesPage : undefined}
+                  onFocus={SCODOC_ROUTES.has(item.route) ? prefetchGradesPage : undefined}
                   aria-disabled={item.disabled ? 'true' : undefined}
                   aria-current={isActive ? 'page' : undefined}
                   data-active={isActive ? 'true' : undefined}

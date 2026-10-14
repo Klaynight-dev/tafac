@@ -45,9 +45,12 @@ import WidgetContainer from './components/WidgetContainer'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
-import { getMobileTabItems, isGradesPageAvailable } from './navItems'
+import { getMobileTabItems, isGradesPageAvailable, isMailPageAvailable, isPlanningPageAvailable } from './navItems'
 import { navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
 import GradesPage from './components/GradesPage'
+import AbsencesPage from './components/AbsencesPage'
+import PlanningPage from './components/PlanningPage'
+import MailPage from './components/MailPage'
 import { getAvailableWidgets } from './dashboardWidgets'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
@@ -107,14 +110,16 @@ const LOCAL_STORAGE_CACHE_KEYS = [
   'l-ent:ade-timetable-cache',
 ]
 
-function clearLegacySensitiveClientCaches() {
+// `keepSessionGrades`: at boot, keep this tab's grades copy (it makes a reload
+// instant); it still goes on logout and whenever the session is gone.
+function clearLegacySensitiveClientCaches({ keepSessionGrades = false } = {}) {
   try {
     localStorage.removeItem(LEGACY_SESSION_CACHE_KEY)
   } catch {
     // Ignore storage failures
   }
 
-  clearGradesCache()
+  clearGradesCache({ keepSessionCache: keepSessionGrades })
   clearAdeTimetableCache()
 }
 
@@ -460,6 +465,9 @@ function findTpOptionByLabel(options, labelOrLabels) {
 
   return null
 }
+
+// Sidebar order of the pages, for the direction of the page slide.
+const PAGE_ORDER = ['dashboard', 'grades', 'absences', 'planning']
 
 // What a page transition fades: each frosted card on its own (its blur keeps
 // working, unlike under a fading ancestor) and every block without one.
@@ -1189,7 +1197,7 @@ function App() {
   }, [commitDebugState])
 
   useEffect(() => {
-    clearLegacySensitiveClientCaches()
+    clearLegacySensitiveClientCaches({ keepSessionGrades: true })
   }, [])
 
   const runDebugAction = useCallback(async (label, action) => {
@@ -1842,7 +1850,14 @@ function App() {
   // background, so mounting it doesn't freeze that animation.
   const deferredRoute = useDeferredValue(route)
   const gradesPageAvailable = isGradesPageAvailable(establishment)
-  const activeRoute = deferredRoute === 'grades' && gradesPageAvailable ? 'grades' : 'dashboard'
+  const planningPageAvailable = isPlanningPageAvailable()
+  const mailPageAvailable = isMailPageAvailable()
+  const isScodocRoute = deferredRoute === 'grades' || deferredRoute === 'absences'
+  const activeRoute = (isScodocRoute && gradesPageAvailable)
+    || (deferredRoute === 'planning' && planningPageAvailable)
+    || (deferredRoute === 'mail' && mailPageAvailable)
+    ? deferredRoute
+    : 'dashboard'
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -2495,34 +2510,39 @@ function App() {
   const isDashboardShellVisible = sessionState.authenticated && !shouldHoldInitialRender && !isProfileSwitching
     && !shouldShowTpSetup && !shouldShowCompletionScreen
 
-  // /notes for someone without the grades page (feature off, establishment
-  // without grades): show the dashboard and drop the dead URL.
+  // /notes or /absences for someone without ScoDoc pages (feature off,
+  // establishment without grades): show the dashboard and drop the dead URL.
   useEffect(() => {
-    if (isDashboardShellVisible && route === 'grades' && !gradesPageAvailable) {
+    const unavailable = ((route === 'grades' || route === 'absences') && !gradesPageAvailable)
+      || (route === 'planning' && !planningPageAvailable)
+      || (route === 'mail' && !mailPageAvailable)
+    if (isDashboardShellVisible && unavailable) {
       navigateTo('dashboard', { replace: true })
     }
-  }, [gradesPageAvailable, isDashboardShellVisible, route])
+  }, [gradesPageAvailable, isDashboardShellVisible, mailPageAvailable, planningPageAvailable, route])
 
-  const gradesPageRef = useRef(null)
+  const scodocPageRef = useRef(null)
   const dashboardPageRef = useRef(null)
   const previousRouteRef = useRef(activeRoute)
 
-  // Each page starts at the top and slides in from the side it comes from:
-  // from the right toward "Mes notes", from the left back home.
+  // Each page starts at the top and slides in from the side it comes from,
+  // in sidebar order: from the right going down the list, from the left
+  // going back up.
   useEffect(() => {
-    if (previousRouteRef.current === activeRoute) {
+    const previousRoute = previousRouteRef.current
+    if (previousRoute === activeRoute) {
       return
     }
 
     previousRouteRef.current = activeRoute
     scrollAppToTop()
 
-    const page = activeRoute === 'grades' ? gradesPageRef.current : dashboardPageRef.current
+    const page = activeRoute === 'dashboard' ? dashboardPageRef.current : scodocPageRef.current
     if (!page?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return
     }
 
-    const offset = activeRoute === 'dashboard' ? -28 : 28
+    const offset = PAGE_ORDER.indexOf(activeRoute) < PAGE_ORDER.indexOf(previousRoute) ? -28 : 28
     const timing = { duration: 460, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
     // The page itself only slides: opacity on an ancestor would cut the
     // cards' backdrop blur off from the photo until the end of the fade.
@@ -2596,10 +2616,10 @@ function App() {
             {showWallpaper ? (
               <div
                 aria-hidden="true"
-                // Behind "Mes notes" the photo runs past the title down to the
+                // Behind the ScoDoc pages the photo runs past the title down to the
                 // first cards, as it does behind the dashboard widgets.
                 className={`dashboard-hero pointer-events-none absolute inset-x-0 top-0 -z-10 bg-cover bg-[center_40%] transition-[height] duration-500 ease-out dark:opacity-60 ${
-                  activeRoute === 'grades' ? 'h-[420px] max-md:h-[440px]' : 'h-[230px] max-md:h-[260px]'
+                  activeRoute === 'dashboard' ? 'h-[230px] max-md:h-[260px]' : 'h-[420px] max-md:h-[440px]'
                 }`}
                 style={{
                   // The measured height follows the widget row, hidden on other pages.
@@ -2635,11 +2655,18 @@ function App() {
                 </div>
               </div>
             ) : null}
-            {activeRoute === 'grades' ? (
-              <div ref={gradesPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
-                <GradesPage storageScope={sessionState.user} />
+            {activeRoute === 'dashboard' ? null : (
+              <div key={activeRoute} ref={scodocPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
+                {activeRoute === 'grades' ? <GradesPage storageScope={sessionState.user} /> : null}
+                {activeRoute === 'absences' ? <AbsencesPage /> : null}
+                {activeRoute === 'planning' ? (
+                  <PlanningPage selection={selectedTp} sessionUser={sessionState.user} onOpenAccount={handleOpenAccountModal} />
+                ) : null}
+                {activeRoute === 'mail' ? (
+                  <MailPage />
+                ) : null}
               </div>
-            ) : null}
+            )}
             {/* Kept mounted on other pages: coming back is instant and the
                 widgets don't refetch or report a second dashboard view. */}
             <div ref={dashboardPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0" hidden={activeRoute !== 'dashboard'}>
