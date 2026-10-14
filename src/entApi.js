@@ -492,14 +492,45 @@ export async function getMoodleDeadlines() {
 // grades on load: share one in-flight request instead of hitting ScoDoc N times.
 let gradesInflight = null
 
+// Grades answers kept in memory for a few minutes, so dashboard ↔ "Mes notes"
+// round trips and semester switches are instant. Memory only: grades are
+// sensitive, nothing goes to storage (legacy storage caches are purged at
+// boot). Cleared on login/logout by clearGradesCache().
+const GRADES_MEMORY_TTL_MS = 5 * 60 * 1000
+let gradesMemory = null
+// semesterId → { at, promise, data? }
+const semesterGradesMemory = new Map()
+
+function isFreshGradesEntry(entry) {
+  return Boolean(entry) && Date.now() - entry.at < GRADES_MEMORY_TTL_MS
+}
+
+function isUsableGradesAnswer(data) {
+  return Boolean(data?.authenticated && data.grades && !data.error)
+}
+
+// The cached answer when there is a fresh one, without waiting.
+export function peekGrades() {
+  return isFreshGradesEntry(gradesMemory) ? gradesMemory.data : null
+}
+
 export function getGrades({ force = false } = {}) {
+  if (!force && isFreshGradesEntry(gradesMemory)) {
+    return Promise.resolve(gradesMemory.data)
+  }
+
   if (!force && gradesInflight) {
     return gradesInflight
   }
 
-  gradesInflight = requestGrades().finally(() => {
-    gradesInflight = null
-  })
+  gradesInflight = requestGrades()
+    .then((data) => {
+      gradesMemory = isUsableGradesAnswer(data) ? { at: Date.now(), data } : null
+      return data
+    })
+    .finally(() => {
+      gradesInflight = null
+    })
   return gradesInflight
 }
 
@@ -538,6 +569,8 @@ export async function getStudentProfilePictureMeta() {
 }
 
 export function clearGradesCache() {
+  gradesMemory = null
+  semesterGradesMemory.clear()
   localStorage.removeItem(GRADES_CACHE_KEY)
 }
 
@@ -547,6 +580,85 @@ export function openGradesService() {
   }
 
   window.open(GRADES_LAUNCH_HREF, '_blank', 'noopener,noreferrer')
+}
+
+async function requestSemesterGrades(semesterId) {
+  const response = await fetch(`${ENT_AUTH_PREFIX}/grades/semester/${encodeURIComponent(semesterId)}`, {
+    credentials: 'same-origin',
+  })
+
+  return parseJsonPayload(response)
+}
+
+// Relevé of one semester for the "Mes notes" page. Same answer as getGrades()
+// ({ authenticated, grades }), grades being { relevé, absences, … }.
+// Concurrent calls share one request; good answers stay in memory.
+export function getSemesterGrades(semesterId) {
+  const id = String(semesterId)
+  const cached = semesterGradesMemory.get(id)
+  if (isFreshGradesEntry(cached)) {
+    return cached.promise
+  }
+
+  const entry = { at: Date.now(), promise: null, data: null }
+  entry.promise = requestSemesterGrades(id).then((data) => {
+    if (isUsableGradesAnswer(data)) {
+      entry.data = data
+    } else if (semesterGradesMemory.get(id) === entry) {
+      semesterGradesMemory.delete(id)
+    }
+    return data
+  }, (error) => {
+    if (semesterGradesMemory.get(id) === entry) {
+      semesterGradesMemory.delete(id)
+    }
+    throw error
+  })
+  semesterGradesMemory.set(id, entry)
+  return entry.promise
+}
+
+export function peekSemesterGrades(semesterId) {
+  const cached = semesterGradesMemory.get(String(semesterId))
+  return isFreshGradesEntry(cached) ? cached.data : null
+}
+
+// Loads the other semesters in the background, one at a time so ScoDoc isn't
+// hit in a burst. Already cached ones are skipped.
+export async function prefetchSemesterGrades(semesterIds) {
+  for (const id of semesterIds) {
+    if (isFreshGradesEntry(semesterGradesMemory.get(String(id)))) continue
+    await getSemesterGrades(id).catch(() => {})
+  }
+}
+
+// Warms everything the "Mes notes" page needs (sidebar hover, tab press).
+export function prefetchGradesPage() {
+  if (!universityConfig.features?.grades) {
+    return
+  }
+
+  getGrades()
+    .then((data) => {
+      const semesters = Array.isArray(data?.grades?.semestres) ? data.grades.semestres : []
+      // The first answer already holds the newest semester; ScoDoc lists oldest first.
+      const otherIds = semesters.slice(0, -1).map((semester) => semester.formsemestre_id).filter((id) => id != null).reverse()
+      return prefetchSemesterGrades(otherIds)
+    })
+    .catch(() => {})
+}
+
+// { message: html | null }: the department notice ScoDoc shows above the relevé.
+export async function getGradesDepartmentMessage(department) {
+  const response = await fetch(`${ENT_AUTH_PREFIX}/grades/department-message?dep=${encodeURIComponent(department)}`, {
+    credentials: 'same-origin',
+  })
+
+  return parseJsonPayload(response)
+}
+
+export function getGradesReportPdfHref(semesterId, type = 'BUT') {
+  return `${ENT_AUTH_PREFIX}/grades/report.pdf?semestre=${encodeURIComponent(semesterId)}&type=${type === 'DUT' ? 'DUT' : 'BUT'}`
 }
 
 function parseGradeValue(val) {
