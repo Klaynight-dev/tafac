@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar'
 import AccountModal from './components/AccountModal'
 import ChangelogPill from './components/ChangelogPill'
 import ChangelogSheet from './components/ChangelogSheet'
+import GuidedTour from './components/GuidedTour'
 import LentButton from './components/LentButton'
 import LoginPage from './components/LoginPage'
 import OnboardingCompletionPage from './components/OnboardingCompletionPage'
@@ -2637,6 +2638,10 @@ function App() {
         forceIos={forceIosPrompt}
         autoOpen={!settingsTransfer.arrived}
         onVisibleChange={setIsInstallPromptVisible}
+      />
+      <GuidedTour
+        enabled={sessionState.authenticated && !shouldShowCompletionScreen}
+        blocked={welcomeFromLentOpen || isInstallPromptVisible || isAccountModalOpen || hasPendingUpdate}
       />
       <ChangelogSheet />
       <PwaUpdateManager
