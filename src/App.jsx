@@ -45,12 +45,14 @@ import WidgetContainer from './components/WidgetContainer'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
-import { getMobileTabItems, isGradesPageAvailable, isMailPageAvailable, isPlanningPageAvailable } from './navItems'
+import { getMobileTabItems, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from './navItems'
 import { navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
 import GradesPage from './components/GradesPage'
 import AbsencesPage from './components/AbsencesPage'
 import PlanningPage from './components/PlanningPage'
 import MailPage from './components/MailPage'
+import MoodlePage from './components/MoodlePage'
+import PageErrorBoundary from './components/PageErrorBoundary'
 import { getAvailableWidgets } from './dashboardWidgets'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
@@ -798,6 +800,10 @@ function findAdeTreeNodeById(rootNode, targetId) {
 }
 
 function detectEstablishmentFromAdeTree(treePayload) {
+  if (!treePayload) {
+    return null
+  }
+
   const establishments = universityConfig.establishments
   if (!establishments) {
     return null
@@ -809,10 +815,16 @@ function detectEstablishmentFromAdeTree(treePayload) {
     .map((nodeId) => findAdeTreeNodeById(root, nodeId))
     .filter(Boolean)
 
-  const searchHaystack = currentNodes.flatMap((node) => [
-    String(node.name ?? ''),
-    String(node.path ?? ''),
-  ]).join(' | ').toLowerCase()
+  const searchHaystack = [
+    ...currentNodes.flatMap((node) => [String(node.name ?? ''), String(node.path ?? '')]),
+    String(treePayload?.defaultSelection?.contextLabel ?? ''),
+    String(treePayload?.defaultSelection?.programLabel ?? ''),
+    String(treePayload?.defaultSelection?.name ?? ''),
+  ].join(' | ').toLowerCase()
+
+  if (!searchHaystack.trim()) {
+    return establishments.fallbackId ?? 'iutlan'
+  }
 
   for (const rule of establishments.detectFromAdeTree ?? []) {
     if ((rule.includes ?? []).some((needle) => searchHaystack.includes(needle))) {
@@ -820,7 +832,82 @@ function detectEstablishmentFromAdeTree(treePayload) {
     }
   }
 
-  return establishments.fallbackId ?? null
+  return establishments.fallbackId ?? 'iutlan'
+}
+
+function detectEstablishmentFromSelection(selection) {
+  if (!selection) return null
+  const searchHaystack = [
+    selection.contextLabel,
+    selection.programLabel,
+    selection.parentLabel,
+    selection.label,
+  ].filter(Boolean).join(' | ').toLowerCase()
+
+  if (!searchHaystack.trim()) return null
+
+  for (const rule of universityConfig.establishments?.detectFromAdeTree ?? []) {
+    if ((rule.includes ?? []).some((needle) => searchHaystack.includes(needle))) {
+      return rule.id
+    }
+  }
+
+  if (searchHaystack.includes('enssat') || searchHaystack.includes('ingenieur') || searchHaystack.includes('photonique')) {
+    return 'enssat'
+  }
+
+  if (searchHaystack.includes('but') || searchHaystack.includes('iut') || searchHaystack.includes('iutlan')) {
+    return 'iutlan'
+  }
+
+  return null
+}
+
+function detectEstablishment({ treePayload = null, account = null, user = null, selection = null } = {}) {
+  const establishments = universityConfig.establishments
+  if (!establishments) {
+    return null
+  }
+
+  // 1. Check account attributes if available
+  const accountHaystack = [
+    account?.mail,
+    account?.email,
+    account?.department,
+    account?.ou,
+    account?.eduPersonPrimaryAffiliation,
+    user,
+  ].filter(Boolean).join(' | ').toLowerCase()
+
+  if (accountHaystack.includes('enssat')) {
+    return 'enssat'
+  }
+  if (accountHaystack.includes('iutlan') || accountHaystack.includes('iut-lannion') || accountHaystack.includes('iut lannion') || accountHaystack.includes('iut de lannion')) {
+    return 'iutlan'
+  }
+
+  // 2. Check TP selection
+  const fromSelection = detectEstablishmentFromSelection(selection)
+  if (fromSelection) {
+    return fromSelection
+  }
+
+  // 3. Check ADE tree
+  if (treePayload) {
+    return detectEstablishmentFromAdeTree(treePayload)
+  }
+
+  return null
+}
+
+function hasGradeWidgetsForEstablishment(est) {
+  if (!universityConfig.features?.grades) {
+    return false
+  }
+  if (!universityConfig.establishments) {
+    return true
+  }
+  return Boolean(universityConfig.establishments.byId?.[est]?.gradeWidgets)
 }
 
 function normalizeAdePathLabels(nodes) {
@@ -872,7 +959,31 @@ function buildTpSelectionOptions(nodes, parentNode, contextLabel, extraFields = 
 }
 
 function buildInitialTpOnboardingState(treePayload) {
-  const pathNodes = getAdeTreePathNodes(treePayload)
+  let pathNodes = getAdeTreePathNodes(treePayload)
+
+  // If the user's ADE portal account had no pre-assigned resource, pathNodes is empty.
+  // Instead of showing a dead-end error, look for the establishment branch or list top student formations.
+  if (pathNodes.length === 0 && treePayload?.root) {
+    const root = treePayload.root
+    const etudiantsNode = String(root.id) === '-1'
+      ? root
+      : (root.children ?? []).find((c) => String(c.id) === '-1' || /etudiant/i.test(c.name)) ?? root
+    const topBranches = etudiantsNode.children ?? []
+
+    const enssatBranch = topBranches.find((b) => /enssat/i.test(b.name))
+    if (enssatBranch) {
+      pathNodes = [etudiantsNode, enssatBranch].filter((n) => !['-100', '-1'].includes(String(n.id)))
+    } else if (topBranches.length > 0) {
+      return createEmptyTpOnboardingState({
+        contextLabel: 'Formations',
+        program: null,
+        yearOptions: buildTpSelectionOptions(topBranches, etudiantsNode, 'Formations'),
+        detectedSelections: { year: null, td: null, tp: null },
+        errorMessage: '',
+      })
+    }
+  }
+
   const pathLabels = normalizeAdePathLabels(pathNodes)
   const programNode = pathNodes.length >= 2 ? pathNodes[1] : pathNodes[0] ?? null
   const programIndex = programNode
@@ -1234,7 +1345,8 @@ function App() {
     }
 
     function handleWindowKeydown(event) {
-      const key = event.key.toLowerCase()
+      const key = String(event.key ?? '').toLowerCase()
+      if (!key) return
 
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && key === 'd') {
         event.preventDefault()
@@ -1347,7 +1459,23 @@ function App() {
     }
 
     setProfileUser(sessionState.user)
-    setEstablishment(getStoredEstablishment(sessionState.user))
+    const storedSel = getStoredTpSelection(sessionState.user)
+    const existingEst = getStoredEstablishment(sessionState.user)
+    const detected = detectEstablishment({
+      account: sessionState.account,
+      user: sessionState.user,
+      selection: storedSel,
+    })
+    let nextEstablishment = existingEst
+    if (!nextEstablishment || nextEstablishment === 'other') {
+      nextEstablishment = detected || universityConfig.establishments?.fallbackId || 'iutlan'
+    } else if (detected && detected !== existingEst) {
+      nextEstablishment = detected
+    }
+    if (nextEstablishment !== existingEst) {
+      persistEstablishment(nextEstablishment, sessionState.user)
+    }
+    setEstablishment(nextEstablishment)
     setSelectedTp(getStoredTpSelection(sessionState.user))
     setNextClassLookaheadDays(getStoredAdeLookaheadDays(sessionState.user))
     setHiddenWidgets(getStoredHiddenWidgets(sessionState.user))
@@ -1392,6 +1520,20 @@ function App() {
             return
           }
 
+          const currentEst = getStoredEstablishment(sessionState.user)
+          const resolvedEst = (!currentEst || currentEst === 'other')
+            ? (detectEstablishment({
+                account: sessionState.account,
+                user: sessionState.user,
+                selection: storedSelection,
+              }) || universityConfig.establishments?.fallbackId || 'iutlan')
+            : currentEst
+
+          if (resolvedEst !== currentEst) {
+            persistEstablishment(resolvedEst, sessionState.user)
+          }
+          setEstablishment(resolvedEst)
+
           setSelectedTp(storedSelection)
           setTpOnboardingState(createEmptyTpOnboardingState({
             contextLabel: storedSelection.contextLabel ?? '',
@@ -1405,19 +1547,32 @@ function App() {
           return
         }
 
-        let scodocGroupSelection = null
-        try {
-          const gradesResponse = await getGrades()
-          if (gradesResponse?.authenticated && !gradesResponse?.disabled) {
-            scodocGroupSelection = detectScodocGroupSelection(gradesResponse.grades)
-          }
-        } catch {
-          // Grades are best-effort for onboarding auto-selection.
-        }
-
         let treeResponse = await getAdeTree()
         let treePayload = treeResponse?.tree
-        const detectedEstablishment = detectEstablishmentFromAdeTree(treePayload)
+        const detectedEstablishment = detectEstablishment({
+          treePayload,
+          account: sessionState.account,
+          user: sessionState.user,
+        }) || universityConfig.establishments?.fallbackId || 'iutlan'
+
+        persistEstablishment(detectedEstablishment, sessionState.user)
+        setEstablishment(detectedEstablishment)
+
+        let scodocGroupSelection = null
+        if (hasGradeWidgetsForEstablishment(detectedEstablishment)) {
+          try {
+            const gradesResponse = await getGrades()
+            if (gradesResponse?.unavailable && detectedEstablishment === 'iutlan') {
+              const revised = 'enssat'
+              persistEstablishment(revised, sessionState.user)
+              setEstablishment(revised)
+            } else if (gradesResponse?.authenticated && !gradesResponse?.disabled) {
+              scodocGroupSelection = detectScodocGroupSelection(gradesResponse.grades)
+            }
+          } catch {
+            // Grades are best-effort for onboarding auto-selection.
+          }
+        }
         const defaultSelection = treePayload?.defaultSelection?.resourceId
           ? treePayload.defaultSelection
           : null
@@ -1852,10 +2007,12 @@ function App() {
   const gradesPageAvailable = isGradesPageAvailable(establishment)
   const planningPageAvailable = isPlanningPageAvailable()
   const mailPageAvailable = isMailPageAvailable()
+  const moodlePageAvailable = isMoodlePageAvailable()
   const isScodocRoute = deferredRoute === 'grades' || deferredRoute === 'absences'
   const activeRoute = (isScodocRoute && gradesPageAvailable)
     || (deferredRoute === 'planning' && planningPageAvailable)
     || (deferredRoute === 'mail' && mailPageAvailable)
+    || (deferredRoute === 'moodle' && moodlePageAvailable)
     ? deferredRoute
     : 'dashboard'
 
@@ -1921,6 +2078,12 @@ function App() {
       persistHiddenWidgets(next, sessionState.user)
       return next
     })
+  }, [sessionState.user])
+
+  const handleEstablishmentChange = useCallback((newEstablishment) => {
+    track('setting_changed', { setting: 'establishment', value: newEstablishment })
+    persistEstablishment(newEstablishment, sessionState.user)
+    setEstablishment(newEstablishment)
   }, [sessionState.user])
 
   const widgetToggles = useMemo(() => getAvailableWidgets(establishment).map((widget) => ({
@@ -2657,14 +2820,19 @@ function App() {
             ) : null}
             {activeRoute === 'dashboard' ? null : (
               <div key={activeRoute} ref={scodocPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
-                {activeRoute === 'grades' ? <GradesPage storageScope={sessionState.user} /> : null}
-                {activeRoute === 'absences' ? <AbsencesPage /> : null}
-                {activeRoute === 'planning' ? (
-                  <PlanningPage selection={selectedTp} sessionUser={sessionState.user} onOpenAccount={handleOpenAccountModal} />
-                ) : null}
-                {activeRoute === 'mail' ? (
-                  <MailPage />
-                ) : null}
+                <PageErrorBoundary>
+                  {activeRoute === 'grades' ? <GradesPage storageScope={sessionState.user} /> : null}
+                  {activeRoute === 'absences' ? <AbsencesPage /> : null}
+                  {activeRoute === 'planning' ? (
+                    <PlanningPage selection={selectedTp} sessionUser={sessionState.user} onOpenAccount={handleOpenAccountModal} />
+                  ) : null}
+                  {activeRoute === 'mail' ? (
+                    <MailPage />
+                  ) : null}
+                  {activeRoute === 'moodle' ? (
+                    <MoodlePage />
+                  ) : null}
+                </PageErrorBoundary>
               </div>
             )}
             {/* Kept mounted on other pages: coming back is instant and the
@@ -2729,6 +2897,8 @@ function App() {
         onShowAppDescriptionsChange={handleShowAppDescriptionsChange}
         anonymousAnalytics={anonymousAnalytics}
         onAnonymousAnalyticsChange={isAnalyticsAvailable ? handleAnonymousAnalyticsChange : null}
+        establishment={establishment}
+        onEstablishmentChange={handleEstablishmentChange}
       />
       <WelcomeFromLent
         visible={welcomeFromLentOpen}

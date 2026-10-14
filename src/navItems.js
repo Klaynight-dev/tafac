@@ -48,6 +48,9 @@ function buildGradesNavItem() {
 
 // Grades only for establishments whose config enables grade widgets.
 function hasGradeWidgets(establishment) {
+  if (establishment === 'enssat') {
+    return false
+  }
   return Boolean(universityConfig.establishments?.byId?.[establishment]?.gradeWidgets)
 }
 
@@ -67,6 +70,12 @@ export function isPlanningPageAvailable() {
 // to the dashboard).
 export function isMailPageAvailable() {
   return Boolean(universityConfig.features?.mail)
+}
+
+// Whether /moodle can show the in-app Moodle page (otherwise it falls back
+// to the dashboard or external link).
+export function isMoodlePageAvailable() {
+  return Boolean(universityConfig.features?.moodle)
 }
 
 export function buildNavItems(establishment) {
@@ -91,9 +100,11 @@ export function buildNavItems(establishment) {
       : MAIL_HREF
         ? [{ id: 'mail', label: 'Messagerie', shortLabel: 'Mail', icon: 'carbon:email', href: MAIL_HREF, target: '_blank' }]
         : []),
-    ...(MOODLE_HREF
-      ? [{ id: 'moodle', label: 'Moodle', icon: 'devicon-plain:moodle', href: MOODLE_HREF, target: '_blank' }]
-      : []),
+    ...(isMoodlePageAvailable()
+      ? [{ id: 'moodle', label: 'Moodle', icon: 'devicon-plain:moodle', route: 'moodle' }]
+      : MOODLE_HREF
+        ? [{ id: 'moodle', label: 'Moodle', icon: 'devicon-plain:moodle', href: MOODLE_HREF, target: '_blank' }]
+        : []),
   ]
 }
 

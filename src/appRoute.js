@@ -12,6 +12,7 @@ const ROUTE_PATHS = {
   absences: '/absences',
   planning: '/planning',
   mail: '/mail',
+  moodle: '/moodle',
 }
 
 const ROUTE_CHANGE_EVENT = 'tafac:route-change'
@@ -19,6 +20,7 @@ const ROUTE_CHANGE_EVENT = 'tafac:route-change'
 export function getRouteFromPath(pathname) {
   const path = String(pathname ?? '/').replace(/\/+$/, '') || '/'
   if (path === '/messagerie') return 'mail'
+  if (path === '/cours') return 'moodle'
   return Object.keys(ROUTE_PATHS).find((route) => ROUTE_PATHS[route] === path) ?? 'dashboard'
 }
 
