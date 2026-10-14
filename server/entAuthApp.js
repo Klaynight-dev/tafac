@@ -57,6 +57,8 @@ import {
   buildDemoMailMessagePayload,
   buildDemoMarketplaceEntries,
   buildDemoMoodleDeadlinesPayload,
+  buildDemoMoodleCoursesPayload,
+  buildDemoMoodleCourseContentsPayload,
   buildDemoPlanningPayload,
   buildDemoPortletFragment,
   buildDemoSemesterGradesPayload,
@@ -212,6 +214,8 @@ const RUNTIME_SESSION_IDLE_TTL_MS = 24 * 60 * 60 * 1000
 const GRADES_CACHE_TTL_MS = 10 * 60 * 1000
 const MAIL_CACHE_TTL_MS = 2 * 60 * 1000
 const MOODLE_DEADLINES_CACHE_TTL_MS = 5 * 60 * 1000
+const MOODLE_COURSES_CACHE_TTL_MS = 5 * 60 * 1000
+const MOODLE_CONTENTS_CACHE_TTL_MS = 5 * 60 * 1000
 // Signed-in Moodle contexts are reused for this long (and dropped earlier if
 // Moodle rejects them), so a widget refresh doesn't replay the SAML chain.
 const MOODLE_CONTEXT_TTL_MS = 60 * 60 * 1000
@@ -232,6 +236,10 @@ const runtimeMailCache = new Map()
 const runtimeMailContexts = new Map()
 // sessionId → { cachedAt, data }: short-lived Moodle deadlines snapshot.
 const runtimeMoodleDeadlinesCache = new Map()
+// sessionId → { cachedAt, data }: Moodle enrolled courses.
+const runtimeMoodleCoursesCache = new Map()
+// `${sessionId}:${courseId}` → { cachedAt, data }: Moodle course contents.
+const runtimeMoodleContentsCache = new Map()
 // sessionId → { createdAt, jar, sesskey }: signed-in Moodle context, runtime-only
 // for the same reason as runtimeMailContexts.
 const runtimeMoodleContexts = new Map()
@@ -640,16 +648,20 @@ function pruneRuntimeGradesCache() {
   }
 }
 
-function getCachedGrades(sessionId) {
+function getCachedGradesEntry(sessionId) {
   if (!sessionId) {
     return null
   }
 
   pruneRuntimeGradesCache()
-  return runtimeGradesCache.get(sessionId)?.data ?? null
+  return runtimeGradesCache.get(sessionId) ?? null
 }
 
-function setCachedGrades(sessionId, grades) {
+function getCachedGrades(sessionId) {
+  return getCachedGradesEntry(sessionId)?.data ?? null
+}
+
+function setCachedGrades(sessionId, grades, unavailable = false) {
   if (!sessionId) {
     return
   }
@@ -658,6 +670,7 @@ function setCachedGrades(sessionId, grades) {
   runtimeGradesCache.set(sessionId, {
     cachedAt: Date.now(),
     data: grades,
+    unavailable,
   })
 }
 
@@ -749,12 +762,50 @@ function setCachedMoodleDeadlines(sessionId, deadlines) {
   runtimeMoodleDeadlinesCache.set(sessionId, { cachedAt: Date.now(), data: deadlines })
 }
 
+function getCachedMoodleCourses(sessionId) {
+  if (!sessionId) return null
+  const entry = runtimeMoodleCoursesCache.get(sessionId)
+  if (!entry || Date.now() - entry.cachedAt > MOODLE_COURSES_CACHE_TTL_MS) {
+    runtimeMoodleCoursesCache.delete(sessionId)
+    return null
+  }
+  return entry.data
+}
+
+function setCachedMoodleCourses(sessionId, courses) {
+  if (!sessionId) return
+  runtimeMoodleCoursesCache.set(sessionId, { cachedAt: Date.now(), data: courses })
+}
+
+function getCachedMoodleContents(sessionId, courseId) {
+  if (!sessionId) return null
+  const key = `${sessionId}:${courseId}`
+  const entry = runtimeMoodleContentsCache.get(key)
+  if (!entry || Date.now() - entry.cachedAt > MOODLE_CONTENTS_CACHE_TTL_MS) {
+    runtimeMoodleContentsCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function setCachedMoodleContents(sessionId, courseId, contents) {
+  if (!sessionId) return
+  const key = `${sessionId}:${courseId}`
+  runtimeMoodleContentsCache.set(key, { cachedAt: Date.now(), data: contents })
+}
+
 function clearMoodleCaches(sessionId) {
   if (!sessionId) {
     return
   }
 
   runtimeMoodleDeadlinesCache.delete(sessionId)
+  runtimeMoodleCoursesCache.delete(sessionId)
+  for (const key of runtimeMoodleContentsCache.keys()) {
+    if (key.startsWith(`${sessionId}:`)) {
+      runtimeMoodleContentsCache.delete(key)
+    }
+  }
   runtimeMoodleContexts.delete(sessionId)
 }
 
@@ -1803,7 +1854,16 @@ function clearRateLimitEntry(store, key) {
   store.delete(key)
 }
 
+function isLocalRequester(req) {
+  const ip = getLoginRequesterIp(req)
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost'
+}
+
 function getActiveLoginRateLimit(req, username) {
+  if (!IS_PRODUCTION || isLocalRequester(req)) {
+    return null
+  }
+
   const ipKey = getLoginRequesterIp(req)
   const usernameKey = normalizeLoginIdentifier(username)
   const statuses = [
@@ -1821,6 +1881,10 @@ function getActiveLoginRateLimit(req, username) {
 }
 
 function recordLoginFailure(req, username) {
+  if (!IS_PRODUCTION || isLocalRequester(req)) {
+    return null
+  }
+
   const ipKey = getLoginRequesterIp(req)
   const usernameKey = normalizeLoginIdentifier(username)
   const statuses = [
@@ -2243,6 +2307,7 @@ app.post('/__ent_auth/login', async (req, res) => {
       sessionMode: session.mode ?? null,
     })
   } catch (error) {
+    console.error('ENT login error:', error)
     const rateLimit = recordLoginFailure(req, req.body?.username)
     if (rateLimit) {
       res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds))
@@ -2592,13 +2657,14 @@ app.get('/__ent_auth/grades', async (req, res) => {
       })
     }
 
-    const cachedGrades = getCachedGrades(session.id)
-    if (cachedGrades) {
+    const cachedEntry = getCachedGradesEntry(session.id)
+    if (cachedEntry) {
       setSessionCookie(res, session)
       return res.status(200).json({
         authenticated: true,
         sessionMode: session.mode ?? null,
-        grades: cachedGrades,
+        grades: cachedEntry.data,
+        unavailable: cachedEntry.unavailable ?? false,
       })
     }
 
@@ -2612,8 +2678,18 @@ app.get('/__ent_auth/grades', async (req, res) => {
       grades: gradesData,
     })
   } catch (error) {
-    res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const session = getSessionFromRequest(req)
+    if (session) {
+      setCachedGrades(session.id, null, true)
+      setSessionCookie(res, session)
+    }
+    res.status(200).json({
+      authenticated: Boolean(session),
+      sessionMode: session?.mode ?? null,
+      grades: null,
+      unavailable: true,
+      error: errorMessage,
     })
   }
 })
@@ -2642,9 +2718,10 @@ async function getFirstConnectionGrades(session) {
 // 6b. Relevé of one semester ("Mes notes" page semester picker). Same answer
 // shape as /grades: { relevé, absences, totauxAbsences? }.
 app.get('/__ent_auth/grades/semester/:semesterId', async (req, res) => {
+  let session = null
   try {
     res.setHeader('Cache-Control', 'no-store')
-    const session = getSessionFromRequest(req)
+    session = getSessionFromRequest(req)
 
     if (!session) {
       return res.status(200).json({ authenticated: false, grades: null })
@@ -2680,7 +2757,11 @@ app.get('/__ent_auth/grades/semester/:semesterId', async (req, res) => {
       grades: gradesData,
     })
   } catch (error) {
-    res.status(500).json({
+    res.status(200).json({
+      authenticated: true,
+      sessionMode: session?.mode ?? null,
+      grades: null,
+      unavailable: true,
       error: error instanceof Error ? error.message : String(error),
     })
   }
@@ -3199,7 +3280,9 @@ async function fetchZimbraMessageDetail(session, messageId) {
               }
             }
           }
-        } catch {}
+        } catch {
+          // Body preview extraction failed; fallback to text snippet
+        }
       }
 
       const resolvedId = String(msg.id || messageId)
@@ -3811,19 +3894,23 @@ async function queryMoodleDeadlines(context) {
   }
 }
 
+async function getMoodleContext(session) {
+  let context = runtimeMoodleContexts.get(session.id)
+  if (context && Date.now() - context.createdAt > MOODLE_CONTEXT_TTL_MS) {
+    context = null
+  }
+
+  if (!context) {
+    context = await establishMoodleContext(session)
+    runtimeMoodleContexts.set(session.id, context)
+  }
+  return context
+}
+
 async function fetchMoodleDeadlines(session) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    let context = attempt === 0 ? runtimeMoodleContexts.get(session.id) : null
-    if (context && Date.now() - context.createdAt > MOODLE_CONTEXT_TTL_MS) {
-      context = null
-    }
-
-    if (!context) {
-      context = await establishMoodleContext(session)
-      runtimeMoodleContexts.set(session.id, context)
-    }
-
     try {
+      const context = await getMoodleContext(session)
       return await queryMoodleDeadlines(context)
     } catch (error) {
       runtimeMoodleContexts.delete(session.id)
@@ -3848,6 +3935,452 @@ function fetchMoodleDeadlinesOnce(session) {
 
   const promise = fetchMoodleDeadlines(session).finally(() => moodleDeadlinesInflight.delete(session.id))
   moodleDeadlinesInflight.set(session.id, promise)
+  return promise
+}
+
+async function queryMoodleCourses(context) {
+  let data
+  try {
+    data = await moodleAjaxCall(context, 'core_course_get_enrolled_courses_by_timeline_classification', {
+      classification: 'all',
+      limit: 0,
+      offset: 0,
+      sort: 'fullname',
+    })
+  } catch {
+    try {
+      data = await moodleAjaxCall(context, 'core_course_get_enrolled_courses_by_timeline_classification', {
+        classification: 'all',
+        limit: 0,
+        offset: 0,
+        sort: 'ul.timeaccess desc',
+      })
+    } catch {
+      data = await moodleAjaxCall(context, 'core_enrol_get_users_courses', {
+        userid: 0,
+      })
+    }
+  }
+
+  const rawCourses = Array.isArray(data?.courses) ? data.courses : (Array.isArray(data) ? data : [])
+  const courses = rawCourses.map((course) => {
+    const viewurl = course.viewurl || (MOODLE_ORIGIN ? `${MOODLE_ORIGIN}/course/view.php?id=${course.id}` : null)
+    return {
+      id: Number(course.id),
+      fullname: decodeHtmlEntities(String(course.fullname || course.fullnamedisplay || '').trim()),
+      shortname: decodeHtmlEntities(String(course.shortname || '').trim()),
+      category: decodeHtmlEntities(String(course.coursecategory || course.categoryname || '').trim()),
+      progress: typeof course.progress === 'number' && Number.isFinite(course.progress) ? Math.round(course.progress) : null,
+      hasprogress: Boolean(course.hasprogress),
+      courseimage: course.courseimage || null,
+      viewurl,
+      moodleHref: buildMoodleLaunchHref(viewurl),
+    }
+  }).sort((a, b) => a.fullname.localeCompare(b.fullname, 'fr'))
+
+  return {
+    moodleHref: buildMoodleLaunchHref(`${MOODLE_ORIGIN}/my/`),
+    courses,
+  }
+}
+
+async function fetchMoodleCourses(session) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const context = await getMoodleContext(session)
+      return await queryMoodleCourses(context)
+    } catch (error) {
+      runtimeMoodleContexts.delete(session.id)
+      if (!(error instanceof MoodleAuthError) || attempt > 0) {
+        throw error
+      }
+    }
+  }
+
+  throw new Error('Unable to load Moodle courses.')
+}
+
+const moodleCoursesInflight = new Map()
+
+function fetchMoodleCoursesOnce(session) {
+  const inflight = moodleCoursesInflight.get(session.id)
+  if (inflight) {
+    return inflight
+  }
+
+  const promise = fetchMoodleCourses(session).finally(() => moodleCoursesInflight.delete(session.id))
+  moodleCoursesInflight.set(session.id, promise)
+  return promise
+}
+
+function parseMoodleCoursePageHtml(html, courseId) {
+  if (!html || typeof html !== 'string') {
+    return { courseId: Number(courseId), sections: [] }
+  }
+
+  const sections = []
+
+  // 1. Primary parser: Moodle 4 Course Index drawer (<nav id="courseindex"> / .courseindex-section)
+  // This is generated on 100% of Moodle 4 course pages (University of Rennes / theme_boost_union)
+  if (html.includes('courseindex-section') || html.includes('course-index-section-')) {
+    const courseIndexChunks = html.split(/(?=<div\b[^>]*\bid=["']course-index-section-\d+["']|<div\b[^>]*class=["'][^"']*\bcourseindex-section\b[^"']*["'][^>]*data-for=["']section["'])/i)
+
+    for (const chunk of courseIndexChunks) {
+      const idMatch = chunk.match(/\bid=["']course-index-section-(\d+)["']/i) || chunk.match(/data-id=["'](\d+)["']/i)
+      if (!idMatch) continue
+
+      const sectionId = Number(idMatch[1])
+      const numMatch = chunk.match(/data-number=["'](\d+)["']/i)
+      const sectionNum = numMatch ? Number(numMatch[1]) : sectionId
+
+      let title = ''
+      const titleMatch = chunk.match(/data-for=["']section_title["'][^>]*>([\s\S]*?)<\/a>/i)
+        || chunk.match(/class=["'][^"']*\bcourseindex-section-title\b[^"']*["'][\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i)
+      if (titleMatch) {
+        title = titleMatch[1].replace(/<[^>]+>/g, '').trim()
+      }
+      if (!title) {
+        title = sectionNum === 0 ? 'Généralités' : `Section ${sectionNum}`
+      }
+
+      // Restrict module search to this section's cmlist ul if available
+      const cmlistMatch = chunk.match(/<ul\b[^>]*data-for=["']cmlist["'][^>]*data-id=["']\d+["'][\s\S]*?<\/ul>/i)
+      const contentToSearch = cmlistMatch ? cmlistMatch[0] : chunk
+
+      const modules = []
+      const cmChunks = contentToSearch.split(/(?=<li\b[^>]*class=["'][^"']*\bcourseindex-item\b[^"']*["'][^>]*data-for=["']cm["'])/i)
+
+      for (const cmChunk of cmChunks) {
+        const cmidMatch = cmChunk.match(/data-id=["'](\d+)["']/i) || cmChunk.match(/\bid=["']course-index-cm-(\d+)["']/i)
+        const linkMatch = cmChunk.match(/href=["']([^"']*\/mod\/([a-zA-Z0-9_-]+)\/[^"']*\bid=\d+[^"']*)["']/i)
+        if (!cmidMatch || !linkMatch) continue
+
+        const cmid = Number(cmidMatch[1])
+        const modUrl = linkMatch[1]
+        const modType = linkMatch[2].toLowerCase()
+
+        let modName = ''
+        const nameMatch = cmChunk.match(/data-for=["']cm_name["'][^>]*>([\s\S]*?)<\/a>/i)
+          || cmChunk.match(/<a\b[^>]*class=["'][^"']*\bcourseindex-link\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/i)
+        if (nameMatch) {
+          modName = nameMatch[1].replace(/<[^>]+>/g, '').trim()
+        }
+        if (!modName) {
+          modName = `${modType} ${cmid}`
+        }
+        modName = decodeHtmlEntities(modName)
+
+        const contents = []
+        if (modType === 'resource' && modUrl) {
+          const effectiveUrl = modUrl.includes('redirect=1') ? modUrl : `${modUrl}${modUrl.includes('?') ? '&' : '?'}redirect=1`
+          let detectedFilename = modName
+          if (!detectedFilename.includes('.')) {
+            detectedFilename = `${detectedFilename}.pdf`
+          }
+
+          contents.push({
+            filename: detectedFilename,
+            filesize: 0,
+            fileurl: effectiveUrl,
+            mimetype: 'application/pdf',
+            proxyUrl: `/__ent_auth/moodle/file?url=${encodeURIComponent(effectiveUrl)}&name=${encodeURIComponent(detectedFilename)}`,
+          })
+        }
+
+        const pluralMap = {
+          resource: 'Fichiers',
+          assign: 'Devoirs',
+          quiz: 'Tests',
+          forum: 'Forums',
+          folder: 'Dossiers',
+          url: 'Liens',
+          page: 'Pages',
+        }
+
+        modules.push({
+          id: cmid,
+          name: modName,
+          modname: modType,
+          modplural: pluralMap[modType] || modType,
+          modicon: null,
+          url: modUrl,
+          launchHref: buildMoodleLaunchHref(modUrl),
+          contents,
+        })
+      }
+
+      if (modules.length > 0 || (title && title !== 'Généralités')) {
+        sections.push({
+          id: sectionId,
+          name: decodeHtmlEntities(title),
+          summary: '',
+          modules,
+        })
+      }
+    }
+  }
+
+  // 2. Secondary fallback parser: Traditional section/activity DOM (Moodle 3 or course page body)
+  if (sections.length === 0) {
+    const sectionSplits = html.split(/(?=<li\b[^>]*\bid=["']section-\d+["']|<div\b[^>]*\bid=["']section-\d+["']|<div\b[^>]*class=["'][^"']*\bcourse-section\b[^"']*["']|<li\b[^>]*class=["'][^"']*\bsection\b[^"']*["'])/i)
+
+    for (const chunk of sectionSplits) {
+      const idMatch = chunk.match(/\bid=["']section-(\d+)["']/i)
+        || chunk.match(/data-sectionid=["'](\d+)["']/i)
+        || chunk.match(/data-id=["'](\d+)["']/i)
+      if (!idMatch) continue
+
+      const sectionNum = Number(idMatch[1])
+
+      let title = ''
+      const titleMatch = chunk.match(/<(?:h3|h4|div)\b[^>]*class=["'][^"']*(?:sectionname|section-title|section_title)[^"']*["'][^>]*>([\s\S]*?)<\/(?:h3|h4|div)>/i)
+        || chunk.match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/i)
+      if (titleMatch) {
+        title = titleMatch[1]
+          .replace(/<span\b[^>]*class=["'][^"']*accesshide[^"']*["'][^>]*>[\s\S]*?<\/span>/gi, '')
+          .replace(/<[^>]+>/g, '')
+          .trim()
+      }
+      if (!title) {
+        title = sectionNum === 0 ? 'Généralités' : `Section ${sectionNum}`
+      }
+
+      let summary = ''
+      const summaryMatch = chunk.match(/<div\b[^>]*class=["'][^"']*(?:summary|section-summary|description-inner)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)
+      if (summaryMatch) {
+        summary = summaryMatch[1].trim()
+      }
+
+      const modules = []
+      const moduleChunks = chunk.split(/(?=<li\b[^>]*class=["'][^"']*\bactivity\b|<div\b[^>]*class=["'][^"']*\bactivity-item\b)/i)
+
+      for (const modChunk of moduleChunks) {
+        if (!modChunk.includes('/mod/')) continue
+
+        const linkMatch = modChunk.match(/href=["']([^"']*\/mod\/([a-zA-Z0-9_-]+)\/[^"']*\bid=(\d+)[^"']*)["']/i)
+        if (!linkMatch) continue
+
+        const modUrl = linkMatch[1]
+        const modType = linkMatch[2].toLowerCase()
+        const cmid = Number(linkMatch[3])
+
+        if (modules.some((m) => m.id === cmid)) continue
+
+        let modName = ''
+        const nameMatch = modChunk.match(/<span\b[^>]*class=["'][^"']*(?:instancename|activityname)[^"']*["'][^>]*>([\s\S]*?)<\/span>/i)
+        if (nameMatch) {
+          modName = nameMatch[1]
+            .replace(/<span\b[^>]*class=["'][^"']*accesshide[^"']*["'][^>]*>[\s\S]*?<\/span>/gi, '')
+            .replace(/<[^>]+>/g, '')
+            .trim()
+        } else {
+          const aMatch = modChunk.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i)
+          if (aMatch) {
+            modName = aMatch[1]
+              .replace(/<span\b[^>]*class=["'][^"']*accesshide[^"']*["'][^>]*>[\s\S]*?<\/span>/gi, '')
+              .replace(/<[^>]+>/g, '')
+              .trim()
+          }
+        }
+
+        if (!modName) {
+          modName = `${modType} ${cmid}`
+        }
+
+        modName = decodeHtmlEntities(modName)
+
+        const contents = []
+        if (modType === 'resource' && modUrl) {
+          const effectiveUrl = modUrl.includes('redirect=1') ? modUrl : `${modUrl}${modUrl.includes('?') ? '&' : '?'}redirect=1`
+          let detectedFilename = modName
+          if (!detectedFilename.includes('.')) {
+            detectedFilename = `${detectedFilename}.pdf`
+          }
+
+          contents.push({
+            filename: detectedFilename,
+            filesize: 0,
+            fileurl: effectiveUrl,
+            mimetype: 'application/pdf',
+            proxyUrl: `/__ent_auth/moodle/file?url=${encodeURIComponent(effectiveUrl)}&name=${encodeURIComponent(detectedFilename)}`,
+          })
+        }
+
+        const pluralMap = {
+          resource: 'Fichiers',
+          assign: 'Devoirs',
+          quiz: 'Tests',
+          forum: 'Forums',
+          folder: 'Dossiers',
+          url: 'Liens',
+          page: 'Pages',
+        }
+
+        modules.push({
+          id: cmid,
+          name: modName,
+          modname: modType,
+          modplural: pluralMap[modType] || modType,
+          modicon: null,
+          url: modUrl,
+          launchHref: buildMoodleLaunchHref(modUrl),
+          contents,
+        })
+      }
+
+      if (modules.length > 0 || summary) {
+        sections.push({
+          id: sectionNum,
+          name: decodeHtmlEntities(title),
+          summary,
+          modules,
+        })
+      }
+    }
+  }
+
+  return {
+    courseId: Number(courseId),
+    sections,
+  }
+}
+
+async function queryMoodleCourseContents(context, courseId) {
+  try {
+    const data = await moodleAjaxCall(context, 'core_course_get_contents', {
+      courseid: Number(courseId),
+      options: [],
+    })
+
+    if (Array.isArray(data)) {
+      const sections = data
+        .filter((section) => section.uservisible !== false)
+        .map((section) => {
+          const modules = (Array.isArray(section.modules) ? section.modules : [])
+            .filter((mod) => mod.uservisible !== false && mod.visibleoncoursepage !== 0)
+            .map((mod) => {
+              const modUrl = mod.url || null
+              const modType = String(mod.modname || 'other').toLowerCase()
+
+              let contents = (Array.isArray(mod.contents) ? mod.contents : []).map((file) => {
+                let fileurl = file.fileurl || null
+                if (fileurl && fileurl.includes('/webservice/pluginfile.php/')) {
+                  fileurl = fileurl.replace('/webservice/pluginfile.php/', '/pluginfile.php/')
+                }
+                const filename = file.filename || 'document.pdf'
+                return {
+                  filename,
+                  filesize: Number(file.filesize) || 0,
+                  fileurl,
+                  mimetype: file.mimetype || 'application/pdf',
+                  timemodified: Number(file.timemodified) || 0,
+                  proxyUrl: fileurl
+                    ? `/__ent_auth/moodle/file?url=${encodeURIComponent(fileurl)}&name=${encodeURIComponent(filename)}`
+                    : null,
+                }
+              })
+
+              // If contents is empty but this is a resource activity with a URL, create the direct file entry
+              if (contents.length === 0 && (modType === 'resource' || (modUrl && modUrl.includes('/mod/resource/')))) {
+                const effectiveUrl = modUrl.includes('redirect=1') ? modUrl : `${modUrl}${modUrl.includes('?') ? '&' : '?'}redirect=1`
+                let detectedFilename = decodeHtmlEntities(String(mod.name || 'document')).trim()
+                if (!detectedFilename.includes('.')) {
+                  detectedFilename = `${detectedFilename}.pdf`
+                }
+                contents = [{
+                  filename: detectedFilename,
+                  filesize: 0,
+                  fileurl: effectiveUrl,
+                  mimetype: 'application/pdf',
+                  proxyUrl: `/__ent_auth/moodle/file?url=${encodeURIComponent(effectiveUrl)}&name=${encodeURIComponent(detectedFilename)}`,
+                }]
+              }
+
+              return {
+                id: Number(mod.id),
+                name: decodeHtmlEntities(String(mod.name || '').trim()),
+                modname: modType,
+                modplural: decodeHtmlEntities(String(mod.modplural || '').trim()),
+                modicon: mod.modicon || null,
+                url: modUrl,
+                launchHref: buildMoodleLaunchHref(modUrl),
+                contents,
+              }
+            })
+
+          return {
+            id: Number(section.id),
+            name: decodeHtmlEntities(String(section.name || `Section ${section.section ?? ''}`).trim()),
+            summary: section.summary || '',
+            modules,
+          }
+        })
+
+      return {
+        courseId: Number(courseId),
+        sections,
+      }
+    }
+  } catch (err) {
+    if (err instanceof MoodleAuthError) {
+      throw err
+    }
+  }
+
+  // Fallback: fetch course/view.php?id=... with session jar and parse HTML
+  try {
+    const url = `${MOODLE_ORIGIN}/course/view.php?id=${encodeURIComponent(courseId)}`
+    const resp = await fetchWithJar(url, context.jar, {
+      headers: { Accept: MOODLE_ACCEPT_HTML },
+    })
+
+    if (resp.status === 401 || resp.status === 403) {
+      throw new MoodleAuthError(`Moodle course view rejected the session (${resp.status}).`)
+    }
+
+    if (resp.ok) {
+      const html = await resp.text()
+      return parseMoodleCoursePageHtml(html, courseId)
+    }
+  } catch (err) {
+    if (err instanceof MoodleAuthError) {
+      throw err
+    }
+  }
+
+  return {
+    courseId: Number(courseId),
+    sections: [],
+  }
+}
+
+async function fetchMoodleCourseContents(session, courseId) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const context = await getMoodleContext(session)
+      return await queryMoodleCourseContents(context, courseId)
+    } catch (error) {
+      runtimeMoodleContexts.delete(session.id)
+      if (!(error instanceof MoodleAuthError) || attempt > 0) {
+        throw error
+      }
+    }
+  }
+
+  throw new Error('Unable to load course contents.')
+}
+
+const moodleContentsInflight = new Map()
+
+function fetchMoodleCourseContentsOnce(session, courseId) {
+  const key = `${session.id}:${courseId}`
+  const inflight = moodleContentsInflight.get(key)
+  if (inflight) {
+    return inflight
+  }
+
+  const promise = fetchMoodleCourseContents(session, courseId).finally(() => moodleContentsInflight.delete(key))
+  moodleContentsInflight.set(key, promise)
   return promise
 }
 
@@ -3889,13 +4422,273 @@ app.get('/__ent_auth/moodle/deadlines', async (req, res) => {
       deadlines,
     })
   } catch (error) {
-    // Messages are built from status codes, error codes and hostnames only —
-    // never from cookies, the sesskey or upstream bodies.
     return res.status(500).json({
       error: error instanceof Error ? error.message : String(error),
     })
   }
 })
+
+// 6e. Moodle enrolled courses endpoint
+app.get('/__ent_auth/moodle/courses', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, courses: [] })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        ...buildDemoMoodleCoursesPayload(),
+      })
+    }
+
+    const cached = getCachedMoodleCourses(session.id)
+    if (cached) {
+      setSessionCookie(res, session)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: session.mode ?? null,
+        ...cached,
+      })
+    }
+
+    const payload = await fetchMoodleCoursesOnce(session)
+    setCachedMoodleCourses(session.id, payload)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      ...payload,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6f. Moodle course contents & resources endpoint
+app.get('/__ent_auth/moodle/course-contents', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, sections: [] })
+    }
+
+    const courseId = Number(req.query.courseId)
+    if (!Number.isFinite(courseId) || courseId <= 0) {
+      return res.status(400).json({ error: 'Valid courseId is required.' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        ...buildDemoMoodleCourseContentsPayload(courseId),
+      })
+    }
+
+    const cached = getCachedMoodleContents(session.id, courseId)
+    if (cached) {
+      setSessionCookie(res, session)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: session.mode ?? null,
+        ...cached,
+      })
+    }
+
+    const payload = await fetchMoodleCourseContentsOnce(session, courseId)
+    setCachedMoodleContents(session.id, courseId, payload)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      ...payload,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// Cache for resolved pluginfile URLs so subsequent clicks are instantaneous
+const moodleResolvedFileUrls = new Map()
+
+// 6g. Moodle file download / preview proxy
+app.get('/__ent_auth/moodle/file', async (req, res) => {
+  try {
+    const session = getSessionFromRequest(req)
+    if (!session) {
+      return res.status(401).end()
+    }
+
+    const { url: targetUrl, name, download } = req.query
+    if (!targetUrl || typeof targetUrl !== 'string') {
+      return res.status(400).end()
+    }
+
+    if (isDemoSession(session)) {
+      const fileName = String(name || 'document.pdf')
+      const isZip = fileName.endsWith('.zip')
+      const ct = isZip ? 'application/zip' : 'application/pdf'
+      const disposition = download === '1' ? 'attachment' : 'inline'
+      res.setHeader('Content-Type', ct)
+      res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`)
+      res.setHeader('Cache-Control', 'private, max-age=86400')
+      const samplePdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000101 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF\n')
+      return res.send(samplePdf)
+    }
+
+    let parsed
+    try {
+      parsed = new URL(targetUrl)
+    } catch {
+      return res.status(400).end()
+    }
+
+    const host = parsed.hostname.toLowerCase()
+    const allowedHosts = new Set([
+      MOODLE_HOST,
+      ...(MOODLE_SIGN_IN_DOMAINS ?? []).map((d) => d.toLowerCase()),
+    ].filter(Boolean))
+
+    if (!allowedHosts.has(host) && !host.endsWith(`.${MOODLE_HOST}`)) {
+      return res.status(403).end()
+    }
+
+    const context = await getMoodleContext(session)
+
+    // Check if we already have the resolved pluginfile URL for this resource
+    const cachedResolved = moodleResolvedFileUrls.get(targetUrl)
+    if (cachedResolved) {
+      const redirectUrl = download === '1'
+        ? (cachedResolved.includes('forcedownload=1') ? cachedResolved : `${cachedResolved}${cachedResolved.includes('?') ? '&' : '?'}forcedownload=1`)
+        : cachedResolved
+      return res.redirect(redirectUrl)
+    }
+
+    if (targetUrl.includes('/pluginfile.php/')) {
+      const redirectUrl = download === '1'
+        ? (targetUrl.includes('forcedownload=1') ? targetUrl : `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}forcedownload=1`)
+        : targetUrl
+      return res.redirect(redirectUrl)
+    }
+
+    let fetchUrl = targetUrl
+    if (fetchUrl.includes('/mod/resource/view.php') && !fetchUrl.includes('redirect=1')) {
+      fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'redirect=1'
+    }
+
+    let { response: upstream, finalUrl } = await followRedirectChain(fetchUrl, context.jar)
+
+    if (finalUrl && finalUrl.includes('/pluginfile.php/')) {
+      moodleResolvedFileUrls.set(targetUrl, finalUrl)
+      const redirectUrl = download === '1'
+        ? (finalUrl.includes('forcedownload=1') ? finalUrl : `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}forcedownload=1`)
+        : finalUrl
+      return res.redirect(redirectUrl)
+    }
+
+    // If the response is text/html (like Moodle's resource viewer wrapper /mod/resource/view.php?id=...)
+    // we extract the direct file download URL (pluginfile.php) specifically from the resource container,
+    // carefully ignoring any favicons or theme images!
+    let ct = upstream.headers.get('content-type') || ''
+    let discoveredName = ''
+
+    if (upstream.ok && ct.includes('text/html')) {
+      const htmlText = await upstream.text()
+
+      // 1. Highest priority: Moodle's standard download container <div class="resourceworkaround">...<a href="...">...</a></div>
+      const workaroundMatch = htmlText.match(/class=["'][^"']*resourceworkaround[^"']*["'][\s\S]*?<a\b[^>]*href=["']([^"']*\/pluginfile\.php\/[^"']*)["'][^>]*>([\s\S]*?)<\/a>/i)
+
+      // 2. Second priority: Links with /mod_resource/content/ path (the true Moodle resource file location)
+      const modContentMatch = htmlText.match(/(?:href|data|src)=["']([^"']*\/pluginfile\.php\/\d+\/mod_resource\/content\/\d+\/[^"']*)["']/i)
+        || htmlText.match(/https?:\/\/[^"'\s<>]*\/pluginfile\.php\/\d+\/mod_resource\/content\/\d+\/[^"'\s<>]+/i)
+
+      // 3. Embedded object or viewer
+      const embedMatch = htmlText.match(/<(?:object|embed|iframe)\b[^>]*(?:data|src)=["']([^"']*\/pluginfile\.php\/(?!.*(?:theme_|favicon|pix\/))[^"']*)["']/i)
+
+      // 4. Any direct file link with pluginfile.php that points to a document
+      const cleanPluginfile = htmlText.match(/href=["']([^"']*\/pluginfile\.php\/(?!.*(?:theme_|favicon|pix\/))[^"']*(?:\.pdf|\.zip|\.docx?|\.pptx?|\.xlsx?)[^"']*)["']/i)
+
+      let extractedCandidate = null
+      if (workaroundMatch) {
+        extractedCandidate = workaroundMatch[1]
+        discoveredName = workaroundMatch[2].replace(/<[^>]+>/g, '').trim()
+      } else if (modContentMatch) {
+        extractedCandidate = modContentMatch[1] || modContentMatch[0]
+      } else if (embedMatch) {
+        extractedCandidate = embedMatch[1]
+      } else if (cleanPluginfile) {
+        extractedCandidate = cleanPluginfile[1]
+      }
+
+      if (extractedCandidate) {
+        let extractedUrl = extractedCandidate.replace(/&amp;/g, '&')
+        if (extractedUrl.startsWith('/')) {
+          extractedUrl = `${parsed.origin}${extractedUrl}`
+        }
+
+        moodleResolvedFileUrls.set(targetUrl, extractedUrl)
+
+        const redirectUrl = download === '1'
+          ? (extractedUrl.includes('forcedownload=1') ? extractedUrl : `${extractedUrl}${extractedUrl.includes('?') ? '&' : '?'}forcedownload=1`)
+          : extractedUrl
+        return res.redirect(redirectUrl)
+      }
+    }
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).end()
+    }
+
+    // Determine the filename from discoveredName, finalUrl, or original name
+    let fileName = discoveredName || String(name || '').trim()
+    try {
+      const pathname = new URL(finalUrl || fetchUrl).pathname
+      const last = decodeURIComponent(pathname.split('/').pop() || '')
+      if (last && last.includes('.')) {
+        fileName = last
+      }
+    } catch {}
+
+    if (!fileName) {
+      fileName = 'document.pdf'
+    }
+
+    // Ensure proper content-type for PDF/Zip if Moodle sent a generic octet-stream
+    const ext = fileName.split('.').pop()?.toLowerCase() || ''
+    if (ext === 'pdf' && (!ct || ct.includes('octet-stream') || ct.includes('text/html'))) {
+      ct = 'application/pdf'
+    } else if (ext === 'zip' && (!ct || ct.includes('octet-stream'))) {
+      ct = 'application/zip'
+    } else if (!ct) {
+      ct = 'application/octet-stream'
+    }
+
+    const disposition = download === '1' ? 'attachment' : 'inline'
+    res.setHeader('Content-Type', ct)
+    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}"`)
+    res.setHeader('Cache-Control', 'private, max-age=86400')
+
+    const buffer = await upstream.arrayBuffer()
+    return res.send(Buffer.from(buffer))
+  } catch (err) {
+    console.error('Moodle file proxy error:', err)
+    return res.status(500).end()
+  }
+})
+
 
 app.get('/__ent_auth/student-pic', async (req, res) => {
   try {
@@ -4282,6 +5075,35 @@ app.get('/__ent_auth/ade/calendar', async (req, res) => {
   }
 })
 
+// Group names of the student's upcoming courses on the Campus mobile API, as
+// [{ name, count }] sorted by count. With no explicit resource the API answers
+// for the student's own enrolment (customEtabVet). Best effort: [] on failure.
+async function fetchCampusGroupHints(jar, cacheScope) {
+  if (!ADE_ORIGIN || !fetchAdeUpcomingFromApi) {
+    return []
+  }
+
+  try {
+    const result = await fetchAdeUpcomingFromApi(jar, null, {
+      date: new Date().toISOString().slice(0, 10),
+      lookaheadDays: 28,
+      resourceIds: [],
+      cacheScope,
+    })
+    const counts = new Map()
+    for (const event of result.allEvents ?? []) {
+      for (const group of new Set(event.groups ?? [])) {
+        counts.set(group, (counts.get(group) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => right.count - left.count)
+  } catch {
+    return []
+  }
+}
+
 // 9. ADE VET Tree
 app.get('/__ent_auth/ade/tree', async (req, res) => {
   try {
@@ -4304,10 +5126,25 @@ app.get('/__ent_auth/ade/tree', async (req, res) => {
     }
 
     if (USE_PLANNING_PORTAL_REST) {
-      const tree = await fetchPortalTree(entSession.jar, {
+      const cacheScope = getPlanningCacheScope(entSession)
+      let tree = await fetchPortalTree(entSession.jar, {
         requestedResourceId: requestedTreeId,
-        cacheScope: getPlanningCacheScope(entSession),
+        cacheScope,
       })
+      let campusGroups = null
+
+      // The ADE portal account has no group attached (common outside the
+      // IUTs): the Campus mobile API still lists the student's courses from
+      // their enrolment, with the groups of each course.
+      if (!requestedTreeId && !tree.defaultSelection) {
+        campusGroups = await fetchCampusGroupHints(entSession.jar, cacheScope)
+        if (campusGroups.length > 0) {
+          tree = await fetchPortalTree(entSession.jar, {
+            cacheScope,
+            groupHints: campusGroups,
+          })
+        }
+      }
 
       setSessionCookie(res, entSession)
       return res.status(200).json({
@@ -4329,6 +5166,8 @@ app.get('/__ent_auth/ade/tree', async (req, res) => {
           projectId: tree.projectId,
           cache: tree.cache,
           authCache: tree.authCache,
+          accountSource: tree.accountSource ?? null,
+          campusGroups: campusGroups ? campusGroups.slice(0, 15) : null,
         },
       })
     }

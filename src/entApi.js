@@ -1,5 +1,6 @@
 import universityConfig from '@university'
 import { GRADES_UNAVAILABLE_MESSAGE } from './gradeFeatureState'
+import { buildAbsenceReport } from './gradesReport'
 
 export const ENT_ORIGIN = universityConfig.origins.ent
 const ENT_HOST = new URL(ENT_ORIGIN).hostname
@@ -551,6 +552,91 @@ export async function getMoodleDeadlines() {
       status: 'ok',
       moodleHref: payload.deadlines.moodleHref ?? null,
       items: Array.isArray(payload.deadlines.items) ? payload.deadlines.items : [],
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      ...empty,
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
+export function getMoodleFileProxyUrl(fileUrl, filename) {
+  if (!fileUrl) return null
+  return `${ENT_AUTH_PREFIX}/moodle/file?url=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(filename || 'document')}`
+}
+
+export async function getMoodleCourses() {
+  const empty = { moodleHref: null, courses: [] }
+
+  if (!universityConfig.features?.moodle) {
+    return { status: 'disabled', ...empty }
+  }
+
+  try {
+    const response = await fetch(`${ENT_AUTH_PREFIX}/moodle/courses`, {
+      credentials: 'same-origin',
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (payload?.disabled) {
+      return { status: 'disabled', ...empty }
+    }
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Moodle request failed (${response.status}).`, response.status)
+    }
+
+    if (!payload.authenticated) {
+      return { status: 'unauthenticated', ...empty }
+    }
+
+    return {
+      status: 'ok',
+      moodleHref: payload.moodleHref ?? null,
+      courses: Array.isArray(payload.courses) ? payload.courses : [],
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      ...empty,
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
+export async function getMoodleCourseContents(courseId) {
+  const empty = { courseId: Number(courseId), sections: [] }
+
+  if (!universityConfig.features?.moodle) {
+    return { status: 'disabled', ...empty }
+  }
+
+  try {
+    const response = await fetch(`${ENT_AUTH_PREFIX}/moodle/course-contents?courseId=${encodeURIComponent(courseId)}`, {
+      credentials: 'same-origin',
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (payload?.disabled) {
+      return { status: 'disabled', ...empty }
+    }
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Moodle request failed (${response.status}).`, response.status)
+    }
+
+    if (!payload.authenticated) {
+      return { status: 'unauthenticated', ...empty }
+    }
+
+    return {
+      status: 'ok',
+      courseId: payload.courseId ?? Number(courseId),
+      sections: Array.isArray(payload.sections) ? payload.sections : [],
     }
   } catch (error) {
     return {
@@ -1272,6 +1358,47 @@ export async function getLatestGrade() {
   }
 
   return latest ?? { error: 'Aucune note trouvée', empty: true }
+}
+
+export async function getAbsencesSummary() {
+  const data = await getGrades()
+  if (!data?.authenticated || !data?.grades || data?.error) {
+    if (data?.disabled) {
+      return { disabled: true }
+    }
+    return { error: data?.error || 'Indisponible', errorKind: data?.errorKind }
+  }
+
+  const grades = data.grades
+  const releve = getCurrentGradesReleve(grades) ?? grades?.['relevé'] ?? grades?.releve ?? null
+  const config = grades.config ?? null
+  const report = buildAbsenceReport(grades, releve, config)
+  if (!report.visible) {
+    return {
+      totals: { justified: '0h', unjustified: '0h', late: '0' },
+      unjustifiedCount: 0,
+      justifiedCount: 0,
+      lateCount: 0,
+      totalCount: 0,
+      notice: null,
+      unpublished: true,
+    }
+  }
+
+  const entries = report.entries || []
+  const unjustified = entries.filter((entry) => entry.status === 'unjustified')
+  const justified = entries.filter((entry) => entry.status === 'justified')
+  const lates = entries.filter((entry) => entry.status === 'late')
+
+  return {
+    totals: report.totals ?? { justified: '0h', unjustified: '0h', late: '0' },
+    unjustifiedCount: unjustified.length,
+    justifiedCount: justified.length,
+    lateCount: lates.length,
+    totalCount: entries.length,
+    notice: report.notice,
+    latestAbsence: entries[0] ?? null,
+  }
 }
 
 // ============================================================================

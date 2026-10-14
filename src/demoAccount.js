@@ -1475,3 +1475,411 @@ export function buildDemoMoodleDeadlinesPayload({ now = Date.now(), moodleHref =
 
   return { moodleHref, items }
 }
+
+export const DEMO_MOODLE_COURSES = Object.freeze([
+  {
+    id: 101,
+    fullname: 'R5.01 – Développement Web & Mobile avancé',
+    shortname: 'R5.01 Dev Web',
+    category: 'Informatique & Web',
+    progress: 72,
+    hasprogress: true,
+    courseimage: null,
+    viewurl: 'https://foad.univ-rennes.fr/course/view.php?id=101',
+    moodleHref: null,
+  },
+  {
+    id: 102,
+    fullname: 'R5.03 – Accessibilité numérique et RGAA',
+    shortname: 'R5.03 Accessibilité',
+    category: 'Design & Intégration',
+    progress: 45,
+    hasprogress: true,
+    courseimage: null,
+    viewurl: 'https://foad.univ-rennes.fr/course/view.php?id=102',
+    moodleHref: null,
+  },
+  {
+    id: 103,
+    fullname: 'R5.12 – Développement back-end & APIs REST',
+    shortname: 'R5.12 Back-end',
+    category: 'Informatique & Web',
+    progress: 85,
+    hasprogress: true,
+    courseimage: null,
+    viewurl: 'https://foad.univ-rennes.fr/course/view.php?id=103',
+    moodleHref: null,
+  },
+  {
+    id: 104,
+    fullname: 'SAE 5.01 – Développement d’un projet complet',
+    shortname: 'SAE 5.01 Web',
+    category: 'Projets & SAE',
+    progress: 60,
+    hasprogress: true,
+    courseimage: null,
+    viewurl: 'https://foad.univ-rennes.fr/course/view.php?id=104',
+    moodleHref: null,
+  },
+  {
+    id: 105,
+    fullname: 'R5.06 – Culture numérique & Veille technologique',
+    shortname: 'R5.06 Culture Num',
+    category: 'Communication & Culture',
+    progress: 100,
+    hasprogress: true,
+    courseimage: null,
+    viewurl: 'https://foad.univ-rennes.fr/course/view.php?id=105',
+    moodleHref: null,
+  },
+  {
+    id: 106,
+    fullname: 'R5.07 – Design d’interaction et UX research',
+    shortname: 'R5.07 UX Design',
+    category: 'Design & Intégration',
+    progress: 30,
+    hasprogress: true,
+    courseimage: null,
+    viewurl: 'https://foad.univ-rennes.fr/course/view.php?id=106',
+    moodleHref: null,
+  },
+])
+
+const DEMO_MOODLE_COURSE_CONTENTS = Object.freeze({
+  101: [
+    {
+      id: 1001,
+      name: 'Généralités & Organisation',
+      summary: '<p>Plan de cours, modalités de contrôle des connaissances et liens utiles.</p>',
+      modules: [
+        {
+          id: 2001,
+          name: 'Syllabus du module R5.01',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2001',
+          contents: [
+            {
+              filename: 'R501_Syllabus_2026.pdf',
+              filesize: 420000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2001/mod_resource/content/1/R501_Syllabus_2026.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1726000000,
+            },
+          ],
+        },
+        {
+          id: 2002,
+          name: 'Forum d’échange et questions / réponses',
+          modname: 'forum',
+          modplural: 'Forums',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/forum-24',
+          url: 'https://foad.univ-rennes.fr/mod/forum/view.php?id=2002',
+          contents: [],
+        },
+      ],
+    },
+    {
+      id: 1002,
+      name: 'Chapitre 1 : Composants, Hooks et State Management',
+      summary: '<p>Rappels React, hooks standards (useMemo, useCallback, useRef) et architecture moderne.</p>',
+      modules: [
+        {
+          id: 2003,
+          name: 'CM 1 – Architecture Frontend moderne & Hooks avancés',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2003',
+          contents: [
+            {
+              filename: 'CM1_React_Hooks_Avances.pdf',
+              filesize: 2840000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2003/mod_resource/content/1/CM1_React_Hooks_Avances.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1727000000,
+            },
+          ],
+        },
+        {
+          id: 2004,
+          name: 'TD 1 – Patterns de composants et optimisations',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2004',
+          contents: [
+            {
+              filename: 'TD1_Enonce_Optimisation.pdf',
+              filesize: 950000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2004/mod_resource/content/1/TD1_Enonce_Optimisation.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1727200000,
+            },
+          ],
+        },
+        {
+          id: 2005,
+          name: 'Starter kit TP 1 & Corrigé partiel',
+          modname: 'folder',
+          modplural: 'Dossiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/archive-24',
+          url: 'https://foad.univ-rennes.fr/mod/folder/view.php?id=2005',
+          contents: [
+            {
+              filename: 'tp1-starter-kit.zip',
+              filesize: 1450000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2005/mod_folder/content/1/tp1-starter-kit.zip',
+              mimetype: 'application/zip',
+              timemodified: 1727300000,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 1003,
+      name: 'Chapitre 2 : Performance, PWA & Offline-first',
+      summary: '<p>Service Workers, stratégies de cache (Stale-While-Revalidate, Cache-First) et manifest.</p>',
+      modules: [
+        {
+          id: 2006,
+          name: 'CM 2 – Progressive Web Apps & Architecture Hors-ligne',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2006',
+          contents: [
+            {
+              filename: 'CM2_PWA_Offline.pdf',
+              filesize: 3200000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2006/mod_resource/content/1/CM2_PWA_Offline.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1728000000,
+            },
+          ],
+        },
+        {
+          id: 2007,
+          name: 'Documentation MDN – Service Worker API',
+          modname: 'url',
+          modplural: 'Liens',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/url-24',
+          url: 'https://developer.mozilla.org/fr/docs/Web/API/Service_Worker_API',
+          contents: [],
+        },
+      ],
+    },
+  ],
+  102: [
+    {
+      id: 1010,
+      name: 'Cadre légal & Référentiel RGAA',
+      summary: '<p>Introduction aux critères d’accessibilité numérique, normes WCAG et législation française.</p>',
+      modules: [
+        {
+          id: 2011,
+          name: 'Support de présentation RGAA 4.1',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2011',
+          contents: [
+            {
+              filename: 'Support_RGAA_2026.pdf',
+              filesize: 4100000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2011/mod_resource/content/1/Support_RGAA_2026.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1727500000,
+            },
+          ],
+        },
+        {
+          id: 2012,
+          name: 'QCM – Accessibilité et RGAA',
+          modname: 'quiz',
+          modplural: 'Tests / Quizz',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/quiz-24',
+          url: 'https://foad.univ-rennes.fr/mod/quiz/view.php?id=2012',
+          contents: [],
+        },
+      ],
+    },
+  ],
+  103: [
+    {
+      id: 1020,
+      name: 'APIs REST et Architecture Serveur',
+      summary: '<p>Conception d’APIs RESTful, middlewares Express, validation et authentification stateless.</p>',
+      modules: [
+        {
+          id: 2021,
+          name: 'CM 1 – Bonnes pratiques de design RESTful',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2021',
+          contents: [
+            {
+              filename: 'CM1_REST_BestPractices.pdf',
+              filesize: 1980000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2021/mod_resource/content/1/CM1_REST_BestPractices.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1726500000,
+            },
+          ],
+        },
+        {
+          id: 2022,
+          name: 'TP 3 – API REST avec Express',
+          modname: 'assign',
+          modplural: 'Devoirs',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/assign-24',
+          url: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2022',
+          contents: [
+            {
+              filename: 'Enonce_TP3_Express.pdf',
+              filesize: 680000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2022/mod_resource/content/1/Enonce_TP3_Express.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1727800000,
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  104: [
+    {
+      id: 1030,
+      name: 'Sujet & Livrables SAE 5.01',
+      summary: '<p>Cahier des charges, sprints agiles et dépôts des livrables intermédiaires.</p>',
+      modules: [
+        {
+          id: 2031,
+          name: 'Cahier des charges officiel SAE 5.01',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2031',
+          contents: [
+            {
+              filename: 'Cahier_des_charges_SAE501.pdf',
+              filesize: 1750000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2031/mod_resource/content/1/Cahier_des_charges_SAE501.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1726200000,
+            },
+          ],
+        },
+        {
+          id: 2032,
+          name: 'Rendu SAE 501 – Livrable 2',
+          modname: 'assign',
+          modplural: 'Devoirs',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/assign-24',
+          url: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2032',
+          contents: [],
+        },
+      ],
+    },
+  ],
+  105: [
+    {
+      id: 1040,
+      name: 'Méthodologie de Veille',
+      summary: '<p>Outils de curation, flux RSS, newsletters et structuration du dossier d’analyse.</p>',
+      modules: [
+        {
+          id: 2041,
+          name: 'Guide méthodologique de la veille',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2041',
+          contents: [
+            {
+              filename: 'Guide_Methodo_Veille.pdf',
+              filesize: 1120000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2041/mod_resource/content/1/Guide_Methodo_Veille.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1726100000,
+            },
+          ],
+        },
+        {
+          id: 2042,
+          name: 'Dossier de veille technologique',
+          modname: 'assign',
+          modplural: 'Devoirs',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/assign-24',
+          url: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2042',
+          contents: [],
+        },
+      ],
+    },
+  ],
+  106: [
+    {
+      id: 1050,
+      name: 'Recherche Utilisateur & Prototypage',
+      summary: '<p>Interviews, personas, parcours utilisateurs et ateliers de co-conception.</p>',
+      modules: [
+        {
+          id: 2051,
+          name: 'Fiches personas et canevas d’interview',
+          modname: 'resource',
+          modplural: 'Fichiers',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/pdf-24',
+          url: 'https://foad.univ-rennes.fr/mod/resource/view.php?id=2051',
+          contents: [
+            {
+              filename: 'Canevas_UX_Interview.pdf',
+              filesize: 880000,
+              fileurl: 'https://foad.univ-rennes.fr/webservice/pluginfile.php/2051/mod_resource/content/1/Canevas_UX_Interview.pdf',
+              mimetype: 'application/pdf',
+              timemodified: 1726900000,
+            },
+          ],
+        },
+        {
+          id: 2052,
+          name: 'Forum : retours croisés sur les maquettes',
+          modname: 'forum',
+          modplural: 'Forums',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/forum-24',
+          url: 'https://foad.univ-rennes.fr/mod/forum/view.php?id=2052',
+          contents: [],
+        },
+      ],
+    },
+  ],
+})
+
+export function buildDemoMoodleCoursesPayload({ moodleHref = DEMO_MOODLE_HREF } = {}) {
+  return {
+    moodleHref,
+    courses: DEMO_MOODLE_COURSES.map((course) => ({
+      ...cloneDemoValue(course),
+      moodleHref: null,
+    })),
+  }
+}
+
+export function buildDemoMoodleCourseContentsPayload(courseId) {
+  const contents = DEMO_MOODLE_COURSE_CONTENTS[courseId] || [
+    {
+      id: 9999,
+      name: 'Contenus du cours',
+      summary: '<p>Ce cours ne contient aucun document déposé pour le moment.</p>',
+      modules: [],
+    },
+  ]
+
+  return {
+    courseId: Number(courseId),
+    sections: cloneDemoValue(contents),
+  }
+}
+
