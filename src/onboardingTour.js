@@ -15,11 +15,11 @@ const DONE = 'done'
 
 // Each step points at `[data-tour="<target>"]` elements. A step whose target
 // isn't on screen (feature off, other layout) is skipped; no target = a
-// centered card.
+// centered card. `logo` swaps the icon for the Tafac logo.
 export const TOUR_STEPS = [
   {
     id: 'intro',
-    icon: 'carbon:wave-direction',
+    logo: true,
     title: 'Bienvenue sur Tafac !',
     body: "Un petit tour de 30 secondes pour te montrer l'essentiel.",
   },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { readSeenValue } from '../changelogState'
+import logoImage from '../assets/login/login-logo.webp'
 import { settingsTransfer } from '../settingsTransferBoot'
 import {
   TOUR_STEPS,
@@ -227,15 +228,23 @@ export default function GuidedTour({ enabled = false, blocked = false }) {
         className="fixed rounded-[20px] border border-border bg-widget-bg p-5 shadow-[0_16px_48px_var(--color-shadow)] transition-[left,top] duration-300 ease-out"
         style={{ left: position.left, top: position.top, width: position.width }}
       >
-        <div className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand">
-            <Icon icon={step.icon} className="h-[18px] w-[18px]" aria-hidden="true" />
-          </span>
-          <div className="flex min-w-0 flex-col gap-1">
+        {step.logo ? (
+          <div className="flex flex-col items-center gap-2 text-center">
+            <img src={logoImage} alt="Tafac" width="750" height="330" className="block h-[72px] w-auto" />
             <h2 id="guided-tour-title" className="m-0 text-[1.05rem] font-bold leading-tight text-text">{step.title}</h2>
             <p className="m-0 font-body text-[0.9rem] leading-snug text-text-muted">{step.body}</p>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand">
+              <Icon icon={step.icon} className="h-[18px] w-[18px]" aria-hidden="true" />
+            </span>
+            <div className="flex min-w-0 flex-col gap-1">
+              <h2 id="guided-tour-title" className="m-0 text-[1.05rem] font-bold leading-tight text-text">{step.title}</h2>
+              <p className="m-0 font-body text-[0.9rem] leading-snug text-text-muted">{step.body}</p>
+            </div>
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-3">
           <ol className="m-0 flex list-none items-center gap-1.5 p-0" aria-label={`Étape ${dotPosition + 1} sur ${targetedSteps.length}`}>
             {targetedSteps.map((candidate, dotIndex) => (
