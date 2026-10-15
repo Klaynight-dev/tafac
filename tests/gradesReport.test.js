@@ -104,6 +104,22 @@ test('appreciations follow the passerelle department list', () => {
   const releve = payload['relevé']
   assert.deepEqual(buildGradesReport(releve, { config: payload.config }).appreciations, ['Très bon semestre, travail régulier et sérieux.'])
   assert.deepEqual(buildGradesReport(releve, { config: { liste_dep_affichage_appreciations: 'INFO' } }).appreciations, [])
+  // An empty list means "everyone", like the PDF and absence lists.
+  assert.deepEqual(buildGradesReport(releve, { config: { liste_dep_affichage_appreciations: '' } }).appreciations, ['Très bon semestre, travail régulier et sérieux.'])
+})
+
+test('buildAbsenceReport orders absences of one day by start hour', () => {
+  const payload = {
+    absences: {
+      '2026-10-06': [
+        { debut: 8, fin: 10, statut: 'absent' },
+        { debut: 10, fin: 12, statut: 'absent' },
+        { debut: 9.5, fin: 10, statut: 'retard' },
+      ],
+    },
+  }
+  const report = buildAbsenceReport(payload, {}, { afficher_absences: true })
+  assert.deepEqual(report.entries.map((entry) => entry.start), ['10h00', '9h30', '8h00'])
 })
 
 test('buildAbsenceReport lists absences newest first with passerelle totals', () => {

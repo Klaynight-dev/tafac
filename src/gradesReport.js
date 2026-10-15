@@ -263,12 +263,7 @@ export function canDownloadReportPdf(config, department) {
 }
 
 function canShowAppreciations(config, department) {
-  if (!config || config.liste_dep_affichage_appreciations == null) {
-    return true
-  }
-
-  const entries = String(config.liste_dep_affichage_appreciations).split(',').map((entry) => entry.trim())
-  return department != null && entries.includes(department)
+  return isDepartmentListed(config?.liste_dep_affichage_appreciations, department)
 }
 
 export function buildGradesReport(releve, { config = null } = {}) {
@@ -538,6 +533,8 @@ export function buildAbsenceReport(payload, releve, config) {
 
   const totals = { justified: 0, unjustified: 0, late: 0 }
   const entries = []
+  // Numeric start hour per entry: the formatted "8h00" sorts after "10h00".
+  const startHours = new Map()
   let spansSeveralDays = false
 
   for (const [date, list] of Object.entries(payload?.absences ?? {})) {
@@ -556,7 +553,7 @@ export function buildAbsenceReport(payload, releve, config) {
       const endDate = absence.dateFin && absence.dateFin !== date ? absence.dateFin : null
       if (endDate) spansSeveralDays = true
 
-      entries.push({
+      const entry = {
         id: `${date}-${start}-${entries.length}`,
         date,
         endDate,
@@ -565,11 +562,13 @@ export function buildAbsenceReport(payload, releve, config) {
         subject: findModuleLabel(releve, absence.matiereComplet),
         teacher: formatTeacher(absence.enseignant),
         status,
-      })
+      }
+      entries.push(entry)
+      startHours.set(entry, start)
     }
   }
 
-  entries.sort((left, right) => right.date.localeCompare(left.date) || right.start.localeCompare(left.start))
+  entries.sort((left, right) => right.date.localeCompare(left.date) || startHours.get(right) - startHours.get(left))
 
   let totalLabels = {
     justified: formatDuration(totals.justified),
