@@ -648,6 +648,50 @@ export async function getMoodleCourseContents(courseId) {
   }
 }
 
+export async function getMoodleFolderContents(cmid, courseId) {
+  const empty = { cmid: Number(cmid), files: [] }
+
+  if (!universityConfig.features?.moodle) {
+    return { status: 'disabled', ...empty }
+  }
+
+  try {
+    const params = new URLSearchParams({ cmid: String(cmid) })
+    if (courseId) params.set('courseId', String(courseId))
+    const response = await fetch(`${ENT_AUTH_PREFIX}/moodle/folder-contents?${params.toString()}`, {
+      credentials: 'same-origin',
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (payload?.disabled) {
+      return { status: 'disabled', ...empty }
+    }
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Moodle folder request failed (${response.status}).`, response.status)
+    }
+
+    if (!payload.authenticated) {
+      return { status: 'unauthenticated', ...empty }
+    }
+
+    return {
+      status: 'ok',
+      cmid: payload.cmid ?? Number(cmid),
+      name: payload.name || '',
+      files: Array.isArray(payload.files) ? payload.files : [],
+      downloadFolderProxyUrl: payload.downloadFolderProxyUrl || null,
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      ...empty,
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
 // App bootstrap, the latest-grade widget and the sidebar pockets all ask for
 // grades on load: share one in-flight request instead of hitting ScoDoc N times.
 let gradesInflight = null

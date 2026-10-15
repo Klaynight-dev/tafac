@@ -8,6 +8,7 @@
 // All university-specific values come from the config object
 // (universities/<id>/server.js) passed to createEntAuthApp().
 // ============================================================================
+import './patchNodeWarnings.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import { createProxyMiddleware } from 'http-proxy-middleware'
@@ -4097,6 +4098,10 @@ function parseMoodleCoursePageHtml(html, courseId) {
           page: 'Pages',
         }
 
+        const downloadFolderProxyUrl = modType === 'folder' && MOODLE_ORIGIN
+          ? `/__ent_auth/moodle/file?url=${encodeURIComponent(`${MOODLE_ORIGIN}/mod/folder/download_folder.php?id=${cmid}`)}&name=${encodeURIComponent(`${modName}.zip`)}&download=1`
+          : null
+
         modules.push({
           id: cmid,
           name: modName,
@@ -4106,6 +4111,7 @@ function parseMoodleCoursePageHtml(html, courseId) {
           url: modUrl,
           launchHref: buildMoodleLaunchHref(modUrl),
           contents,
+          downloadFolderProxyUrl,
         })
       }
 
@@ -4216,6 +4222,10 @@ function parseMoodleCoursePageHtml(html, courseId) {
           page: 'Pages',
         }
 
+        const downloadFolderProxyUrl = modType === 'folder' && MOODLE_ORIGIN
+          ? `/__ent_auth/moodle/file?url=${encodeURIComponent(`${MOODLE_ORIGIN}/mod/folder/download_folder.php?id=${cmid}`)}&name=${encodeURIComponent(`${modName}.zip`)}&download=1`
+          : null
+
         modules.push({
           id: cmid,
           name: modName,
@@ -4225,6 +4235,7 @@ function parseMoodleCoursePageHtml(html, courseId) {
           url: modUrl,
           launchHref: buildMoodleLaunchHref(modUrl),
           contents,
+          downloadFolderProxyUrl,
         })
       }
 
@@ -4242,6 +4253,63 @@ function parseMoodleCoursePageHtml(html, courseId) {
   return {
     courseId: Number(courseId),
     sections,
+  }
+}
+
+function parseMoodleFolderPageHtml(html, cmid, moodleOrigin) {
+  if (!html || typeof html !== 'string') {
+    return { cmid: Number(cmid), name: '', files: [], downloadFolderProxyUrl: null }
+  }
+
+  const h2Match = html.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i)
+  const name = h2Match ? decodeHtmlEntities(h2Match[1].replace(/<[^>]+>/g, '').trim()) : ''
+
+  const files = []
+  const fileRegex = /href=["']([^"']*\/pluginfile\.php\/[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi
+  let match
+  const seenUrls = new Set()
+
+  while ((match = fileRegex.exec(html)) !== null) {
+    let fileurl = match[1].replace(/&amp;/g, '&')
+    if (fileurl.startsWith('/')) {
+      fileurl = `${moodleOrigin}${fileurl}`
+    }
+    if (seenUrls.has(fileurl)) continue
+    seenUrls.add(fileurl)
+
+    if (fileurl.includes('/theme_') || fileurl.includes('/pix/') || fileurl.includes('/favicon')) {
+      continue
+    }
+
+    let filename = match[2].replace(/<[^>]+>/g, '').trim()
+    if (!filename || filename.length > 150) {
+      try {
+        filename = decodeURIComponent(new URL(fileurl).pathname.split('/').pop() || '')
+      } catch {
+        filename = 'document.pdf'
+      }
+    }
+    if (!filename) filename = 'document.pdf'
+
+    files.push({
+      filename,
+      filepath: '/',
+      filesize: 0,
+      fileurl,
+      mimetype: filename.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream',
+      timemodified: 0,
+      proxyUrl: `/__ent_auth/moodle/file?url=${encodeURIComponent(fileurl)}&name=${encodeURIComponent(filename)}`,
+    })
+  }
+
+  const downloadFolderUrl = `${moodleOrigin}/mod/folder/download_folder.php?id=${cmid}`
+  const downloadFolderProxyUrl = `/__ent_auth/moodle/file?url=${encodeURIComponent(downloadFolderUrl)}&name=${encodeURIComponent(name || 'dossier')}.zip&download=1`
+
+  return {
+    cmid: Number(cmid),
+    name,
+    files,
+    downloadFolderProxyUrl,
   }
 }
 
@@ -4270,6 +4338,7 @@ async function queryMoodleCourseContents(context, courseId) {
                 const filename = file.filename || 'document.pdf'
                 return {
                   filename,
+                  filepath: file.filepath || '/',
                   filesize: Number(file.filesize) || 0,
                   fileurl,
                   mimetype: file.mimetype || 'application/pdf',
@@ -4289,6 +4358,7 @@ async function queryMoodleCourseContents(context, courseId) {
                 }
                 contents = [{
                   filename: detectedFilename,
+                  filepath: '/',
                   filesize: 0,
                   fileurl: effectiveUrl,
                   mimetype: 'application/pdf',
@@ -4296,8 +4366,14 @@ async function queryMoodleCourseContents(context, courseId) {
                 }]
               }
 
+              const isFolder = modType === 'folder'
+              const cmid = Number(mod.id)
+              const downloadFolderProxyUrl = isFolder && MOODLE_ORIGIN
+                ? `/__ent_auth/moodle/file?url=${encodeURIComponent(`${MOODLE_ORIGIN}/mod/folder/download_folder.php?id=${cmid}`)}&name=${encodeURIComponent(`${decodeHtmlEntities(String(mod.name || 'dossier')).trim()}.zip`)}&download=1`
+                : null
+
               return {
-                id: Number(mod.id),
+                id: cmid,
                 name: decodeHtmlEntities(String(mod.name || '').trim()),
                 modname: modType,
                 modplural: decodeHtmlEntities(String(mod.modplural || '').trim()),
@@ -4305,6 +4381,7 @@ async function queryMoodleCourseContents(context, courseId) {
                 url: modUrl,
                 launchHref: buildMoodleLaunchHref(modUrl),
                 contents,
+                downloadFolderProxyUrl,
               }
             })
 
@@ -4513,6 +4590,82 @@ app.get('/__ent_auth/moodle/course-contents', async (req, res) => {
       authenticated: true,
       sessionMode: session.mode ?? null,
       ...payload,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6g. Moodle folder contents endpoint
+app.get('/__ent_auth/moodle/folder-contents', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+    if (!session) {
+      return res.status(200).json({ authenticated: false, files: [] })
+    }
+
+    const cmid = Number(req.query.cmid)
+    const courseId = Number(req.query.courseId)
+    if (!Number.isFinite(cmid) || cmid <= 0) {
+      return res.status(400).json({ error: 'Valid cmid is required.' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const demoContents = buildDemoMoodleCourseContentsPayload(courseId || 101)
+      const allMods = (demoContents.sections || []).flatMap((s) => s.modules || [])
+      const matchedMod = allMods.find((m) => m.id === cmid)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        cmid,
+        name: matchedMod?.name || 'Dossier',
+        files: (matchedMod?.contents || []).map((file) => ({
+          ...file,
+          proxyUrl: file.proxyUrl || `/__ent_auth/moodle/file?url=${encodeURIComponent(file.fileurl || '')}&name=${encodeURIComponent(file.filename || '')}`,
+        })),
+        downloadFolderProxyUrl: matchedMod?.downloadFolderProxyUrl || `/__ent_auth/moodle/file?download=1&name=${encodeURIComponent(matchedMod?.name || 'dossier')}.zip`,
+      })
+    }
+
+    if (courseId) {
+      const cached = getCachedMoodleContents(session.id, courseId)
+      if (cached?.sections) {
+        const found = cached.sections.flatMap((s) => s.modules || []).find((m) => m.id === cmid)
+        if (found && Array.isArray(found.contents) && found.contents.length > 0) {
+          setSessionCookie(res, session)
+          return res.status(200).json({
+            authenticated: true,
+            sessionMode: session.mode ?? null,
+            cmid,
+            name: found.name,
+            files: found.contents,
+            downloadFolderProxyUrl: found.downloadFolderProxyUrl || null,
+          })
+        }
+      }
+    }
+
+    const context = await getMoodleContext(session)
+    const folderUrl = `${MOODLE_ORIGIN}/mod/folder/view.php?id=${encodeURIComponent(cmid)}`
+    const resp = await fetchWithJar(folderUrl, context.jar, {
+      headers: { Accept: MOODLE_ACCEPT_HTML },
+    })
+
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: `Moodle folder request failed (${resp.status})` })
+    }
+
+    const html = await resp.text()
+    const parsed = parseMoodleFolderPageHtml(html, cmid, MOODLE_ORIGIN)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      ...parsed,
     })
   } catch (error) {
     return res.status(500).json({

@@ -5,6 +5,7 @@ import {
   getMoodleCourseContents,
   getMoodleCourses,
   getMoodleDeadlines,
+  getMoodleFolderContents,
 } from '../entApi'
 import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
@@ -108,17 +109,32 @@ function getModuleIcon(kind, filename = '') {
   const ext = String(filename).split('.').pop()?.toLowerCase() || ''
   if (kind === 'file') {
     if (ext === 'pdf') return { icon: 'carbon:document-pdf', color: 'text-red-500 bg-red-500/10' }
-    if (['zip', 'rar', 'tar', 'gz', '7z'].includes(ext)) {
+    if (['zip', 'rar', 'tar', 'gz', '7z', 'bz2'].includes(ext)) {
       return { icon: 'carbon:zip', color: 'text-amber-500 bg-amber-500/10' }
     }
-    if (['doc', 'docx', 'odt'].includes(ext)) {
+    if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) {
       return { icon: 'carbon:document-word', color: 'text-blue-500 bg-blue-500/10' }
     }
-    if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) {
+    if (['xls', 'xlsx', 'ods', 'csv', 'tsv'].includes(ext)) {
       return { icon: 'carbon:table', color: 'text-emerald-500 bg-emerald-500/10' }
     }
-    if (['ppt', 'pptx', 'odp'].includes(ext)) {
+    if (['ppt', 'pptx', 'odp', 'key'].includes(ext)) {
       return { icon: 'carbon:presentation-file', color: 'text-orange-500 bg-orange-500/10' }
+    }
+    if (['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'html', 'css', 'json', 'yaml', 'yml', 'xml', 'sql', 'sh', 'bash', 'rs', 'go'].includes(ext)) {
+      return { icon: 'carbon:code', color: 'text-purple-500 bg-purple-500/10' }
+    }
+    if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) {
+      return { icon: 'carbon:image', color: 'text-pink-500 bg-pink-500/10' }
+    }
+    if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) {
+      return { icon: 'carbon:music', color: 'text-cyan-500 bg-cyan-500/10' }
+    }
+    if (['mp4', 'mkv', 'webm', 'mov', 'avi'].includes(ext)) {
+      return { icon: 'carbon:video', color: 'text-rose-500 bg-rose-500/10' }
+    }
+    if (['txt', 'md'].includes(ext)) {
+      return { icon: 'carbon:document-blank', color: 'text-slate-500 bg-slate-500/10' }
     }
     return { icon: 'carbon:document', color: 'text-blue-500 bg-blue-500/10' }
   }
@@ -149,6 +165,14 @@ export default function MoodlePage() {
   const [moduleTypeFilter, setModuleTypeFilter] = useState('all')
   const [collapsedSections, setCollapsedSections] = useState({})
   const [tourTrigger, setTourTrigger] = useState(0)
+
+  // Folder drill-down & inline expansion state
+  const [selectedFolder, setSelectedFolder] = useState(null)
+  const [expandedFolders, setExpandedFolders] = useState({})
+  const [folderFilesCache, setFolderFilesCache] = useState({})
+  const [loadingFolderFiles, setLoadingFolderFiles] = useState(false)
+  const [folderError, setFolderError] = useState(null)
+  const [folderSearchQuery, setFolderSearchQuery] = useState('')
 
   // View mode preference: 'grid' (cards) or 'list'
   const [viewLayout, setViewLayout] = useState(() => {
@@ -223,6 +247,10 @@ export default function MoodlePage() {
   const loadCourseContents = useCallback(async (course) => {
     if (!course?.id) return
     setSelectedCourse(course)
+    setSelectedFolder(null)
+    setExpandedFolders({})
+    setFolderSearchQuery('')
+    setFolderError(null)
     setSearchQuery('')
     setModuleTypeFilter('all')
     setCollapsedSections({})
@@ -370,6 +398,83 @@ export default function MoodlePage() {
     }))
   }, [])
 
+  const openFolder = useCallback(async (folder, sectionName) => {
+    const folderData = {
+      ...folder,
+      sectionName: sectionName || folder.sectionName || '',
+      courseName: selectedCourse?.fullname || '',
+    }
+    setSelectedFolder(folderData)
+    setFolderSearchQuery('')
+    setFolderError(null)
+
+    if ((!folder.contents || folder.contents.length === 0) && !folderFilesCache[folder.id]) {
+      setLoadingFolderFiles(true)
+      try {
+        const res = await getMoodleFolderContents(folder.id, selectedCourse?.id)
+        if (res.status === 'ok') {
+          setFolderFilesCache((prev) => ({
+            ...prev,
+            [folder.id]: res.files || [],
+          }))
+          if (res.downloadFolderProxyUrl) {
+            setSelectedFolder((prev) => (prev ? { ...prev, downloadFolderProxyUrl: res.downloadFolderProxyUrl } : null))
+          }
+        } else if (res.status === 'error') {
+          setFolderError(res.error || 'Impossible de charger les fichiers de ce dossier.')
+        }
+      } catch (err) {
+        setFolderError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setLoadingFolderFiles(false)
+      }
+    }
+  }, [selectedCourse, folderFilesCache])
+
+  const toggleFolderExpanded = useCallback(async (folder) => {
+    const nextExpanded = !expandedFolders[folder.id]
+    setExpandedFolders((prev) => ({
+      ...prev,
+      [folder.id]: nextExpanded,
+    }))
+
+    if (nextExpanded && (!folder.contents || folder.contents.length === 0) && !folderFilesCache[folder.id]) {
+      try {
+        const res = await getMoodleFolderContents(folder.id, selectedCourse?.id)
+        if (res.status === 'ok') {
+          setFolderFilesCache((prev) => ({
+            ...prev,
+            [folder.id]: res.files || [],
+          }))
+        }
+      } catch (err) {
+        void err
+      }
+    }
+  }, [expandedFolders, folderFilesCache, selectedCourse])
+
+  const currentFolderFiles = useMemo(() => {
+    if (!selectedFolder) return []
+    if (selectedFolder.contents && selectedFolder.contents.length > 0) {
+      return selectedFolder.contents
+    }
+    return folderFilesCache[selectedFolder.id] || []
+  }, [selectedFolder, folderFilesCache])
+
+  const filteredFolderFiles = useMemo(() => {
+    const query = folderSearchQuery.trim().toLowerCase()
+    if (!query) return currentFolderFiles
+    return currentFolderFiles.filter((file) => {
+      const filename = (file.filename || '').toLowerCase()
+      const filepath = (file.filepath || '').toLowerCase()
+      return filename.includes(query) || filepath.includes(query)
+    })
+  }, [currentFolderFiles, folderSearchQuery])
+
+  const totalFolderBytes = useMemo(() => {
+    return currentFolderFiles.reduce((acc, f) => acc + (f.filesize || 0), 0)
+  }, [currentFolderFiles])
+
   const categoryOptions = useMemo(() => {
     if (categories.length === 0) return []
     const opts = [{ value: 'all', label: 'Tous', count: courses.length }]
@@ -385,7 +490,7 @@ export default function MoodlePage() {
     return opts
   }, [categories, courses, showEmptySections])
 
-  const effectiveMoodleHref = selectedCourse?.moodleHref || moodleWebHref
+  const effectiveMoodleHref = selectedFolder?.launchHref || selectedCourse?.moodleHref || moodleWebHref
 
   return (
     <section className="grades-page w-full pt-4 px-6 pb-12 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-24" aria-labelledby="moodle-page-title">
@@ -396,10 +501,12 @@ export default function MoodlePage() {
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div className="flex flex-col gap-1 min-w-0">
               <h1 id="moodle-page-title" className="m-0 text-[36px] leading-none tracking-[-0.02em] max-md:text-[30px] font-title">
-                {selectedCourse ? 'Cours Moodle' : 'Moodle'}
+                {selectedFolder ? selectedFolder.name : (selectedCourse ? 'Cours Moodle' : 'Moodle')}
               </h1>
               <p className="m-0 flex flex-wrap items-center gap-x-2 font-body text-[15px] font-medium text-text-secondary">
-                {selectedCourse ? (
+                {selectedFolder ? (
+                  <span>{selectedCourse?.shortname || selectedCourse?.fullname} · {selectedFolder.sectionName || 'Dossier'}</span>
+                ) : selectedCourse ? (
                   <span>{selectedCourse.category ? `${selectedCourse.category} · ` : ''}{selectedCourse.shortname || 'Ressources'}</span>
                 ) : (
                   <span>Espace pédagogique · {courses.length ? `${courses.length} cours disponibles` : 'Université'}</span>
@@ -432,6 +539,7 @@ export default function MoodlePage() {
               <button
                 type="button"
                 onClick={() => {
+                  setSelectedFolder(null)
                   setSelectedCourse(null)
                   setTourTrigger((c) => c + 1)
                 }}
@@ -472,23 +580,292 @@ export default function MoodlePage() {
           )}
         </header>
 
-        {/* ── COURSE DETAIL VIEW ── */}
+        {/* ── COURSE & FOLDER DETAIL VIEW ── */}
         {selectedCourse ? (
-          <Fragment key={selectedCourse.id}>
-            {/* Top course presentation banner card */}
-            <article style={revealStyle(0)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-5 p-6 max-md:p-4 shadow-sm`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCourse(null)
-                    setSearchQuery('')
-                  }}
-                  className={`${SECONDARY_BUTTON} self-start`}
-                >
-                  <Icon icon="carbon:arrow-left" className="size-4" aria-hidden="true" />
-                  <span>Tous les cours</span>
-                </button>
+          selectedFolder ? (
+            <Fragment key={selectedFolder.id}>
+              {/* Folder presentation banner card */}
+              <article style={revealStyle(0)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-5 p-6 max-md:p-4 shadow-sm`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFolder(null)
+                      setFolderSearchQuery('')
+                    }}
+                    className={`${SECONDARY_BUTTON} self-start`}
+                  >
+                    <Icon icon="carbon:arrow-left" className="size-4" aria-hidden="true" />
+                    <span>Retour à {selectedCourse.shortname || selectedCourse.fullname}</span>
+                  </button>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                    {selectedFolder.downloadFolderProxyUrl && (
+                      <a
+                        href={selectedFolder.downloadFolderProxyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`${SECONDARY_BUTTON} border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium`}
+                        title="Télécharger tous les fichiers du dossier en archive .zip"
+                      >
+                        <Icon icon="carbon:zip" className="size-4 text-amber-500" />
+                        <span>Télécharger le dossier (.zip)</span>
+                      </a>
+                    )}
+
+                    {selectedFolder.launchHref && (
+                      <a
+                        href={selectedFolder.launchHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={SECONDARY_BUTTON}
+                        title="Consulter le dossier sur Moodle officiel"
+                      >
+                        <span>Moodle officiel</span>
+                        <Icon icon="carbon:arrow-up-right" className="size-3.5" aria-hidden="true" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Folder Header presentation */}
+                <div className="flex items-start gap-4">
+                  <div className="size-14 rounded-2xl flex items-center justify-center shrink-0 text-amber-500 bg-amber-500/10 border border-amber-500/20 shadow-sm">
+                    <Icon icon="carbon:folder-open" className="size-8" />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="font-body text-[12px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 uppercase tracking-wider border border-amber-500/20">
+                        Dossier pédagogique
+                      </span>
+                      {selectedFolder.sectionName && (
+                        <span className="font-body text-[13px] text-text-muted">
+                          {selectedFolder.sectionName}
+                        </span>
+                      )}
+                      {currentFolderFiles.length > 0 && (
+                        <span className="font-body text-[13px] text-text-muted">
+                          · {currentFolderFiles.length} fichier{currentFolderFiles.length > 1 ? 's' : ''}
+                          {totalFolderBytes > 0 ? ` (${formatFileSize(totalFolderBytes)})` : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className="m-0 text-[26px] leading-snug max-md:text-[22px] font-bold text-text">
+                      {selectedFolder.name}
+                    </h2>
+
+                    <div className="text-[13px] text-text-secondary flex items-center gap-1.5">
+                      <Icon icon="carbon:education" className="size-4 text-text-muted shrink-0" />
+                      <span className="truncate">{selectedCourse.fullname}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search / filter within folder files */}
+                {currentFolderFiles.length > 2 && (
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
+                    <div className="relative flex-1 max-w-sm">
+                      <Icon
+                        icon="carbon:search"
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-text-muted pointer-events-none"
+                        aria-hidden="true"
+                      />
+                      <input
+                        type="text"
+                        value={folderSearchQuery}
+                        onChange={(e) => setFolderSearchQuery(e.target.value)}
+                        placeholder="Filtrer les fichiers de ce dossier…"
+                        className="w-full h-9 pl-9 pr-8 rounded-full border border-border bg-widget-bg text-[14px] text-text placeholder:text-text-muted focus:border-brand focus:outline-none transition-colors"
+                      />
+                      {folderSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setFolderSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text"
+                          aria-label="Effacer le filtre"
+                        >
+                          <Icon icon="carbon:close" className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </article>
+
+              {/* Folder file items list */}
+              <div className="flex flex-col gap-4">
+                {loadingFolderFiles ? (
+                  <div className={`${CARD_CLASSES} p-8 flex flex-col items-center justify-center gap-3`}>
+                    <LoadingDots label="Chargement des documents du dossier…" />
+                  </div>
+                ) : folderError ? (
+                  <StatusMessage
+                    icon="carbon:warning"
+                    title="Erreur lors du chargement des fichiers"
+                    detail={folderError}
+                    action={(
+                      <button
+                        type="button"
+                        className="rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover transition-colors"
+                        onClick={() => void openFolder(selectedFolder, selectedFolder.sectionName)}
+                      >
+                        Réessayer
+                      </button>
+                    )}
+                  />
+                ) : filteredFolderFiles.length === 0 ? (
+                  <StatusMessage
+                    icon="carbon:folder-off"
+                    title={folderSearchQuery ? 'Aucun document ne correspond à la recherche' : 'Ce dossier est vide'}
+                    detail={folderSearchQuery ? 'Modifiez vos mots-clés pour retrouver un document.' : 'Aucun fichier n’a été publié dans ce dossier pour le moment.'}
+                    action={selectedFolder.launchHref ? (
+                      <a href={selectedFolder.launchHref} target="_blank" rel="noopener noreferrer" className={SECONDARY_BUTTON}>
+                        <span>Consulter sur Moodle</span>
+                        <Icon icon="carbon:arrow-up-right" className="size-3.5" aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  />
+                ) : (
+                  <article className={`${CARD_CLASSES} overflow-hidden p-0 shadow-sm`}>
+                    <div className="px-5 py-3.5 bg-bg-subtle/50 border-b border-border flex items-center justify-between">
+                      <span className="font-body text-[13px] font-semibold text-text-secondary">
+                        Contenu du dossier ({filteredFolderFiles.length} fichier{filteredFolderFiles.length > 1 ? 's' : ''})
+                      </span>
+                      {selectedFolder.downloadFolderProxyUrl && (
+                        <a
+                          href={selectedFolder.downloadFolderProxyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-body text-[12.5px] font-medium text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                        >
+                          <Icon icon="carbon:zip" className="size-3.5" />
+                          <span>Tout télécharger</span>
+                        </a>
+                      )}
+                    </div>
+
+                    <ul className="m-0 p-0 list-none divide-y divide-border">
+                      {filteredFolderFiles.map((file, fIdx) => {
+                        const fileIcon = getModuleIcon('file', file.filename)
+                        const downloadUrl = file.proxyUrl ? `${file.proxyUrl}&download=1` : null
+
+                        return (
+                          <li
+                            key={file.fileurl || file.filename || fIdx}
+                            className="flex items-center justify-between gap-3 px-5 py-3.5 text-text hover:bg-bg-subtle/60 transition-colors duration-150 group"
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                              {file.proxyUrl ? (
+                                <a
+                                  href={file.proxyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${fileIcon.color} transition-transform group-hover:scale-105`}
+                                  title={`Ouvrir ${file.filename}`}
+                                >
+                                  <Icon icon={fileIcon.icon} className="size-5" />
+                                </a>
+                              ) : (
+                                <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${fileIcon.color}`}>
+                                  <Icon icon={fileIcon.icon} className="size-5" />
+                                </div>
+                              )}
+
+                              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                {file.proxyUrl ? (
+                                  <a
+                                    href={file.proxyUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-body text-[14.5px] font-semibold leading-snug text-text group-hover:text-brand hover:underline transition-colors truncate block"
+                                    title={`Ouvrir ${file.filename}`}
+                                  >
+                                    {file.filename}
+                                  </a>
+                                ) : (
+                                  <span className="font-body text-[14.5px] font-semibold leading-snug text-text truncate">
+                                    {file.filename}
+                                  </span>
+                                )}
+
+                                <div className="flex items-center gap-2 font-body text-[12px] text-text-muted">
+                                  {file.filepath && file.filepath !== '/' && (
+                                    <>
+                                      <span className="px-1.5 py-0.2 rounded bg-bg-subtle border border-border/50 text-[11px] font-mono">
+                                        {file.filepath}
+                                      </span>
+                                      <span>·</span>
+                                    </>
+                                  )}
+                                  {file.filesize > 0 && (
+                                    <span>{formatFileSize(file.filesize)}</span>
+                                  )}
+                                  {file.timemodified > 0 && (
+                                    <>
+                                      <span>·</span>
+                                      <span>{new Date(file.timemodified * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {file.proxyUrl && (
+                                <a
+                                  href={file.proxyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`${SECONDARY_BUTTON} py-1.5 px-3 text-[12px] shadow-2xs hover:border-brand/40`}
+                                  title={`Consulter ${file.filename}`}
+                                >
+                                  <Icon icon="carbon:view" className="size-3.5 text-brand" />
+                                  <span className="font-medium">Ouvrir</span>
+                                </a>
+                              )}
+
+                              {downloadUrl && (
+                                <a
+                                  href={downloadUrl}
+                                  download={file.filename}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`${SECONDARY_BUTTON} py-1.5 px-3 text-[12px] shadow-2xs hover:border-brand/40`}
+                                  title={`Télécharger ${file.filename}`}
+                                >
+                                  <Icon icon="carbon:download" className="size-3.5 text-text-muted hover:text-text" />
+                                  <span className="max-xs:hidden font-medium">Télécharger</span>
+                                </a>
+                              )}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </article>
+                )}
+              </div>
+            </Fragment>
+          ) : (
+            <Fragment key={selectedCourse.id}>
+              {/* Top course presentation banner card */}
+              <article style={revealStyle(0)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-5 p-6 max-md:p-4 shadow-sm`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFolder(null)
+                      setSelectedCourse(null)
+                      setSearchQuery('')
+                      setFolderSearchQuery('')
+                    }}
+                    className={`${SECONDARY_BUTTON} self-start`}
+                  >
+                    <Icon icon="carbon:arrow-left" className="size-4" aria-hidden="true" />
+                    <span>Tous les cours</span>
+                  </button>
 
                 <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                   {selectedCourse.moodleHref && (
@@ -684,6 +1061,200 @@ export default function MoodlePage() {
                             ) : (
                               section.filteredModules.map((mod) => {
                                 const kind = getModuleKind(mod.modname)
+
+                                if (kind === 'folder') {
+                                  const isExpanded = Boolean(expandedFolders[mod.id])
+                                  const files = (mod.contents && mod.contents.length > 0) ? mod.contents : (folderFilesCache[mod.id] || [])
+                                  const fileCount = files.length
+                                  const totalBytes = files.reduce((acc, f) => acc + (f.filesize || 0), 0)
+
+                                  return (
+                                    <li key={mod.id} className="flex flex-col border-b border-border/60 last:border-b-0">
+                                      <div className="flex items-center justify-between gap-3 px-5 py-3.5 text-text hover:bg-bg-subtle/60 transition-colors duration-150 group">
+                                        <div
+                                          className="flex items-center gap-3.5 min-w-0 flex-1 cursor-pointer select-none"
+                                          onClick={() => void openFolder(mod, section.name)}
+                                          role="button"
+                                          tabIndex={0}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault()
+                                              void openFolder(mod, section.name)
+                                            }
+                                          }}
+                                          title={`Entrer dans le dossier ${mod.name}`}
+                                        >
+                                          <div className="size-9 rounded-xl flex items-center justify-center shrink-0 text-amber-500 bg-amber-500/10 border border-amber-500/20 shadow-2xs group-hover:scale-105 group-hover:bg-amber-500/15 transition-transform">
+                                            <Icon icon={isExpanded ? 'carbon:folder-open' : 'carbon:folder'} className="size-5" />
+                                          </div>
+
+                                          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-body text-[14.5px] font-semibold leading-snug text-text group-hover:text-brand transition-colors truncate">
+                                                {mod.name}
+                                              </span>
+                                              <span className="shrink-0 text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                Dossier
+                                              </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 font-body text-[12px] text-text-muted">
+                                              <span>{fileCount > 0 ? `${fileCount} fichier${fileCount > 1 ? 's' : ''}` : 'Dossier'}</span>
+                                              {totalBytes > 0 && (
+                                                <>
+                                                  <span>·</span>
+                                                  <span>{formatFileSize(totalBytes)}</span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => void openFolder(mod, section.name)}
+                                            className={`${SECONDARY_BUTTON} py-1.5 px-3 text-[12px] font-medium shadow-2xs hover:border-brand/40 text-brand bg-brand/5`}
+                                            title={`Entrer dans ${mod.name}`}
+                                          >
+                                            <Icon icon="carbon:folder" className="size-3.5" />
+                                            <span>Entrer</span>
+                                            <Icon icon="carbon:arrow-right" className="size-3" />
+                                          </button>
+
+                                          {fileCount > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => void toggleFolderExpanded(mod)}
+                                              className={`${SECONDARY_BUTTON} py-1.5 px-2.5 text-[12px] shadow-2xs`}
+                                              title={isExpanded ? 'Replier l’aperçu' : 'Aperçu rapide des fichiers'}
+                                              aria-expanded={isExpanded}
+                                            >
+                                              <Icon
+                                                icon="carbon:chevron-down"
+                                                className={`size-3.5 text-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                              />
+                                              <span className="max-xs:hidden text-[11px]">{isExpanded ? 'Replier' : 'Aperçu'}</span>
+                                            </button>
+                                          )}
+
+                                          {mod.downloadFolderProxyUrl && (
+                                            <a
+                                              href={mod.downloadFolderProxyUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className={`${SECONDARY_BUTTON} py-1.5 px-3 text-[12px] shadow-2xs`}
+                                              title={`Télécharger tout le dossier (${mod.name}.zip)`}
+                                            >
+                                              <Icon icon="carbon:zip" className="size-3.5 text-amber-500" />
+                                              <span className="max-sm:hidden font-medium">.zip</span>
+                                            </a>
+                                          )}
+
+                                          {mod.launchHref && (
+                                            <a
+                                              href={mod.launchHref}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="size-8 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-widget-bg transition-colors"
+                                              title="Ouvrir dans l'interface Moodle"
+                                            >
+                                              <Icon icon="carbon:arrow-up-right" className="size-4" />
+                                            </a>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {isExpanded && (
+                                        <div className="bg-bg-subtle/40 border-t border-border/70 pl-8 pr-5 py-2 flex flex-col gap-1.5">
+                                          {files.length === 0 ? (
+                                            <div className="py-2 text-[13px] text-text-muted italic">
+                                              Ce dossier ne contient aucun fichier.
+                                            </div>
+                                          ) : (
+                                            <ul className="m-0 p-0 list-none divide-y divide-border/40">
+                                              {files.map((file, fIdx) => {
+                                                const fIcon = getModuleIcon('file', file.filename)
+                                                const fDownloadUrl = file.proxyUrl ? `${file.proxyUrl}&download=1` : null
+
+                                                return (
+                                                  <li key={file.fileurl || file.filename || fIdx} className="flex items-center justify-between gap-3 py-2 text-text">
+                                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                      <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 ${fIcon.color}`}>
+                                                        <Icon icon={fIcon.icon} className="size-4" />
+                                                      </div>
+                                                      <div className="flex flex-col min-w-0 flex-1">
+                                                        {file.proxyUrl ? (
+                                                          <a
+                                                            href={file.proxyUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="font-body text-[13.5px] font-medium text-text hover:text-brand hover:underline transition-colors truncate block"
+                                                            title={`Ouvrir ${file.filename}`}
+                                                          >
+                                                            {file.filename}
+                                                          </a>
+                                                        ) : (
+                                                          <span className="font-body text-[13.5px] font-medium text-text truncate">
+                                                            {file.filename}
+                                                          </span>
+                                                        )}
+                                                        {file.filesize > 0 && (
+                                                          <span className="text-[11.5px] text-text-muted">
+                                                            {formatFileSize(file.filesize)}
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                      {file.proxyUrl && (
+                                                        <a
+                                                          href={file.proxyUrl}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          className={`${SECONDARY_BUTTON} py-1 px-2.5 text-[11px]`}
+                                                          title={`Ouvrir ${file.filename}`}
+                                                        >
+                                                          <Icon icon="carbon:view" className="size-3 text-brand" />
+                                                          <span>Ouvrir</span>
+                                                        </a>
+                                                      )}
+                                                      {fDownloadUrl && (
+                                                        <a
+                                                          href={fDownloadUrl}
+                                                          download={file.filename}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          className={`${SECONDARY_BUTTON} py-1 px-2.5 text-[11px]`}
+                                                          title={`Télécharger ${file.filename}`}
+                                                        >
+                                                          <Icon icon="carbon:download" className="size-3 text-text-muted" />
+                                                        </a>
+                                                      )}
+                                                    </div>
+                                                  </li>
+                                                )
+                                              })}
+                                            </ul>
+                                          )}
+
+                                          <div className="pt-2 border-t border-border/40 flex items-center justify-end">
+                                            <button
+                                              type="button"
+                                              onClick={() => void openFolder(mod, section.name)}
+                                              className="font-body text-[12.5px] font-semibold text-brand hover:underline flex items-center gap-1"
+                                            >
+                                              <span>Accéder à la vue complète du dossier</span>
+                                              <Icon icon="carbon:arrow-right" className="size-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </li>
+                                  )
+                                }
+
                                 const isResource = mod.modname === 'resource' || (mod.url && mod.url.includes('/mod/resource/'))
                                 const fallbackFile = isResource && mod.url ? {
                                   filename: mod.name?.includes('.') ? mod.name : `${mod.name}.pdf`,
@@ -804,6 +1375,7 @@ export default function MoodlePage() {
               )}
             </div>
           </Fragment>
+          )
         ) : (
           /* ── COURSES LIST & DASHBOARD VIEW ── */
           <Fragment>

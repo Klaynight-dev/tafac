@@ -44,3 +44,19 @@ test('routing recognizes moodle and its alias', () => {
   assert.equal(getRouteFromPath('/cours'), 'moodle')
 })
 
+test('buildDemoMoodleCourseContentsPayload returns folder modules with multiple files', () => {
+  const payload = buildDemoMoodleCourseContentsPayload(101)
+  const folderModule = payload.sections
+    .flatMap((s) => s.modules)
+    .find((m) => m.modname === 'folder')
+
+  assert.ok(folderModule, 'Folder module should exist in demo course 101')
+  assert.ok(Array.isArray(folderModule.contents))
+  assert.ok(folderModule.contents.length >= 2, 'Folder module should contain multiple files')
+  for (const file of folderModule.contents) {
+    assert.ok(file.filename)
+    assert.ok(Number.isFinite(file.filesize))
+    assert.ok(file.fileurl)
+  }
+})
+

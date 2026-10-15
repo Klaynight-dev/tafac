@@ -1,3 +1,4 @@
+import './server/patchNodeWarnings.js'
 import { execSync } from 'node:child_process'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
