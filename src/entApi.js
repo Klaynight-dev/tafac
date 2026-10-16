@@ -1,5 +1,8 @@
 import universityConfig from '@university'
 import { GRADES_UNAVAILABLE_MESSAGE } from './gradeFeatureState'
+import { evaluationTypeLabel, listGradesSemesters, summarizeAverage } from './gradesReport'
+import { readDistributionCounts } from './evaluationDistribution'
+import { buildParcoursTpAliases } from './scodocParcoursGroups'
 
 export const ENT_ORIGIN = universityConfig.origins.ent
 const ENT_HOST = new URL(ENT_ORIGIN).hostname
@@ -571,6 +574,7 @@ export async function getStudentProfilePictureMeta() {
 export function clearGradesCache() {
   gradesMemory = null
   semesterGradesMemory.clear()
+  distributionMemory.clear()
   localStorage.removeItem(GRADES_CACHE_KEY)
 }
 
@@ -657,26 +661,98 @@ export async function getGradesDepartmentMessage(department) {
   return parseJsonPayload(response)
 }
 
+// `semesterId:evaluationId` → { at, promise }. Memory only, like the grades.
+const distributionMemory = new Map()
+const SCODOC_ID_PATTERN = /^\d{1,10}$/
+
+async function requestEvaluationDistribution(semesterId, evaluationId) {
+  try {
+    const response = await fetch(
+      `${ENT_AUTH_PREFIX}/grades/evaluation-distribution?semestre=${semesterId}&eval=${evaluationId}`,
+      { credentials: 'same-origin' },
+    )
+    const data = await parseJsonPayload(response)
+    if (!data?.authenticated) {
+      return { status: 'error', reason: 'signed-out' }
+    }
+    if (data.status === 'unavailable') {
+      return { status: 'unavailable', reason: typeof data.reason === 'string' ? data.reason : undefined }
+    }
+    const distribution = data.status === 'ok' ? readDistributionCounts(data) : null
+    return distribution ? { status: 'ok', ...distribution } : { status: 'error', reason: 'invalid-answer' }
+  } catch (error) {
+    // 404: not an evaluation of this relevé (or of the demo).
+    return error?.status === 404
+      ? { status: 'unavailable', reason: 'unknown-evaluation' }
+      : { status: 'error', reason: getRequestErrorKind(error) }
+  }
+}
+
+// How the promo's grades spread on one evaluation, the passerelle's
+// histogram. Never rejects; resolves to
+//   { status: 'ok', counts: number[21] (bucket i = grades in [i, i+1), 20/20
+//     in 20, see bucketOfGrade), total }
+//   { status: 'unavailable', reason: 'disabled' (passerelle option off) |
+//     'too-few' (under 6 grades) | 'hidden' (relevé unpublished or grades
+//     hidden by the department) | 'unknown-evaluation' | 'invalid' }
+//   { status: 'error', reason } (network, ScoDoc down, signed out).
+// `semesterId` is a formsemestre id, anything else means the newest semester.
+// Answers stay in memory as long as the grades do; errors are asked again.
+export function getEvaluationDistribution({ semesterId, evaluationId } = {}) {
+  if (!universityConfig.features?.grades) {
+    return Promise.resolve({ status: 'unavailable', reason: 'disabled' })
+  }
+
+  const evaluation = String(evaluationId ?? '')
+  if (!SCODOC_ID_PATTERN.test(evaluation)) {
+    return Promise.resolve({ status: 'unavailable', reason: 'invalid' })
+  }
+
+  const semester = SCODOC_ID_PATTERN.test(String(semesterId ?? '')) ? String(semesterId) : 'current'
+  const key = `${semester}:${evaluation}`
+  const cached = distributionMemory.get(key)
+  if (isFreshGradesEntry(cached)) {
+    return cached.promise
+  }
+
+  const entry = { at: Date.now(), promise: null }
+  entry.promise = requestEvaluationDistribution(semester, evaluation).then((result) => {
+    if (result.status === 'error' && distributionMemory.get(key) === entry) {
+      distributionMemory.delete(key)
+    }
+    return result
+  })
+  distributionMemory.set(key, entry)
+  return entry.promise
+}
+
 export function getGradesReportPdfHref(semesterId, type = 'BUT') {
   return `${ENT_AUTH_PREFIX}/grades/report.pdf?semestre=${encodeURIComponent(semesterId)}&type=${type === 'DUT' ? 'DUT' : 'BUT'}`
+}
+
+// Downloads ScoDoc's PDF relevé as `fileName`. Fetched first so a failure
+// (ScoDoc down, demo) throws instead of saving an error page as a ".pdf".
+export async function downloadGradesReportPdf(semesterId, type, fileName) {
+  const response = await fetch(getGradesReportPdfHref(semesterId, type), { credentials: 'same-origin' })
+  if (!response.ok || !String(response.headers.get('content-type')).includes('application/pdf')) {
+    throw new Error(`PDF request failed (${response.status})`)
+  }
+
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // Let the download start before the blob goes.
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
 function parseGradeValue(val) {
   if (val == null || val === '~' || val === 'abs' || val === 'EXC' || val === '') return null
   const n = parseFloat(String(val).replace(',', '.'))
   return Number.isFinite(n) ? n : null
-}
-
-function computeWeightedAverage(entries) {
-  let totalWeighted = 0
-  let totalCoef = 0
-
-  for (const { value, coef } of entries) {
-    totalWeighted += value * coef
-    totalCoef += coef
-  }
-
-  return totalCoef > 0 ? totalWeighted / totalCoef : null
 }
 
 function getCurrentGradesReleve(gradesData = null) {
@@ -894,6 +970,12 @@ function buildScodocGroupAliases(label, kind) {
     }
   }
 
+  if (kind === 'tp') {
+    for (const alias of buildParcoursTpAliases(normalizedLabel)) {
+      addUniqueScodocAlias(aliases, alias)
+    }
+  }
+
   return aliases
 }
 
@@ -993,6 +1075,17 @@ function resolveGradesReleve(data) {
   return { releve }
 }
 
+// Whether the student's relevé is a BUT one ('BUT'), another formation's
+// ('other': licence pro, DUT…, which Tafac doesn't read yet), or unknown
+// (null: no relevé, signed out, grades off). A relevé without a type is
+// taken as BUT, as buildGradesReport does.
+export async function getGradesFormation() {
+  const resolved = resolveGradesReleve(await getGrades())
+  if (resolved.error || !resolved.releve) return null
+  const { type } = resolved.releve
+  return !type || type === 'BUT' ? 'BUT' : 'other'
+}
+
 export async function getAverageGrade() {
   const data = await getGrades()
 
@@ -1001,100 +1094,16 @@ export async function getAverageGrade() {
     return resolved
   }
 
-  const currentReleve = resolved.releve
-
-  // ScoDoc's own semester average (the one on the relevé) wins; the estimate
-  // below is only for relevés that don't carry it.
-  const officialAverage = parseGradeValue(currentReleve.semestre?.notes?.value)
-  if (officialAverage != null) {
-    const officialPromoAverage = parseGradeValue(currentReleve.semestre?.notes?.moy)
-    return {
-      average: officialAverage.toFixed(2),
-      promoAverage: officialPromoAverage != null ? officialPromoAverage.toFixed(2) : null,
-      debug: { source: 'semestre.notes' },
-    }
-  }
-
-  // Collect all graded entries from ressources and saes
-  const allGrades = []
-  const allPromoGrades = []
-  const breakdown = []
-
-  for (const sectionKey of ['ressources', 'saes']) {
-    const section = currentReleve[sectionKey]
-    if (!section) continue
-
-    for (const [code, resource] of Object.entries(section)) {
-      // Try resource-level average first (weighted by scodoc)
-      const resMoy = parseGradeValue(resource.moyenne?.value)
-      const resPromoMoy = parseGradeValue(resource.moyenne?.moy)
-      const resCoef = parseFloat(resource.moyenne?.coef ?? resource.coef ?? '1') || 1
-
-      if (resMoy != null) {
-        const resMax = parseFloat(resource.moyenne?.max ?? '20') || 20
-        const normalized = (resMoy / resMax) * 20
-        allGrades.push({ value: normalized, coef: resCoef })
-        breakdown.push({
-          code,
-          titre: resource.titre ?? code,
-          type: sectionKey,
-          source: 'moyenne',
-          note: resMoy,
-          max: resMax,
-          normalized: +normalized.toFixed(2),
-          coef: resCoef,
-          promoMoy: resPromoMoy,
-        })
-        if (resPromoMoy != null) {
-          allPromoGrades.push({ value: (resPromoMoy / resMax) * 20, coef: resCoef })
-        }
-        continue
-      }
-
-      // Fallback: compute from individual evaluations
-      for (const evaluation of resource.evaluations ?? []) {
-        const val = parseGradeValue(evaluation.note?.value)
-        if (val == null) continue
-        const max = parseFloat(evaluation.note?.max ?? '20') || 20
-        const coef = parseFloat(evaluation.coef ?? '1') || 1
-        const normalized = (val / max) * 20
-        allGrades.push({ value: normalized, coef })
-        breakdown.push({
-          code,
-          titre: resource.titre ?? code,
-          type: sectionKey,
-          source: 'evaluation',
-          description: evaluation.description ?? '',
-          note: val,
-          max,
-          normalized: +normalized.toFixed(2),
-          coef,
-          promoMoy: parseGradeValue(evaluation.note?.moy),
-        })
-
-        const moyVal = parseGradeValue(evaluation.note?.moy)
-        if (moyVal != null) {
-          allPromoGrades.push({ value: (moyVal / max) * 20, coef })
-        }
-      }
-    }
-  }
-
-  const average = computeWeightedAverage(allGrades)
-  const promoAverage = computeWeightedAverage(allPromoGrades)
-
-  if (average == null) {
+  const summary = summarizeAverage(resolved.releve)
+  if (!summary) {
     return { error: 'Aucune note disponible pour calculer la moyenne' }
   }
 
   return {
-    average: average.toFixed(2),
-    promoAverage: promoAverage != null ? promoAverage.toFixed(2) : null,
-    debug: {
-      totalEntries: allGrades.length,
-      totalCoef: allGrades.reduce((s, e) => s + e.coef, 0),
-      breakdown,
-    },
+    average: summary.average.toFixed(2),
+    promoAverage: summary.promoAverage != null ? summary.promoAverage.toFixed(2) : null,
+    estimated: summary.estimated,
+    debug: { source: summary.source },
   }
 }
 
@@ -1107,6 +1116,15 @@ export async function getLatestGrade() {
   }
 
   const releve = resolved.releve
+  // The UEs' ScoDoc colours (the card's wash) and the semester the relevé
+  // is ("Mes notes" keys its read grades by it).
+  const ueColors = Object.fromEntries(Object.entries(releve.ues ?? {}).map(([code, ue]) => [code, ue?.color ?? null]))
+  const semesterId = listGradesSemesters(data.grades?.semestres)[0]?.id ?? 'current'
+  // Every subject's title by module code, as "Mes notes" lists them to give
+  // each its icon (assignSubjectIcons): the card gets the same one.
+  const subjectTitles = [...Object.entries(releve.ressources ?? {}), ...Object.entries(releve.saes ?? {})]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([code, module]) => module?.titre ?? code)
 
   let latest = null
 
@@ -1123,8 +1141,17 @@ export async function getLatestGrade() {
           // ScoDoc sends evaluation notes already on /20; note.max is the
           // best grade of the promo, not the scale.
           latest = {
+            id: evaluation.id ?? null,
+            semesterId,
+            subjectTitles,
+            ueColors,
+            // What the grade counts for in each UE (its wash, its accent).
+            weights: Object.entries(evaluation.poids ?? {})
+              .map(([ue, weight]) => ({ ue, weight: Number(weight) || 0 })),
             date,
             description: evaluation.description || resource.titre || code,
+            // "Rattrapage", "Session 2": labelled on the card as on "Mes notes".
+            typeLabel: evaluationTypeLabel(evaluation.evaluation_type),
             note: val,
             noteSur: '20',
             noteMoy: evaluation.note?.moy ?? null,

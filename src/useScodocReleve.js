@@ -12,7 +12,7 @@ import { describeLoadError } from './scodocPageUtils'
 
 // The semester picked on one ScoDoc page stays picked on the other.
 let sharedSelectedSemesterId = null
-// Department notices, fetched once per tab.
+// Department notices, fetched once per tab (the pending or settled request).
 const departmentMessages = new Map()
 
 // Everything the ScoDoc pages load: the first-connection answer (newest
@@ -111,20 +111,18 @@ export function useScodocReleve() {
       return undefined
     }
 
-    if (departmentMessages.has(department)) {
-      setDepartmentMessage(departmentMessages.get(department))
-      return undefined
+    // The request itself is shared, not its answer: a page that mounts
+    // while it's in flight (StrictMode's second run, a quick revisit) still
+    // gets the message. A failed one is forgotten, to be asked again.
+    let request = departmentMessages.get(department)
+    if (!request) {
+      request = getGradesDepartmentMessage(department).then((data) => htmlToPlainText(data?.message) || null)
+      request.catch(() => departmentMessages.delete(department))
+      departmentMessages.set(department, request)
     }
 
     let cancelled = false
-    departmentMessages.set(department, null)
-    getGradesDepartmentMessage(department)
-      .then((data) => {
-        const text = htmlToPlainText(data?.message) || null
-        departmentMessages.set(department, text)
-        if (!cancelled) setDepartmentMessage(text)
-      })
-      .catch(() => departmentMessages.delete(department))
+    request.then((text) => { if (!cancelled) setDepartmentMessage(text) }, () => {})
     return () => { cancelled = true }
   }, [department])
 
