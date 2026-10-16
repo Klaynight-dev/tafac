@@ -4,6 +4,8 @@ import { openChangelog, useChangelog } from '../changelogStore'
 import { downloadSchoolCertificate, getCachedSchoolCertificateStatus, getSchoolCertificateStatus } from '../entApi'
 import { AboutContent } from './AboutModal'
 import { PrivacyContent } from './PrivacyModal'
+import Dropdown from './Dropdown'
+import LoadingDots from './LoadingDots'
 
 function buildSelectOptions(options, selectedOption) {
   const normalizedOptions = Array.isArray(options) ? [...options] : []
@@ -26,11 +28,7 @@ function AccountModalLoadingDots({ label }) {
       aria-live="polite"
       aria-label={label}
     >
-      <span className="inline-flex items-center justify-center gap-[6px] text-current" aria-hidden="true">
-        <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-        <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-        <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-      </span>
+      <LoadingDots label={null} />
       <span className="font-body">{label}</span>
     </div>
   )
@@ -302,27 +300,25 @@ function SettingsGroup({ title, footer, children }) {
   )
 }
 
+// A setting row with the app's dropdown on the right (the menu opens under
+// the pill, aligned on its right edge).
 function PlanningSelect({ label, value, options, placeholder, disabled, onChange }) {
   return (
-    <label className={ROW_CLASSES}>
+    <div className={ROW_CLASSES}>
       <span className="font-body text-[16px] font-medium leading-[1.2] tracking-[-0.3125px] text-[var(--color-text)]">{label}</span>
-      <span className="relative min-w-0 w-[min(220px,58%)]">
-        <select
-          className={`h-9 w-full appearance-none truncate rounded-full border-0 ${MUTED_FILL_CLASSES} pl-[13px] pr-9 font-body text-[15px] font-medium text-[var(--color-text)] outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-brand/45 disabled:cursor-wait disabled:opacity-60`}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
-        >
-          <option value="" disabled>{placeholder}</option>
-          {options.map((option) => (
-            <option key={option.resourceId} value={option.resourceId}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <Icon icon="carbon:chevron-down" className="pointer-events-none absolute right-[11px] top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text)]" aria-hidden="true" />
-      </span>
-    </label>
+      <Dropdown
+        label={label}
+        options={options.map((option) => ({ value: option.resourceId, label: option.label }))}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={onChange}
+        align="end"
+        className="w-[min(220px,58%)]"
+        triggerClassName={`flex h-9 w-full items-center justify-between gap-2 rounded-full border-0 ${MUTED_FILL_CLASSES} pl-[13px] pr-[11px] font-body text-[15px] font-medium text-[var(--color-text)] outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-brand/45 disabled:cursor-wait disabled:opacity-60`}
+        chevronClassName="h-4 w-4 text-[var(--color-text)]"
+      />
+    </div>
   )
 }
 
@@ -407,7 +403,9 @@ function SchoolCertificateGroup() {
             label="Certificat de scolarité"
             description={busy ? 'Téléchargement…' : status.schoolYear ? `Année ${status.schoolYear} · PDF` : 'PDF'}
           />
-          <Icon icon={busy ? 'carbon:renew' : 'carbon:download'} className={`h-4 w-4 shrink-0 text-text-60 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {busy
+            ? <LoadingDots label={null} className="w-4 shrink-0 text-text-60" />
+            : <Icon icon="carbon:download" className="h-4 w-4 shrink-0 text-text-60" aria-hidden="true" />}
         </button>
       </SettingsGroup>
       {error ? (
@@ -599,7 +597,8 @@ function AccountModal({
     }
 
     function handleKeyDown(event) {
-      if (event.key === 'Escape') {
+      // An open dropdown takes its own Escape (and marks it handled).
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose()
       }
     }

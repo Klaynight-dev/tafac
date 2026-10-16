@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react'
 import { getBriefingSources, publishBriefingSource, subscribeBriefingSources } from '../briefingSources'
 import { buildDailyBriefing } from '../dailyBriefing'
 import { fetchUpcomingEvents, persistNextClassCache, readNextClassCache } from '../upcomingClasses'
+import LoadingDots from './LoadingDots'
 
 // The briefing follows the clock ("Encore 2 cours" becomes "Dernier cours").
 const BRIEFING_TICK_MS = 60 * 1000
@@ -109,17 +110,6 @@ function useDailyBriefing({
   }
 }
 
-// Same three dots as the buttons and the Réglages loaders.
-function BriefingLoadingDots() {
-  return (
-    <span className="inline-flex h-[18px] items-center gap-[5px] text-text-muted" role="status" aria-label="Chargement du résumé de ta journée">
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} aria-hidden="true" />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} aria-hidden="true" />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} aria-hidden="true" />
-    </span>
-  )
-}
-
 function GreetingCard({
   displayName,
   greeting,
@@ -150,7 +140,7 @@ function GreetingCard({
         <h2 className="m-0 min-w-0 leading-[1.15] text-2xl font-bold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[22px] max-xs:text-xl" title={`Salut ${displayName} !`}>Salut {displayName} !</h2>
       </div>
       {isLoading ? (
-        <BriefingLoadingDots />
+        <LoadingDots label="Chargement du résumé de ta journée" className="h-[18px] text-text-muted" />
       ) : subtitle ? (
         <p className="m-0 leading-[1.2] text-[15px] font-medium line-clamp-2" title={subtitle}>{subtitle}</p>
       ) : null}

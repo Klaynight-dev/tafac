@@ -1,3 +1,5 @@
+import LoadingDots from './LoadingDots'
+
 function LentButton({ children, className = '', type = 'button', loading = false, ...props }) {
   const disabled = props.disabled || loading
   const classes = [
@@ -9,11 +11,7 @@ function LentButton({ children, className = '', type = 'button', loading = false
     <button type={type} className={classes} {...props} disabled={disabled}>
       <span className={`block transition-opacity duration-150 ${loading ? 'opacity-0' : ''}`}>{children}</span>
       {loading && (
-        <span className="absolute inset-0 flex items-center justify-center gap-[6px]">
-          <span className="lent-button-dot w-[5px] h-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-          <span className="lent-button-dot w-[5px] h-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-          <span className="lent-button-dot w-[5px] h-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-        </span>
+        <LoadingDots label={null} className="absolute inset-0" />
       )}
     </button>
   )
