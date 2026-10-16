@@ -5,9 +5,9 @@ import { getMobileTabItems, openNavItemLink } from '../navItems'
 // How long the "unavailable" bubble stays above a greyed-out tab.
 const NOTICE_DURATION_MS = 3200
 
-// The dashboard itself: always the selected tab, since the others open
-// another site. Tapping it scrolls back to the top.
-const HOME_TAB = { id: 'home', label: 'Accueil', icon: 'ph:house-fill', selected: true }
+// The dashboard itself: selected unless an in-app page (grades…) is shown.
+// Tapping the selected tab scrolls back to the top.
+const HOME_TAB = { id: 'home', label: 'Accueil', icon: 'ph:house-fill', page: 'dashboard' }
 
 // Up to three tabs: a compact pill sized to roomy tabs. From four on, like
 // iOS, the bar spans the screen (up to 420px) and the tabs share it equally,
@@ -23,9 +23,11 @@ function getTabSizeClasses(count) {
 // shown wherever the desktop sidebar isn't. Home first, then the same
 // shortcuts as the sidebar (grades, planning, mail, Moodle); a greyed-out tab
 // explains itself in a bubble instead of a hover tooltip.
-function MobileTabBar({ establishment }) {
-  const shortcuts = getMobileTabItems(establishment)
-  const items = [HOME_TAB, ...shortcuts]
+function MobileTabBar({ establishment, gradesSupported = true, activePage = 'dashboard', onNavigatePage }) {
+  const shortcuts = getMobileTabItems(establishment, { gradesSupported })
+  const items = [HOME_TAB, ...shortcuts].map((item) => (
+    item.page ? { ...item, selected: item.page === activePage } : item
+  ))
   const tabSizeClasses = getTabSizeClasses(items.length)
   const iconNames = items.map((item) => item.icon)
   const iconKey = iconNames.join(',')
@@ -75,6 +77,11 @@ function MobileTabBar({ establishment }) {
     if (item.href) {
       event.preventDefault()
       openNavItemLink(item, 'tabbar')
+      return
+    }
+
+    if (item.page) {
+      onNavigatePage?.(item.page)
       return
     }
 

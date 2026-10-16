@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
-import { Icon } from '@iconify/react'
+import { useEffect, useMemo, useState } from 'react'
 import { useWidgetLoadReport } from '../analytics'
 import { GRADES_LAUNCH_HREF, getLatestGrade, getRequestErrorKind, openGradesService } from '../entApi'
+import universityConfig from '@university'
+import { buildUeWash, formatGradeDay } from '../gradesSubjects'
+import { assignSubjectIcons } from '../subjectIcons'
+import { readSeenEvaluationIds } from '../seenGrades'
+import { useUeColor } from '../useUeColor'
+import { LatestGradeCardBody } from './LatestGradesList'
 import {
   DEMO_LATEST_GRADE,
   GRADES_DISABLED_PILL_LABEL,
@@ -15,25 +20,7 @@ import {
 
 // On phones the card shares its row with "Prochain cours" (same height, exact
 // halves), so the module code moves under the evaluation title.
-const CARD_CLASSES = 'latest-grade-widget widget-card shadow-md flex-[0_1_280px] h-[140px] p-4 border rounded-[22px] overflow-hidden text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-0 max-md:h-[124px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_calc(50%-4px)] max-xs:h-[140px] relative'
-const GRADE_COLORS_KEY = 'l-ent:grade-colors'
-const DEFAULT_ACCENT_COLOR = '#0073d1'
-
-// One stable random hue per resource code, remembered per browser so the
-// accent bar keeps the same colour between visits.
-function getGradeColor(resource) {
-  try {
-    const stored = JSON.parse(localStorage.getItem(GRADE_COLORS_KEY) || '{}')
-    if (stored[resource]) return stored[resource]
-    const hue = Math.floor(Math.random() * 360)
-    const color = `hsl(${hue}, 60%, 42%)`
-    stored[resource] = color
-    localStorage.setItem(GRADE_COLORS_KEY, JSON.stringify(stored))
-    return color
-  } catch {
-    return DEFAULT_ACCENT_COLOR
-  }
-}
+const CARD_CLASSES = 'latest-grade-widget isolate widget-card shadow-md flex-[0_1_280px] h-[140px] p-4 border rounded-[22px] overflow-hidden text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-0 max-md:h-[124px] max-md:p-3 max-md:rounded-[20px] max-xs:flex-[1_1_calc(50%-4px)] max-xs:h-[140px] relative'
 
 function LatestGradeHeader() {
   return (
@@ -100,14 +87,15 @@ function DisabledWidgetLatestGrade({ visible }) {
   )
 }
 
-// features.grades === true: latest ScoDoc evaluation, click-through to the
-// grade service. Renders nothing until data is available (or on error).
-function LiveWidgetLatestGrade({ visible }) {
+// features.grades === true: the latest ScoDoc evaluation as a "Dernières
+// notes" card of "Mes notes" (LatestGradeCardBody: subject icon, name, day,
+// evaluation, grade pill, UE wash), "Nouveau" until read there. A click opens
+// it there (onOpenGrade), or the grade service without the in-app page.
+// Renders nothing until data is available (or on error).
+function LiveWidgetLatestGrade({ visible, user = null, onOpenGrade = null }) {
   const [grade, setGrade] = useState(null)
   const [isReady, setIsReady] = useState(false)
-  const [wide, setWide] = useState(false)
   const [loadOutcome, setLoadOutcome] = useState(null)
-  const titleRef = useRef(null)
   useWidgetLoadReport('latestGrade', loadOutcome)
 
   useEffect(() => {
@@ -147,66 +135,72 @@ function LiveWidgetLatestGrade({ visible }) {
   }, [])
 
   useEffect(() => {
-    if (!grade || isReady) return undefined
-    const frameId = window.requestAnimationFrame(() => {
-      const el = titleRef.current
-      setWide(Boolean(el && el.scrollWidth > el.clientWidth))
-
-      if (visible) {
-        // Grade arrived late (visible is already true) — wait one frame
-        // so the element renders hidden first, then animate in.
-        setIsReady(true)
-      }
-    })
-
+    if (!grade || isReady || !visible) return undefined
+    // Grade arrived late (visible is already true): one frame hidden first,
+    // then it animates in.
+    const frameId = window.requestAnimationFrame(() => setIsReady(true))
     return () => window.cancelAnimationFrame(frameId)
   }, [grade, visible, isReady])
+
+  // The UE wash in the colours "Mes notes" paints (lifted on the dark theme).
+  const paintUe = useUeColor()
+  // The same icon as on "Mes notes": assigned over all the semester's subjects.
+  const icon = useMemo(() => (grade?.subjectTitles
+    ? assignSubjectIcons(grade.subjectTitles, universityConfig.appIconStyle)(grade.resourceTitle)
+    : null), [grade])
 
   if (!grade) {
     return null
   }
 
-  const accentColor = grade.resource ? getGradeColor(grade.resource) : DEFAULT_ACCENT_COLOR
-  const noteDisplay = grade.note ? String(parseFloat(grade.note)) : '—'
-  const noteMax = grade.noteSur ? String(Math.round(parseFloat(grade.noteSur))) : '20'
-  const canOpen = Boolean(GRADES_LAUNCH_HREF)
+  const value = grade.note ? String(parseFloat(grade.note)) : '—'
+  const title = grade.description || grade.resourceTitle
+  const day = formatGradeDay(grade.date)
+  const wash = buildUeWash(grade.weights, Object.fromEntries(Object.entries(grade.ueColors ?? {}).map(([ue, color]) => [ue, paintUe(color)])))
+  // Read on each render: coming back from "Mes notes", the badge follows.
+  const seen = grade.id != null ? readSeenEvaluationIds(user, grade.semesterId) : null
+  const isNew = Array.isArray(seen) && !seen.map(String).includes(String(grade.id))
+  const opensInApp = Boolean(onOpenGrade)
+  const canOpen = opensInApp || Boolean(GRADES_LAUNCH_HREF)
+  const open = () => (opensInApp ? onOpenGrade(grade) : openGradesService())
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      openGradesService()
+      open()
     }
   }
 
   return (
     <article
-      className={`${CARD_CLASSES} border-white bg-widget-bg flex flex-col gap-[6px] text-text ${canOpen ? 'cursor-pointer' : ''} ${wide ? '2xl:flex-[0_1_360px]' : ''} ${isReady ? 'widget-card-visible' : ''}`}
-      aria-label={`Dernière note: ${noteDisplay} sur ${noteMax}${grade.description ? ` (${grade.description})` : ''}`}
-      role={canOpen ? 'link' : undefined}
+      className={`${CARD_CLASSES} border-white bg-widget-bg flex flex-col gap-[6px] text-text max-md:gap-1 ${canOpen ? 'cursor-pointer' : ''} ${isReady ? 'widget-card-visible' : ''}`}
+      aria-label={`Dernière note${isNew ? ', nouvelle' : ''} : ${value} sur 20, ${title}${grade.typeLabel ? `, ${grade.typeLabel.toLowerCase()}` : ''}${day ? `, le ${day}` : ''} (${grade.resourceTitle})`}
+      role={canOpen ? (opensInApp ? 'button' : 'link') : undefined}
       tabIndex={canOpen ? 0 : undefined}
-      onClick={canOpen ? openGradesService : undefined}
+      onClick={canOpen ? open : undefined}
       onKeyDown={canOpen ? handleKeyDown : undefined}
     >
-      {canOpen ? (
-        <Icon icon="carbon:arrow-up-right" className="grade-corner-arrow absolute top-[14px] right-[14px] w-[14px] h-[14px] text-text opacity-0 transition-opacity duration-150 ease-in-out shrink-0" aria-hidden="true" />
-      ) : null}
-      <LatestGradeHeader />
-      <div className="flex-1 flex flex-col gap-[5px] justify-end">
-        <LatestGradeValue noteDisplay={noteDisplay} noteMax={noteMax} accentColor={accentColor} />
-        <div className="flex items-end justify-between gap-2 min-w-0 max-xs:flex-col max-xs:items-start max-xs:gap-[3px]">
-          <span ref={titleRef} className="m-0 leading-[1.06] text-[15px] font-semibold min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px] max-xs:max-w-full" title={grade.description}>{grade.description}</span>
-          <span className="m-0 leading-[1.06] text-[12px] font-semibold text-text-muted shrink-0 max-w-[34%] overflow-hidden text-ellipsis whitespace-nowrap text-right max-xs:max-w-full max-xs:text-left" title={grade.resource}>{grade.resource}</span>
-        </div>
-      </div>
+      <LatestGradeCardBody
+        moduleTitle={grade.resourceTitle}
+        moduleCode={grade.resource}
+        day={day}
+        title={title}
+        value={value}
+        icon={icon}
+        wash={wash}
+        typeLabel={grade.typeLabel ?? null}
+        isNew={isNew}
+        heading="Dernière note"
+      />
     </article>
   )
 }
 
-function WidgetLatestGrade({ visible = false }) {
+function WidgetLatestGrade({ visible = false, user = null, onOpenGrade = null }) {
   if (GRADES_FEATURE_DISABLED) {
     return <DisabledWidgetLatestGrade visible={visible} />
   }
 
-  return <LiveWidgetLatestGrade visible={visible} />
+  return <LiveWidgetLatestGrade visible={visible} user={user} onOpenGrade={onOpenGrade} />
 }
 
 export default WidgetLatestGrade

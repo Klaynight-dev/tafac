@@ -1,7 +1,7 @@
 // Université de Rennes — server-side configuration.
 // Never imported by client code: holds origins, auth-flow parameters and the
 // reverse-engineered ADE mobile-app credentials.
-import { id, casOrigin, entOrigin, features, gradesCopy, gradesOrigin, mailWebmailUrl, moodleOrigin, planningServiceUrl, portalEntryPath } from './shared.js'
+import { appIcons, id, casOrigin, entOrigin, features, gradesCopy, gradesOrigin, mailWebmailUrl, moodleOrigin, planningServiceUrl, portalEntryPath } from './shared.js'
 
 export default {
   id,
@@ -88,10 +88,6 @@ export default {
     menuCaption: 'Inscriptions',
   },
 
-  // Look of the automatic application tiles (server/appIcons.js): Phosphor
-  // duotone icons on soft tiles, like the demo university.
-  appIcons: {
-    style: 'phosphor-duotone',
-    colorMode: 'soft',
-  },
+  // Look of the automatic icons: see shared.js.
+  appIcons,
 }

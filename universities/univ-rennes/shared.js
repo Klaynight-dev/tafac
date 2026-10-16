@@ -82,3 +82,14 @@ export const gradesCopy = {
   unavailableDetail: 'ScoDoc ne répond pas pour le moment',
   disabledPillLabel: 'Notes indisponibles',
 }
+
+// Look of the automatic icons (server/appIcons.js): the application tiles,
+// and the subjects of "Mes notes" (src/subjectIcons.js), which is why it
+// lives here, read by both configs.
+//   style: 'carbon' | 'phosphor' | 'phosphor-fill' | 'phosphor-duotone' | 'tabler'
+//   colorMode: 'pastel' | 'soft' | 'vivid' | 'mono'
+//   icons: { mail: 'mdi:email-outline' }   // replaces single concepts (tiles only)
+export const appIcons = {
+  style: 'phosphor-duotone',
+  colorMode: 'soft',
+}

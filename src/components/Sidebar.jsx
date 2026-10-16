@@ -110,9 +110,14 @@ function Sidebar({
   onUpdateClick,
   showChangelogPill = false,
   establishment = null,
+  gradesSupported = true,
+  activePage = 'dashboard',
+  onNavigatePage,
 }) {
   const [activeSection, setActiveSection] = useState('applications')
-  const navItems = buildNavItems(establishment)
+  const navItems = buildNavItems(establishment, { gradesSupported })
+  // On another page (grades…) its own item is the active one.
+  const activeItemId = activePage === 'dashboard' ? activeSection : activePage
 
   const handleNavigate = useCallback((item) => {
     if (typeof document === 'undefined') {
@@ -128,12 +133,21 @@ function Sidebar({
       return
     }
 
-    setActiveSection(item.id)
-    const target = document.getElementById(item.targetId)
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (item.page) {
+      onNavigatePage?.(item.page)
+      return
     }
-  }, [])
+
+    setActiveSection(item.id)
+
+    if (activePage !== 'dashboard') {
+      // Back from another page: the dashboard opens at its top.
+      onNavigatePage?.('dashboard')
+      return
+    }
+
+    document.getElementById(item.targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [activePage, onNavigatePage])
 
   const initials = (userName || '?').trim().charAt(0).toUpperCase()
 
@@ -154,7 +168,7 @@ function Sidebar({
 
           <nav className="flex flex-col w-full" aria-label="Sections">
             {navItems.map((item) => {
-              const isActive = activeSection === item.id
+              const isActive = activeItemId === item.id
               return (
                 <button
                   key={item.id}
@@ -176,6 +190,14 @@ function Sidebar({
                     aria-hidden="true"
                   />
                   <span>{item.label}</span>
+                  {/* No in-app page yet: this one opens the service's own site. */}
+                  {item.href && !item.disabled ? (
+                    <Icon
+                      icon="carbon:arrow-up-right"
+                      className="absolute top-1.5 right-2.5 w-3 h-3 text-text-muted"
+                      aria-label="Ouvre un autre site"
+                    />
+                  ) : null}
                   {item.disabled ? (
                     <span
                       role="tooltip"
