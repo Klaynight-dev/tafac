@@ -1,4 +1,5 @@
 import { openChangelog, useChangelog } from '../changelogStore'
+import { getPillIds } from '../changelogState'
 
 // The only trace of the changelog on the dashboard: a small « Nouveautés »
 // pill with a blue dot, while this device has entries it hasn't seen. In
@@ -6,8 +7,10 @@ import { openChangelog, useChangelog } from '../changelogStore'
 // in the slot of the "Nouvelle version" notice, which goes first. Tapping it
 // opens the list, which marks everything seen and makes the pill go away.
 // `className` styles the wrapper, rendered only along with the pill.
+// A spotlight entry (« Mes notes ») doesn't light it: its own card says it.
 function ChangelogPill({ className = '' }) {
-  const { unseenIds } = useChangelog()
+  const { entries, unseenIds: allUnseenIds } = useChangelog()
+  const unseenIds = getPillIds(entries, allUnseenIds)
 
   if (unseenIds.length === 0) return null
 

@@ -7,6 +7,7 @@ import AppFooter from './components/AppFooter'
 import Sidebar from './components/Sidebar'
 import AccountModal from './components/AccountModal'
 import ChangelogPill from './components/ChangelogPill'
+import { markChangelogEntrySeen, replayChangelogEntry, setChangelogAudience } from './changelogStore'
 import ChangelogSheet from './components/ChangelogSheet'
 import LentButton from './components/LentButton'
 import LoginPage from './components/LoginPage'
@@ -1972,12 +1973,26 @@ function App() {
     [establishment, gradesSupported],
   )
   const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment, { gradesSupported }).length > 0, [establishment, gradesSupported])
+  // « Nouveautés » about « Mes notes » only reach students who have it: a
+  // school with the page and a relevé confirmed BUT (not while unknown, so
+  // the pill doesn't come and go).
+  const hasConfirmedGradesPage = hasGradesPage && gradesFormation === 'BUT'
+  useEffect(() => {
+    setChangelogAudience(hasConfirmedGradesPage ? ['grades-page'] : [])
+  }, [hasConfirmedGradesPage])
   // Falls back to the dashboard if the grades item goes away (establishment
   // without grade widgets, feature switched off, a relevé that isn't BUT).
   const isGradesPage = useMemo(
     () => activePage === 'grades' && getMobileTabItems(establishment, { gradesSupported }).some((item) => item.page === 'grades'),
     [activePage, establishment, gradesSupported],
   )
+  // Being on « Mes notes » is having seen its launch, however the student
+  // got there (tab, card, "Dernière note", app list, a reload on the page):
+  // the dashboard card and the tab's « Nouveau » go. After the audience
+  // effect above, so an entry it brings in while on the page goes too.
+  useEffect(() => {
+    if (isGradesPage && hasConfirmedGradesPage) markChangelogEntrySeen('mes-notes')
+  }, [isGradesPage, hasConfirmedGradesPage])
   // The grades page sits on the plain background, like with the wallpaper off.
   const isWallpaperShown = showWallpaper && !isGradesPage
 
@@ -3056,6 +3071,21 @@ function App() {
                 disabled={!sessionState.authenticated || sessionState.checking}
               >
                 Onboarding : forcer le choix du TP
+              </button>
+              {/* Brings back the « Mes notes » launch as on release day (the
+                  dashboard card and the tab's « Nouveau »), only where it
+                  applies. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-wait"
+                onClick={() => void runDebugAction('Nouveautés : rejouer « Mes notes »', () => (
+                  replayChangelogEntry('mes-notes')
+                    ? { replayed: true }
+                    : { replayed: false, note: 'L’entrée ne s’applique pas ici : pas de page Mes notes, ou relevé non BUT (ou pas encore lu).' }
+                ))}
+                disabled={debugState.loading}
+              >
+                Nouveautés : rejouer « Mes notes »
               </button>
               <button
                 type="button"

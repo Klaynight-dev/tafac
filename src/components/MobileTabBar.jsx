@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon, iconLoaded, loadIcons } from '@iconify/react'
+import { useChangelog } from '../changelogStore'
 import { getMobileTabItems, openNavItemLink } from '../navItems'
 
 // How long the "unavailable" bubble stays above a greyed-out tab.
@@ -32,6 +33,7 @@ function MobileTabBar({ establishment, gradesSupported = true, activePage = 'das
   const iconNames = items.map((item) => item.icon)
   const iconKey = iconNames.join(',')
   const [noticeItem, setNoticeItem] = useState(null)
+  const { unseenIds } = useChangelog()
   // Icons come from the Iconify API on first use: the bar stays hidden until
   // all of them are in, so it never shows blank tabs (and stays hidden if
   // they can't load at all).
@@ -104,13 +106,20 @@ function MobileTabBar({ establishment, gradesSupported = true, activePage = 'das
       <div className={`mobile-tab-bar pointer-events-auto flex items-center gap-1 rounded-full p-1.5 animate-modal-card-in ${items.length >= WIDE_BAR_MIN_TABS ? 'w-full max-w-[420px]' : 'max-w-full'}`}>
         {items.map((item) => {
           const className = `mobile-tab-bar-item flex h-[54px] ${tabSizeClasses} flex-col items-center justify-center gap-[3px] rounded-full border-0 text-text no-underline cursor-pointer transition-[background-color,transform] duration-150 ease-out active:scale-[0.94] ${item.selected ? 'mobile-tab-bar-item--selected' : 'bg-transparent'} ${item.disabled ? 'opacity-45' : ''}`
+          // Just launched (as in the sidebar): a blue dot on the icon, no
+          // room for the word.
+          const isNew = Boolean(item.announcedBy) && unseenIds.includes(item.announcedBy)
           const content = (
             <>
               {/* `ssr`: draw on the first render. The bar only mounts once these icons
                   are loaded, so there's nothing to wait for. */}
-              <Icon icon={item.icon} ssr className="h-[22px] w-[22px]" aria-hidden="true" />
+              <span className="relative flex">
+                <Icon icon={item.icon} ssr className="h-[22px] w-[22px]" aria-hidden="true" />
+                {isNew ? <span className="mobile-tab-bar-new-dot changelog-new-dot nav-new-pulse absolute -right-[3px] -top-[2px] h-[9px] w-[9px] rounded-full" aria-hidden="true" /> : null}
+              </span>
               {/* Font on the label: index.css gives buttons `font: inherit` outside Tailwind's layers. */}
               <span className="font-body text-[11px] font-semibold leading-none whitespace-nowrap">{item.shortLabel ?? item.label}</span>
+              {isNew ? <span className="sr-only">, nouveau</span> : null}
             </>
           )
 

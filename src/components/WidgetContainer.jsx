@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import AvailableApplications from './AvailableApplications'
+import GradesLaunchCard from './GradesLaunchCard'
 import GreetingCard from './GreetingCard'
 import WidgetDeadlines from './WidgetDeadlines'
 import WidgetLatestGrade from './WidgetLatestGrade'
@@ -304,14 +305,19 @@ function WidgetContainer({
       </div>
       </div>
 
-      <div id="sidebar-section-applications">
-        <AvailableApplications
-          establishment={establishment}
-          canUseServerLaunch={canUseServerLaunch}
-          favoritesPortalTarget={favoritesPortalTarget}
-          showDescriptions={showAppDescriptions}
-          onOpenGradesPage={onOpenGradesPage}
-        />
+      <div>
+        {/* « Mes notes » just launched: a compact card under the widgets,
+            out of the band, until it's seen (renders nothing otherwise). */}
+        <GradesLaunchCard onOpen={onOpenGradesPage} />
+        <div id="sidebar-section-applications">
+          <AvailableApplications
+            establishment={establishment}
+            canUseServerLaunch={canUseServerLaunch}
+            favoritesPortalTarget={favoritesPortalTarget}
+            showDescriptions={showAppDescriptions}
+            onOpenGradesPage={onOpenGradesPage}
+          />
+        </div>
       </div>
 
       {isLocationPickerOpen ? (

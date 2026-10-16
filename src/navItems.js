@@ -26,11 +26,13 @@ const MAIL_HREF = universityConfig.features?.mail ? `${ENT_AUTH_PREFIX}/mail/ope
 // "Mes notes" follows the tri-state grades feature: the in-app grades page
 // when live, a greyed-out item with the unavailability notice when
 // 'disabled', nothing otherwise.
+// `announcedBy`: the « Nouveautés » entry that launched the page; the item
+// says « Nouveau » while this device hasn't seen it (changelogStore).
 function buildGradesNavItem() {
   const base = { id: 'grades', label: 'Mes notes', icon: 'carbon:chart-pie' }
 
   if (GRADES_FEATURE_ENABLED) {
-    return { ...base, page: 'grades' }
+    return { ...base, page: 'grades', announcedBy: 'mes-notes' }
   }
 
   if (GRADES_FEATURE_DISABLED) {
