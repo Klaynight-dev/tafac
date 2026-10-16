@@ -26,9 +26,12 @@ export const branding = {
     intro: "est un client alternatif aux services numériques de l'Université de Rennes.",
     disclaimer:
       "Tafac est un projet étudiant indépendant, non officiel et non affilié à l'Université de Rennes. Tes identifiants servent uniquement à te connecter et ne sont jamais stockés.",
-    authorLine: "Fait avec amour par un étudiant de l'IUT de Lannion",
-    authorUrl: 'https://tomthings.fr',
     repoUrl: 'https://github.com/l-ent-univ/tafac',
+    // « Équipe » in À propos: a name and a GitHub login each.
+    team: [
+      { name: 'Tom', login: 'tom-things' },
+      { name: 'Lucas Lavajo', login: 'tryon-dev' },
+    ],
   },
 }
 
