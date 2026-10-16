@@ -18,10 +18,16 @@ export function isFeatureOn(value) {
   return value !== null && typeof value === 'object' && value.enabled !== false
 }
 
-// `university`: { id, features } (universityConfig).
-export function isEntryApplicable(entry, university = {}) {
+// `university`: { id, features } (universityConfig). `audience`: what this
+// student has (e.g. 'grades-page'), for entries about something not every
+// student of the university gets; an entry needs all of its `audience`.
+export function isEntryApplicable(entry, university = {}, audience = []) {
   if (Array.isArray(entry.universities) && entry.universities.length > 0
     && !entry.universities.includes(university.id)) {
+    return false
+  }
+
+  if (Array.isArray(entry.audience) && !entry.audience.every((tag) => audience.includes(tag))) {
     return false
   }
 
@@ -32,12 +38,12 @@ export function isEntryApplicable(entry, university = {}) {
   return true
 }
 
-// The entries this university gets, newest first. Same-day entries keep
-// their order in the file.
-export function getApplicableEntries(entries, university) {
+// The entries this university (and student, `audience`) gets, newest
+// first. Same-day entries keep their order in the file.
+export function getApplicableEntries(entries, university, audience = []) {
   return entries
     .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => isEntryApplicable(entry, university))
+    .filter(({ entry }) => isEntryApplicable(entry, university, audience))
     .sort((left, right) => (
       right.entry.date.localeCompare(left.entry.date) || left.index - right.index
     ))
@@ -86,6 +92,34 @@ export function resolveChangelogVisit({ entries, allEntries = entries, rawSeen }
     unseenIds: entries.filter((entry) => !seen.has(entry.id)).map((entry) => entry.id),
     nextSeen: null,
   }
+}
+
+// Value to store with `id` no longer seen (the debug menu's replay), or
+// null when nothing usable is stored.
+export function forgetSeen({ id, allEntries, rawSeen }) {
+  const seen = parseSeenValue(rawSeen)
+  if (!seen) return null
+  seen.delete(id)
+  return serializeSeen([...seen], allEntries)
+}
+
+// Value to store with `id` seen too (its spotlight card dismissed, its page
+// visited), or null when nothing usable is stored: a device whose storage
+// fails shouldn't start over with only that id.
+export function markEntrySeen({ id, allEntries, rawSeen }) {
+  const seen = parseSeenValue(rawSeen)
+  if (!seen) return null
+  seen.add(id)
+  return serializeSeen([...seen], allEntries)
+}
+
+// The unseen ids the « Nouveautés » pill (and the Réglages dot) is about:
+// all but `spotlight` entries, which get their own card on the dashboard
+// (GradesLaunchCard) instead of a second signal for the same thing. They
+// stay in the list like any other.
+export function getPillIds(entries, unseenIds) {
+  const spotlit = new Set(entries.filter((entry) => entry.spotlight).map((entry) => entry.id))
+  return unseenIds.filter((id) => !spotlit.has(id))
 }
 
 // Value to store once the list was opened: everything shown is seen, and

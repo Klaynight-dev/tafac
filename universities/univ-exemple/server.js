@@ -2,6 +2,7 @@
 // The ADE/planning origins are fake: demo sessions are answered with demo
 // payloads before any upstream call, and real logins fail cleanly.
 import {
+  appIcons,
   id,
   casOrigin,
   entOrigin,
@@ -45,11 +46,6 @@ export default {
 
   grades: gradesCopy,
 
-  // Look of the automatic application tiles (server/appIcons.js). The demo
-  // university shows off a non-default style; example-minimal lists the
-  // options.
-  appIcons: {
-    style: 'phosphor-duotone',
-    colorMode: 'soft',
-  },
+  // Look of the automatic icons: see shared.js.
+  appIcons,
 }

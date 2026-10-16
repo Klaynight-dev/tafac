@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LoadingDots from './LoadingDots'
 
 const STEP_CONFIG = {
   year: {
@@ -30,21 +31,6 @@ const TD_STEP_PALETTE = [
   { background: '#fffcd0', text: '#341200', ring: 'rgba(40, 50, 24, 0.18)' },
 ]
 
-
-function OnboardingLoadingDots({ label = 'Chargement' }) {
-  return (
-    <span
-      className="inline-flex items-center justify-center gap-[6px] text-text-muted"
-      role="status"
-      aria-live="polite"
-      aria-label={label}
-    >
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-    </span>
-  )
-}
 
 function buildTdOrbitText(stepOption, selectedYear, contextLabel) {
   const parts = [
@@ -103,6 +89,25 @@ function getGroupDisplayLabel(step, label) {
   return normalizedLabel
 }
 
+// Short circle labels ("TD B", "TP 2") for a whole step, unless two options
+// would read the same: INFO-COM's "A1 J" / "A2 J" both shorten to "TD J".
+// Then every option keeps its full ADE name so they stay apart.
+function getGroupDisplayLabels(step, options) {
+  const shortLabels = options.map((option) => getGroupDisplayLabel(step, option.label))
+  if (new Set(shortLabels).size === shortLabels.length) {
+    return shortLabels
+  }
+
+  return options.map((option, index) => (typeof option.label === 'string' && option.label.trim()) || shortLabels[index])
+}
+
+// Full ADE names can be longer than "TD B": step the circle text down.
+function getGroupLabelSizeClass(label) {
+  if (label.length > 12) return 'onboarding-td-card__label--xlong'
+  if (label.length > 6) return 'onboarding-td-card__label--long'
+  return ''
+}
+
 
 function OnboardingPage({
   userName,
@@ -157,6 +162,7 @@ function OnboardingPage({
         '--td-card-ring': 'rgb(52 18 0 / 0.18)',
       }
     : null
+  const groupDisplayLabels = getGroupDisplayLabels(currentStep, stepOptions)
   const groupOptionButtons = stepOptions.map((stepOption, index) => {
     const isDetected = detectedResourceId != null && String(detectedResourceId) === stepOption.resourceId
     const tdPalette = TD_STEP_PALETTE[index % TD_STEP_PALETTE.length]
@@ -206,7 +212,7 @@ function OnboardingPage({
               </span>
             ) : null}
 
-            <span className="onboarding-td-card__label">{getGroupDisplayLabel(currentStep, stepOption.label)}</span>
+            <span className={`onboarding-td-card__label ${getGroupLabelSizeClass(groupDisplayLabels[index])}`}>{groupDisplayLabels[index]}</span>
           </>
         ) : (
           <>
@@ -392,7 +398,7 @@ function OnboardingPage({
               <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isLoading ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                 <div className="overflow-hidden">
                   <div className="flex w-full items-center justify-center py-6">
-                    <OnboardingLoadingDots label={loadingMessage || 'Chargement'} />
+                    <LoadingDots label={loadingMessage || 'Chargement'} className="text-text-muted" />
                   </div>
                 </div>
               </div>
@@ -418,14 +424,14 @@ function OnboardingPage({
           </div>
         ) : errorMessage ? null : isTpStep && isLoading ? (
           <div className="flex w-full max-w-[720px] items-center justify-center py-6">
-            <OnboardingLoadingDots label={loadingMessage || 'Chargement'} />
+            <LoadingDots label={loadingMessage || 'Chargement'} className="text-text-muted" />
           </div>
         ) : (
           <div className={`rounded-[22px] border border-[color:var(--color-border)] bg-widget-bg p-5 ${isGroupCircleStep ? 'w-full max-w-[720px] text-center' : ''}`}>
             <p className="m-0 text-base font-semibold text-text">{emptyStateTitle || "Aucun choix n'a encore été trouvé pour cette étape"}</p>
             <div className="mt-3 min-h-[20px]">
               {isLoading ? (
-                <OnboardingLoadingDots label={loadingMessage || 'Chargement'} />
+                <LoadingDots label={loadingMessage || 'Chargement'} className="text-text-muted" />
               ) : emptyStateBody ? (
                 <div className="flex flex-col items-center gap-4">
                   <p className="m-0 text-sm text-text-muted font-body">{emptyStateBody}</p>

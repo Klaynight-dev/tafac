@@ -1,6 +1,6 @@
 import universityConfig from '@university'
 import { track } from './analytics'
-import { ENT_AUTH_PREFIX, GRADES_LAUNCH_HREF } from './entApi'
+import { ENT_AUTH_PREFIX } from './entApi'
 import {
   GRADES_FEATURE_DISABLED,
   GRADES_FEATURE_ENABLED,
@@ -23,16 +23,16 @@ const MOODLE_HREF = universityConfig.features?.moodle && MOODLE_ORIGIN
 // already signed in (or falls back to its launch URL).
 const MAIL_HREF = universityConfig.features?.mail ? `${ENT_AUTH_PREFIX}/mail/open` : null
 
-// "Mes notes" follows the tri-state grades feature: a link to the grade
-// service when live, a greyed-out item with the unavailability notice when
+// "Mes notes" follows the tri-state grades feature: the in-app grades page
+// when live, a greyed-out item with the unavailability notice when
 // 'disabled', nothing otherwise.
+// `announcedBy`: the « Nouveautés » entry that launched the page; the item
+// says « Nouveau » while this device hasn't seen it (changelogStore).
 function buildGradesNavItem() {
   const base = { id: 'grades', label: 'Mes notes', icon: 'carbon:chart-pie' }
 
   if (GRADES_FEATURE_ENABLED) {
-    return GRADES_LAUNCH_HREF
-      ? { ...base, href: GRADES_LAUNCH_HREF, target: '_blank' }
-      : { ...base, targetId: 'sidebar-section-grades' }
+    return { ...base, page: 'grades', announcedBy: 'mes-notes' }
   }
 
   if (GRADES_FEATURE_DISABLED) {
@@ -47,9 +47,11 @@ function buildGradesNavItem() {
   return null
 }
 
-export function buildNavItems(establishment) {
+// `gradesSupported: false`: a student whose relevé Tafac can't read (not a
+// BUT): no "Mes notes".
+export function buildNavItems(establishment, { gradesSupported = true } = {}) {
   // Grades nav only for establishments whose config enables grade widgets.
-  const gradesNavItem = universityConfig.establishments?.byId?.[establishment]?.gradeWidgets
+  const gradesNavItem = gradesSupported && universityConfig.establishments?.byId?.[establishment]?.gradeWidgets
     ? buildGradesNavItem()
     : null
 
@@ -94,6 +96,6 @@ export function openNavItemLink(item, source) {
 
 // The shortcuts the mobile tab bar carries (every nav item but "Toutes les
 // applications", which is the dashboard itself). Empty means no tab bar.
-export function getMobileTabItems(establishment) {
-  return buildNavItems(establishment).filter((item) => item.id !== 'applications')
+export function getMobileTabItems(establishment, options) {
+  return buildNavItems(establishment, options).filter((item) => item.id !== 'applications')
 }

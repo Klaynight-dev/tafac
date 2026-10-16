@@ -43,11 +43,13 @@ import { SchoolCertificateUnavailableError, buildDemoCertificatePdf, openCertifi
 import { createPlanningRpcClient } from '../planningRpc.js'
 import {
   DEMO_ACCOUNT,
+  DEMO_GRADES_DEPARTMENT_MESSAGE,
   DEMO_SESSION_MODE,
   applyDemoLayoutMutation,
   buildDemoAdeTreePayload,
   buildDemoAlertsPayload,
   buildDemoCalendarPayload,
+  buildDemoEvaluationDistribution,
   buildDemoGradesPayload,
   buildDemoLayoutData,
   buildDemoLayoutDocData,
@@ -56,6 +58,7 @@ import {
   buildDemoMoodleDeadlinesPayload,
   buildDemoPlanningPayload,
   buildDemoPortletFragment,
+  buildDemoSemesterGradesPayload,
   buildDemoPortletMetadata,
   buildDemoTimetablePayload,
   buildDemoUpcomingPayload,
@@ -64,6 +67,7 @@ import {
   normalizeDemoState,
   searchDemoAdeTree,
 } from '../src/demoAccount.js'
+import { findReleveEvaluation, normalizeDistributionAnswer } from '../src/evaluationDistribution.js'
 // options.analytics: { projectKey, host } — defaults to POSTHOG_PROJECT_KEY /
 // POSTHOG_HOST from the environment (analytics are off without a key).
 // options.session: { secret, previousSecrets, production } — defaults to
@@ -217,6 +221,12 @@ const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP = 10
 const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_USERNAME = 5
 const runtimeSessions = new Map()
 const runtimeGradesCache = new Map()
+// sessionId → Map(semesterId → { cachedAt, data }): relevés of the other
+// semesters, opened from the "Mes notes" page.
+const runtimeGradesSemesterCache = new Map()
+// sessionId → Map(`semesterId:evaluationId` → { cachedAt, data }): promo
+// grade histograms (counts only, no individual grade).
+const runtimeGradesDistributionCache = new Map()
 // sessionId → { cachedAt, data }: short-lived inbox snapshot.
 const runtimeMailCache = new Map()
 // sessionId → { createdAt, jar, origin, csrfToken }: webmail login context.
@@ -602,6 +612,8 @@ function buildDemoRequestPayload(requestPath, session) {
 function dropRuntimeSession(sessionId) {
   runtimeSessions.delete(sessionId)
   runtimeGradesCache.delete(sessionId)
+  runtimeGradesSemesterCache.delete(sessionId)
+  runtimeGradesDistributionCache.delete(sessionId)
   runtimeMailCache.delete(sessionId)
   runtimeMailContexts.delete(sessionId)
   runtimeMoodleDeadlinesCache.delete(sessionId)
@@ -659,6 +671,56 @@ function clearCachedGrades(sessionId) {
   }
 
   runtimeGradesCache.delete(sessionId)
+  runtimeGradesSemesterCache.delete(sessionId)
+  runtimeGradesDistributionCache.delete(sessionId)
+}
+
+function getCachedSemesterGrades(sessionId, semesterId) {
+  const entry = runtimeGradesSemesterCache.get(sessionId)?.get(semesterId)
+  if (!entry || Date.now() - entry.cachedAt > GRADES_CACHE_TTL_MS) {
+    return null
+  }
+
+  return entry.data
+}
+
+function setCachedSemesterGrades(sessionId, semesterId, data) {
+  if (!sessionId) {
+    return
+  }
+
+  const now = Date.now()
+  const semesters = runtimeGradesSemesterCache.get(sessionId) ?? new Map()
+  for (const [id, entry] of semesters.entries()) {
+    if (now - entry.cachedAt > GRADES_CACHE_TTL_MS) {
+      semesters.delete(id)
+    }
+  }
+
+  semesters.set(semesterId, { cachedAt: now, data })
+  runtimeGradesSemesterCache.set(sessionId, semesters)
+}
+
+function getCachedDistribution(sessionId, key) {
+  const entry = runtimeGradesDistributionCache.get(sessionId)?.get(key)
+  return entry && Date.now() - entry.cachedAt <= GRADES_CACHE_TTL_MS ? entry.data : null
+}
+
+function setCachedDistribution(sessionId, key, data) {
+  if (!sessionId) {
+    return
+  }
+
+  const now = Date.now()
+  const distributions = runtimeGradesDistributionCache.get(sessionId) ?? new Map()
+  for (const [id, entry] of distributions.entries()) {
+    if (now - entry.cachedAt > GRADES_CACHE_TTL_MS) {
+      distributions.delete(id)
+    }
+  }
+
+  distributions.set(key, { cachedAt: now, data })
+  runtimeGradesDistributionCache.set(sessionId, distributions)
 }
 
 function getCachedMail(sessionId) {
@@ -1070,6 +1132,8 @@ function ensureGradesSession(jar) {
   return promise
 }
 
+const GRADES_FIRST_CONNECTION_QUERY = encodeURIComponent('dataPremièreConnexion')
+
 // data.php answers { redirect: … } (HTTP 200) when the ScoDoc session isn't
 // signed in; only payloads with a relevé or semester list are real grades.
 function isValidGradesPayload(payload) {
@@ -1079,8 +1143,9 @@ function isValidGradesPayload(payload) {
     && (Boolean(payload['relevé']) || Array.isArray(payload.semestres))
 }
 
-async function requestGradesData(jar) {
-  const dataUrl = `${GRADES_ORIGIN}/services/data.php?q=dataPremi%C3%A8reConnexion`
+// `query` is data.php's raw `q` value, already URL-encoded.
+async function requestGradesData(jar, query = GRADES_FIRST_CONNECTION_QUERY) {
+  const dataUrl = `${GRADES_ORIGIN}/services/data.php?q=${query}`
   const dataResponse = await fetchWithJar(dataUrl, jar, {
     headers: {
       Accept: 'application/json, */*',
@@ -1099,15 +1164,15 @@ async function requestGradesData(jar) {
 
 // Signs in to ScoDoc and reads the grades, retrying once with a fresh sign-in
 // when ScoDoc says the session isn't authenticated.
-async function fetchGradesData(jar) {
+async function fetchGradesData(jar, query = GRADES_FIRST_CONNECTION_QUERY, isValid = isValidGradesPayload) {
   let lastStatus = null
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await ensureGradesSession(jar)
-    const { ok, status, payload } = await requestGradesData(jar)
+    const { ok, status, payload } = await requestGradesData(jar, query)
     lastStatus = status
 
-    if (ok && isValidGradesPayload(payload)) {
+    if (ok && isValid(payload)) {
       return payload
     }
 
@@ -2566,6 +2631,278 @@ app.get('/__ent_auth/grades', async (req, res) => {
       sessionMode: session.mode ?? null,
       grades: gradesData,
     })
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// ScoDoc formsemestre ids are plain integers.
+function parseGradesSemesterId(value) {
+  const id = String(value ?? '').trim()
+  return /^\d{1,10}$/.test(id) ? id : null
+}
+
+function isGradesReportPayload(payload) {
+  return Boolean(payload) && typeof payload === 'object' && !payload.redirect && Boolean(payload['relevé'])
+}
+
+async function getFirstConnectionGrades(session) {
+  const cached = getCachedGrades(session.id)
+  if (cached) {
+    return cached
+  }
+
+  const gradesData = await fetchGradesDataOnce(session)
+  setCachedGrades(session.id, gradesData)
+  return gradesData
+}
+
+// 6b. Relevé of one semester ("Mes notes" page semester picker). Same answer
+// shape as /grades: { relevé, absences, totauxAbsences? }.
+app.get('/__ent_auth/grades/semester/:semesterId', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, grades: null })
+    }
+
+    const semesterId = parseGradesSemesterId(req.params.semesterId)
+    if (!semesterId) {
+      return res.status(400).json({ error: 'Invalid semester id.' })
+    }
+
+    if (isDemoSession(session)) {
+      const gradesData = buildDemoSemesterGradesPayload(semesterId)
+      setSessionCookie(res, session)
+      return gradesData
+        ? res.status(200).json({ authenticated: true, sessionMode: DEMO_SESSION_MODE, grades: gradesData })
+        : res.status(404).json({ error: 'Unknown semester.' })
+    }
+
+    let gradesData = getCachedSemesterGrades(session.id, semesterId)
+    if (!gradesData) {
+      gradesData = await fetchGradesData(
+        session.jar,
+        `${encodeURIComponent('relevéEtudiant')}&semestre=${semesterId}`,
+        isGradesReportPayload,
+      )
+      setCachedSemesterGrades(session.id, semesterId, gradesData)
+    }
+
+    setSessionCookie(res, session)
+    res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      grades: gradesData,
+    })
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6c. Department notice shown above the relevé (HTML authored in ScoDoc's
+// passerelle; the client renders it as plain text).
+app.get('/__ent_auth/grades/department-message', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, message: null })
+    }
+
+    const department = String(req.query.dep ?? '').trim()
+    if (!/^[A-Za-z0-9_.-]{1,40}$/.test(department)) {
+      return res.status(400).json({ error: 'Invalid department.' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({ authenticated: true, message: DEMO_GRADES_DEPARTMENT_MESSAGE })
+    }
+
+    const payload = await fetchGradesData(
+      session.jar,
+      `getReportPageMessage&dep=${encodeURIComponent(department)}`,
+      (data) => Boolean(data) && typeof data === 'object' && !data.redirect,
+    )
+
+    setSessionCookie(res, session)
+    res.status(200).json({
+      authenticated: true,
+      message: typeof payload.message === 'string' && payload.message.trim() ? payload.message : null,
+    })
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// The relevé of `semesterId` ('current': the newest one, from the
+// first-connection answer), from the caches when possible.
+async function getSemesterReleve(session, semesterId) {
+  if (semesterId === 'current') {
+    return (await getFirstConnectionGrades(session))?.['relevé'] ?? null
+  }
+
+  const firstConnection = getCachedGrades(session.id)?.['relevé']
+  if (firstConnection && String(firstConnection.formsemestre_id) === semesterId) {
+    return firstConnection
+  }
+
+  let gradesData = getCachedSemesterGrades(session.id, semesterId)
+  if (!gradesData) {
+    gradesData = await fetchGradesData(
+      session.jar,
+      `${encodeURIComponent('relevéEtudiant')}&semestre=${semesterId}`,
+      isGradesReportPayload,
+    )
+    setCachedSemesterGrades(session.id, semesterId, gradesData)
+  }
+  return gradesData['relevé'] ?? null
+}
+
+// 6d. Promo histogram of one evaluation, what the passerelle shows when a
+// grade is clicked (data.php?q=listeNotes&eval=…, normalized by
+// src/evaluationDistribution.js). Answers { status: 'ok', counts[21], total, bins }
+// or { status: 'unavailable', reason: 'disabled' | 'too-few' | 'hidden' }.
+// listeNotes takes any evaluation id of the ScoDoc instance: only those of
+// the student's own relevé are relayed.
+app.get('/__ent_auth/grades/evaluation-distribution', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, status: 'unavailable', reason: 'signed-out' })
+    }
+
+    const semesterId = req.query.semestre === 'current' ? 'current' : parseGradesSemesterId(req.query.semestre)
+    const evaluationId = parseGradesSemesterId(req.query.eval)
+    if (!semesterId || !evaluationId) {
+      return res.status(400).json({ error: 'Invalid semester or evaluation id.' })
+    }
+
+    if (isDemoSession(session)) {
+      const distribution = buildDemoEvaluationDistribution(semesterId, evaluationId)
+      setSessionCookie(res, session)
+      return distribution
+        ? res.status(200).json({ authenticated: true, ...distribution })
+        : res.status(404).json({ error: 'Unknown evaluation.' })
+    }
+
+    const cacheKey = `${semesterId}:${evaluationId}`
+    let distribution = getCachedDistribution(session.id, cacheKey)
+
+    if (!distribution) {
+      const releve = await getSemesterReleve(session, semesterId)
+      if (!findReleveEvaluation(releve, evaluationId)) {
+        return res.status(404).json({ error: 'Unknown evaluation.' })
+      }
+
+      if (getCachedGrades(session.id)?.config?.histogramme === false) {
+        // The passerelle's own switch, sent with the first-connection answer.
+        distribution = { status: 'unavailable', reason: 'disabled' }
+      } else if (!('publie' in releve) || releve.publie === false) {
+        // Unpublished relevé, or a department that hides its grades (the
+        // passerelle then strips the relevé down to its modules).
+        distribution = { status: 'unavailable', reason: 'hidden' }
+      } else {
+        distribution = normalizeDistributionAnswer(await fetchGradesData(
+          session.jar,
+          `listeNotes&eval=${evaluationId}`,
+          (data) => Array.isArray(data) || typeof data?.erreur === 'string',
+        ))
+        if (!distribution) {
+          throw new Error('ScoDoc returned an invalid grade distribution.')
+        }
+      }
+
+      setCachedDistribution(session.id, cacheKey, distribution)
+    }
+
+    setSessionCookie(res, session)
+    res.status(200).json({ authenticated: true, ...distribution })
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+function isPdfBuffer(buffer) {
+  return buffer.length > 4 && buffer.subarray(0, 4).toString('latin1') === '%PDF'
+}
+
+// 6e. Official-looking PDF relevé, generated by the passerelle. The student id
+// always comes from the signed-in ScoDoc session, never from the request.
+app.get('/__ent_auth/grades/report.pdf', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'private, no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ error: 'Not signed in.' })
+    }
+
+    const semesterId = parseGradesSemesterId(req.query.semestre)
+    if (!semesterId) {
+      return res.status(400).json({ error: 'Invalid semester id.' })
+    }
+
+    if (isDemoSession(session)) {
+      return res.status(404).json({ error: 'Pas de PDF en mode démo.' })
+    }
+
+    const firstConnection = await getFirstConnectionGrades(session)
+    const studentId = String(firstConnection?.auth?.session ?? '').trim()
+    if (!/^[A-Za-z0-9._@-]{1,64}$/.test(studentId)) {
+      throw new Error('ScoDoc student id unavailable.')
+    }
+
+    const reportType = req.query.type === 'DUT' ? 'DUT' : 'BUT'
+    const pdfUrl = `${GRADES_ORIGIN}/services/bulletin_PDF.php?type=${reportType}&sem_id=${semesterId}&etudiant=${encodeURIComponent(studentId)}`
+    let pdf = null
+
+    // The ScoDoc session from the grades fetch is usually still alive; sign in
+    // again only when it isn't.
+    for (let attempt = 0; attempt < 2 && !pdf; attempt += 1) {
+      if (attempt > 0) {
+        await ensureGradesSession(session.jar)
+      }
+
+      const response = await fetchWithJar(pdfUrl, session.jar, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/pdf, */*',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Referer: `${GRADES_ORIGIN}/`,
+        },
+        body: '',
+        redirect: 'follow',
+      })
+      const buffer = Buffer.from(await response.arrayBuffer())
+
+      if (response.ok && isPdfBuffer(buffer)) {
+        pdf = buffer
+      }
+    }
+
+    if (!pdf) {
+      return res.status(502).json({ error: 'ScoDoc did not return a PDF.' })
+    }
+
+    setSessionCookie(res, session)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="releve-${semesterId}.pdf"`)
+    res.status(200).send(pdf)
   } catch (error) {
     res.status(500).json({
       error: error instanceof Error ? error.message : String(error),

@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { openChangelog, useChangelog } from '../changelogStore'
+import { getPillIds } from '../changelogState'
 import { downloadSchoolCertificate, getCachedSchoolCertificateStatus, getSchoolCertificateStatus } from '../entApi'
-import { AboutContent } from './AboutModal'
+import { AboutContent, AboutTeam } from './AboutModal'
+import SettingsGroup, { RowText } from './SettingsGroup'
+import { CARD_CLASSES, MUTED_FILL_CLASSES, PRESSABLE_ROW_CLASSES, ROW_CLASSES } from '../settingsStyles'
 import { PrivacyContent } from './PrivacyModal'
+import Dropdown from './Dropdown'
+import LoadingDots from './LoadingDots'
 
 function buildSelectOptions(options, selectedOption) {
   const normalizedOptions = Array.isArray(options) ? [...options] : []
@@ -26,11 +31,7 @@ function AccountModalLoadingDots({ label }) {
       aria-live="polite"
       aria-label={label}
     >
-      <span className="inline-flex items-center justify-center gap-[6px] text-current" aria-hidden="true">
-        <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-        <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-        <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-      </span>
+      <LoadingDots label={null} />
       <span className="font-body">{label}</span>
     </div>
   )
@@ -235,9 +236,6 @@ function StepSlider({ options, value, onChange, ariaLabel, disabled = false }) {
   )
 }
 
-const CARD_CLASSES = 'overflow-hidden rounded-[20px] border border-white bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[var(--color-border)] dark:bg-[var(--color-bg-surface)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]'
-const ROW_CLASSES = 'flex min-h-[54px] items-center justify-between gap-3 px-4 py-[11px]'
-const MUTED_FILL_CLASSES = 'bg-[#f3f1eb] dark:bg-[var(--color-bg-muted)]'
 const SETTING_BUTTON_CLASSES = `inline-flex h-9 items-center justify-center gap-[6px] rounded-full border-0 ${MUTED_FILL_CLASSES} px-3 font-body text-[14px] font-medium text-[var(--color-text)] transition-colors duration-[120ms] ease-in-out hover:bg-[#edebe5] cursor-pointer disabled:cursor-wait disabled:opacity-60 dark:hover:bg-[var(--color-bg-subtle)]`
 
 function Switch({ checked, onChange }) {
@@ -257,24 +255,6 @@ function Switch({ checked, onChange }) {
   )
 }
 
-function RowText({ icon, label, description }) {
-  return (
-    <span className="flex min-w-0 items-center gap-[10px]">
-      {icon ? (
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${MUTED_FILL_CLASSES}`} aria-hidden="true">
-          <Icon icon={icon} className="h-[17px] w-[17px] text-[var(--color-text)]" />
-        </span>
-      ) : null}
-      <span className="flex min-w-0 flex-col gap-[3px]">
-        <span className="font-body text-[16px] font-medium leading-[1.2] tracking-[-0.3125px] text-[var(--color-text)]">{label}</span>
-        {description ? (
-          <span className="font-body text-[13px] font-medium leading-[1.35] text-text-60">{description}</span>
-        ) : null}
-      </span>
-    </span>
-  )
-}
-
 // A row whose whole surface toggles the switch.
 function SwitchRow({ icon, label, description, checked, onChange }) {
   return (
@@ -285,44 +265,25 @@ function SwitchRow({ icon, label, description, checked, onChange }) {
   )
 }
 
-// Titled white card; its rows are split by hairlines.
-function SettingsGroup({ title, footer, children }) {
-  return (
-    <div className="flex flex-col gap-[7px]">
-      {title ? (
-        <h4 className="m-0 px-1 font-body text-[13px] font-semibold leading-none text-text-60">{title}</h4>
-      ) : null}
-      <div className={`${CARD_CLASSES} divide-y divide-[var(--color-border)]`}>
-        {children}
-      </div>
-      {footer ? (
-        <p className="m-0 px-1 font-body text-[13px] font-medium leading-[1.4] text-text-50">{footer}</p>
-      ) : null}
-    </div>
-  )
-}
-
+// A setting row with the app's dropdown on the right (the menu opens under
+// the pill, aligned on its right edge).
 function PlanningSelect({ label, value, options, placeholder, disabled, onChange }) {
   return (
-    <label className={ROW_CLASSES}>
+    <div className={ROW_CLASSES}>
       <span className="font-body text-[16px] font-medium leading-[1.2] tracking-[-0.3125px] text-[var(--color-text)]">{label}</span>
-      <span className="relative min-w-0 w-[min(220px,58%)]">
-        <select
-          className={`h-9 w-full appearance-none truncate rounded-full border-0 ${MUTED_FILL_CLASSES} pl-[13px] pr-9 font-body text-[15px] font-medium text-[var(--color-text)] outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-brand/45 disabled:cursor-wait disabled:opacity-60`}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
-        >
-          <option value="" disabled>{placeholder}</option>
-          {options.map((option) => (
-            <option key={option.resourceId} value={option.resourceId}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <Icon icon="carbon:chevron-down" className="pointer-events-none absolute right-[11px] top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text)]" aria-hidden="true" />
-      </span>
-    </label>
+      <Dropdown
+        label={label}
+        options={options.map((option) => ({ value: option.resourceId, label: option.label }))}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={onChange}
+        align="end"
+        className="w-[min(220px,58%)]"
+        triggerClassName={`flex h-9 w-full items-center justify-between gap-2 rounded-full border-0 ${MUTED_FILL_CLASSES} pl-[13px] pr-[11px] font-body text-[15px] font-medium text-[var(--color-text)] outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-brand/45 disabled:cursor-wait disabled:opacity-60`}
+        chevronClassName="h-4 w-4 text-[var(--color-text)]"
+      />
+    </div>
   )
 }
 
@@ -407,7 +368,9 @@ function SchoolCertificateGroup() {
             label="Certificat de scolarité"
             description={busy ? 'Téléchargement…' : status.schoolYear ? `Année ${status.schoolYear} · PDF` : 'PDF'}
           />
-          <Icon icon={busy ? 'carbon:renew' : 'carbon:download'} className={`h-4 w-4 shrink-0 text-text-60 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {busy
+            ? <LoadingDots label={null} className="w-4 shrink-0 text-text-60" />
+            : <Icon icon="carbon:download" className="h-4 w-4 shrink-0 text-text-60" aria-hidden="true" />}
         </button>
       </SettingsGroup>
       {error ? (
@@ -418,9 +381,10 @@ function SchoolCertificateGroup() {
 }
 
 // « Nouveautés » (À propos): the whole changelog, pill or not. The list
-// opens above Réglages and closes back to it.
+// opens above Réglages and closes back to it. Its dot follows the pill's.
 function ChangelogGroup() {
-  const { entries, unseenIds } = useChangelog()
+  const { entries, unseenIds: allUnseenIds } = useChangelog()
+  const unseenIds = getPillIds(entries, allUnseenIds)
 
   if (entries.length === 0) {
     return null
@@ -430,7 +394,7 @@ function ChangelogGroup() {
     <SettingsGroup>
       <button
         type="button"
-        className={`${ROW_CLASSES} w-full border-0 bg-transparent text-left cursor-pointer transition-colors duration-[120ms] hover:bg-[#f8f7f3] dark:hover:bg-[var(--color-bg-subtle)]`}
+        className={PRESSABLE_ROW_CLASSES}
         onClick={openChangelog}
       >
         <RowText icon="ph:sparkle" label="Nouveautés" description="Ce qui a changé récemment" />
@@ -599,7 +563,8 @@ function AccountModal({
     }
 
     function handleKeyDown(event) {
-      if (event.key === 'Escape') {
+      // An open dropdown takes its own Escape (and marks it handled).
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose()
       }
     }
@@ -723,7 +688,7 @@ function AccountModal({
 
             {typeof onManageAccount === 'function' ? (
               <SettingsGroup>
-                <button type="button" className={`${ROW_CLASSES} w-full border-0 bg-transparent text-left cursor-pointer transition-colors duration-[120ms] hover:bg-[#f8f7f3] dark:hover:bg-[var(--color-bg-subtle)]`} onClick={onManageAccount}>
+                <button type="button" className={PRESSABLE_ROW_CLASSES} onClick={onManageAccount}>
                   <RowText icon="carbon:password" label="Gérer mon compte sur Sésame" />
                   <Icon icon="carbon:launch" className="h-4 w-4 shrink-0 text-text-60" aria-hidden="true" />
                 </button>
@@ -865,6 +830,7 @@ function AccountModal({
             <div className={`${CARD_CLASSES} p-[18px]`}>
               <AboutContent onPrivacyClick={hasPrivacy ? () => selectSection('privacy') : null} />
             </div>
+            <AboutTeam />
           </>
         )
 
@@ -943,7 +909,7 @@ function AccountModal({
             id="settings-panel"
             role="tabpanel"
             aria-labelledby={`settings-tab-${activeSection.id}`}
-            className="account-modal-layout-panel account-modal-layout-panel--compact flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto pb-[21px] pl-[8px] pr-[21px] max-sm:px-[14px] max-sm:pt-1"
+            className="account-modal-layout-panel account-modal-layout-panel--compact flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto overscroll-contain pb-[21px] [&>*]:shrink-0 pl-[8px] pr-[21px] max-sm:px-[14px] max-sm:pt-1"
           >
             <h3 className="m-0 font-body text-[19px] font-semibold leading-[1.2] tracking-[-0.3125px] max-sm:hidden">
               {activeSection.label}

@@ -85,6 +85,14 @@ test('required and cross-property rules', () => {
     sanitizeAnalyticsEvent({ event: 'app_opened', properties: { app: 'moodle-ur', source: 'grid' } }, opts)?.properties,
     { app: 'moodle-ur', source: 'grid' },
   )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'app_opened', properties: { app: 'lent-iutlan-notes9', source: 'favorites', in_app: true } }, opts)?.properties,
+    { app: 'lent-iutlan-notes9', source: 'favorites', in_app: true },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'app_opened', properties: { app: 'moodle-ur', source: 'grid', in_app: 'yes' } }, opts)?.properties,
+    { app: 'moodle-ur', source: 'grid' },
+  )
   assert.equal(sanitizeAnalyticsEvent({ event: 'setting_changed', properties: { setting: 'analytics', value: 'off' } }, opts), null)
   assert.equal(sanitizeAnalyticsEvent({ event: 'setting_changed', properties: { setting: 'widget_visibility', value: 'off' } }, opts), null)
   assert.deepEqual(

@@ -7,6 +7,7 @@ import AppFooter from './components/AppFooter'
 import Sidebar from './components/Sidebar'
 import AccountModal from './components/AccountModal'
 import ChangelogPill from './components/ChangelogPill'
+import { markChangelogEntrySeen, replayChangelogEntry, setChangelogAudience } from './changelogStore'
 import ChangelogSheet from './components/ChangelogSheet'
 import LentButton from './components/LentButton'
 import LoginPage from './components/LoginPage'
@@ -41,11 +42,15 @@ import {
   persistTpSelection,
 } from './profileStorage'
 import WidgetContainer from './components/WidgetContainer'
+import GradesPage from './components/GradesPage'
+import LoadingDots from './components/LoadingDots'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
 import { getMobileTabItems } from './navItems'
 import { getAvailableWidgets } from './dashboardWidgets'
+import { readHistoryNav, writeHistoryNav } from './appHistory'
+import useGradesFormation from './useGradesFormation'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
   flushAnalytics,
@@ -911,6 +916,113 @@ function buildStoredTpSelection(program, year, td, tp, contextLabel) {
   }
 }
 
+// Some ADE accounts are attached to the TD node instead of the TP leaf (BUT
+// INFO-COM Lannion: "A1 J" holds "1A1 J" and "1A2 J"), and ADE only returns
+// events on those TP leaves. Pick the TP among the TD children with the ScoDoc
+// group, as the manual onboarding does for accounts without an ADE default.
+// When none matches, the TD's TPs come back as `tpChoice` and the onboarding
+// asks for the TP (year and TD already picked) rather than saving a TD-only
+// selection with an empty timetable. `forceChoice` (debug panel) asks even
+// when the TP is known.
+async function resolveDefaultSelectionTp(adeDefaultSelection, { tdAliases = [], tpAliases = [], forceChoice = false } = {}) {
+  const defaultSelection = await correctDefaultSelectionWithScodoc(adeDefaultSelection, tdAliases, tpAliases)
+  const keepDefault = { selection: defaultSelection }
+  if (!defaultSelection?.tdResourceId || (defaultSelection.tpResourceId && !forceChoice)) {
+    return keepDefault
+  }
+
+  try {
+    const tdTreeResponse = await getAdeTree(defaultSelection.tdResourceId)
+    const tpOptions = buildNextTpStepFromTree(tdTreeResponse?.tree).options
+    // No TP under it: the TD is the leaf, ADE has its events.
+    if (tpOptions.length === 0) {
+      return keepDefault
+    }
+
+    const tp = tpAliases?.length ? findTpOptionByLabel(tpOptions, tpAliases) : null
+    if (tp && !forceChoice) {
+      return {
+        selection: buildStoredTpSelection(
+          buildStoredSelectionOption(defaultSelection.programResourceId, defaultSelection.programLabel),
+          buildStoredSelectionOption(defaultSelection.yearResourceId, defaultSelection.yearLabel),
+          buildStoredSelectionOption(defaultSelection.tdResourceId, defaultSelection.tdLabel),
+          tp,
+          defaultSelection.contextLabel,
+        ),
+      }
+    }
+
+    const detectedTp = tp ?? tpOptions.find((option) => String(option.resourceId) === String(defaultSelection.tpResourceId)) ?? null
+    return { tpChoice: { baseSelection: defaultSelection, tpOptions, detectedTp } }
+  } catch {
+    // The ADE default stays usable without the TP; it can be picked in settings.
+    return keepDefault
+  }
+}
+
+// ADE's default can name the wrong group: Rennes ADE puts a 2A2 MMI student
+// on "2B2-StratUX MMI" while ScoDoc says TD 2A, TP 2A2. When ScoDoc names a TP
+// the default doesn't match, ScoDoc wins if its TD exists under the default's
+// year and its TP under that TD; otherwise ADE's default stays.
+async function correctDefaultSelectionWithScodoc(defaultSelection, tdAliases, tpAliases) {
+  const isDefaultTpScodocs = tpAliases.some((alias) => selectionLabelsMatch(defaultSelection?.tpLabel, alias))
+  if (!defaultSelection?.yearResourceId || !defaultSelection.tpResourceId || !tpAliases.length || !tdAliases.length || isDefaultTpScodocs) {
+    return defaultSelection
+  }
+
+  try {
+    const yearTreeResponse = await getAdeTree(defaultSelection.yearResourceId)
+    const td = findTpOptionByLabel(buildNextTpStepFromTree(yearTreeResponse?.tree).options, tdAliases)
+    if (!td?.resourceId) {
+      return defaultSelection
+    }
+
+    const tdTreeResponse = await getAdeTree(td.resourceId)
+    const tp = findTpOptionByLabel(buildNextTpStepFromTree(tdTreeResponse?.tree).options, tpAliases)
+    if (!tp?.resourceId) {
+      return defaultSelection
+    }
+
+    return buildStoredTpSelection(
+      buildStoredSelectionOption(defaultSelection.programResourceId, defaultSelection.programLabel),
+      buildStoredSelectionOption(defaultSelection.yearResourceId, defaultSelection.yearLabel),
+      td,
+      tp,
+      defaultSelection.contextLabel,
+    )
+  } catch {
+    return defaultSelection
+  }
+}
+
+// The onboarding at its TP step, with ADE's default year and TD already
+// picked. The year and TD lists are loaded too, so "back" works as usual.
+async function buildTpChoiceOnboardingState(treePayload, defaultSelection, { tpOptions, detectedTp }) {
+  let state = buildInitialTpOnboardingState(treePayload)
+  if (state.program?.resourceId && state.yearOptions.length === 0) {
+    const programTreeResponse = await getAdeTree(state.program.resourceId)
+    state = buildInitialTpOnboardingState(programTreeResponse?.tree)
+  }
+
+  const isOption = (option, resourceId) => String(option?.resourceId) === String(resourceId)
+  const year = state.yearOptions.find((option) => isOption(option, defaultSelection.yearResourceId))
+    ?? buildStoredSelectionOption(defaultSelection.yearResourceId, defaultSelection.yearLabel)
+  const yearStep = buildNextTpStepFromTree((await getAdeTree(year.resourceId))?.tree)
+  const td = yearStep.options.find((option) => isOption(option, defaultSelection.tdResourceId))
+    ?? buildStoredSelectionOption(defaultSelection.tdResourceId, defaultSelection.tdLabel)
+
+  return {
+    ...state,
+    contextLabel: state.contextLabel || defaultSelection.contextLabel || yearStep.contextLabel,
+    selectedYear: year,
+    tdOptions: yearStep.options,
+    selectedTd: td,
+    tpOptions,
+    detectedSelections: { year, td, tp: detectedTp },
+    errorMessage: '',
+  }
+}
+
 function getCurrentTpOnboardingStep(tpOnboardingState) {
   if (!tpOnboardingState.selectedYear) {
     return 'year'
@@ -1017,6 +1129,13 @@ function App() {
   const [hiddenWidgets, setHiddenWidgets] = useState(() => getStoredHiddenWidgets())
   const [customBackground, setCustomBackground] = useState(() => getStoredCustomBackground())
   const [showWallpaper, setShowWallpaper] = useState(() => getStoredShowWallpaper())
+  // Page shown next to the sidebar: 'dashboard' or 'grades'. Each switch is
+  // a history entry (see appHistory.js): back and forward move between
+  // pages, and a reload stays on the page.
+  const [activePage, setActivePage] = useState(() => readHistoryNav().page)
+  const activePageRef = useRef(activePage)
+  // Page-switch animations only once the user has switched, not on first load.
+  const [hasSwitchedPage, setHasSwitchedPage] = useState(false)
   const [theme, setTheme] = useState(() => getStoredTheme())
   const [showAppDescriptions, setShowAppDescriptions] = useState(() => getStoredShowAppDescriptions())
   const [anonymousAnalytics, setAnonymousAnalytics] = useState(() => getStoredAnonymousAnalytics())
@@ -1029,6 +1148,9 @@ function App() {
   const [isHydratingProfile, setIsHydratingProfile] = useState(false)
   const [hasHydratedProfile, setHasHydratedProfile] = useState(false)
   const [profileReloadNonce, setProfileReloadNonce] = useState(0)
+  // Set by the debug panel's "forcer le choix du TP", read once by the next
+  // profile hydration.
+  const debugForceTpChoiceRef = useRef(false)
   const [tpOnboardingState, setTpOnboardingState] = useState(createEmptyTpOnboardingState)
   const [tpTransitionDirection, setTpTransitionDirection] = useState('initial')
   const [completionScreenState, setCompletionScreenState] = useState({
@@ -1388,12 +1510,35 @@ function App() {
           // Grades are best-effort for onboarding auto-selection.
         }
 
+        // Debug panel, one shot: stop at the TP step even when it's detected.
+        const forceTpChoice = debugForceTpChoiceRef.current
+        debugForceTpChoiceRef.current = false
+
         let treeResponse = await getAdeTree()
         let treePayload = treeResponse?.tree
         const detectedEstablishment = detectEstablishmentFromAdeTree(treePayload)
-        const defaultSelection = treePayload?.defaultSelection?.resourceId
-          ? treePayload.defaultSelection
+        const resolvedDefault = treePayload?.defaultSelection?.resourceId
+          ? await resolveDefaultSelectionTp(treePayload.defaultSelection, {
+            tdAliases: scodocGroupSelection?.tdAliases ?? [],
+            tpAliases: scodocGroupSelection?.tpAliases ?? [],
+            forceChoice: forceTpChoice,
+          })
           : null
+
+        if (resolvedDefault?.tpChoice) {
+          const tpChoiceState = await buildTpChoiceOnboardingState(treePayload, resolvedDefault.tpChoice.baseSelection, resolvedDefault.tpChoice)
+          if (cancelled) {
+            return
+          }
+
+          persistEstablishment(detectedEstablishment, sessionState.user)
+          setEstablishment(detectedEstablishment)
+          setSelectedTp(null)
+          setTpOnboardingState(tpChoiceState)
+          return
+        }
+
+        const defaultSelection = resolvedDefault?.selection ?? null
 
         if (defaultSelection) {
           if (cancelled) {
@@ -1481,7 +1626,7 @@ function App() {
               nextTpOnboardingState.contextLabel || detectedTdStep.contextLabel,
             )
 
-            if (autoStoredSelection && (autoDetectedTp?.resourceId || detectedTdStep.options.length === 0)) {
+            if (autoStoredSelection && ((autoDetectedTp?.resourceId && !forceTpChoice) || detectedTdStep.options.length === 0)) {
               persistTpSelection(autoStoredSelection, sessionState.user)
               clearAdeTimetableCache()
               setSelectedTp(autoStoredSelection)
@@ -1816,7 +1961,40 @@ function App() {
       : resolveHeroImage(establishment, new Date(), heroOffset)
   ), [customBackground, establishment, heroOffset])
   const heroImageCount = useMemo(() => listHeroImages(establishment).length, [establishment])
-  const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment).length > 0, [establishment])
+  // BUT-only features ("Mes notes", the grade card) hide for a student whose
+  // relevé is another formation's; unknown keeps them (no flicker for BUT).
+  const gradesFormation = useGradesFormation({
+    enabled: Boolean(sessionState.authenticated && universityConfig.establishments?.byId?.[establishment]?.gradeWidgets),
+    user: sessionState.user,
+  })
+  const gradesSupported = gradesFormation !== 'other'
+  const hasGradesPage = useMemo(
+    () => getMobileTabItems(establishment, { gradesSupported }).some((item) => item.page === 'grades'),
+    [establishment, gradesSupported],
+  )
+  const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment, { gradesSupported }).length > 0, [establishment, gradesSupported])
+  // « Nouveautés » about « Mes notes » only reach students who have it: a
+  // school with the page and a relevé confirmed BUT (not while unknown, so
+  // the pill doesn't come and go).
+  const hasConfirmedGradesPage = hasGradesPage && gradesFormation === 'BUT'
+  useEffect(() => {
+    setChangelogAudience(hasConfirmedGradesPage ? ['grades-page'] : [])
+  }, [hasConfirmedGradesPage])
+  // Falls back to the dashboard if the grades item goes away (establishment
+  // without grade widgets, feature switched off, a relevé that isn't BUT).
+  const isGradesPage = useMemo(
+    () => activePage === 'grades' && getMobileTabItems(establishment, { gradesSupported }).some((item) => item.page === 'grades'),
+    [activePage, establishment, gradesSupported],
+  )
+  // Being on « Mes notes » is having seen its launch, however the student
+  // got there (tab, card, "Dernière note", app list, a reload on the page):
+  // the dashboard card and the tab's « Nouveau » go. After the audience
+  // effect above, so an entry it brings in while on the page goes too.
+  useEffect(() => {
+    if (isGradesPage && hasConfirmedGradesPage) markChangelogEntrySeen('mes-notes')
+  }, [isGradesPage, hasConfirmedGradesPage])
+  // The grades page sits on the plain background, like with the wallpaper off.
+  const isWallpaperShown = showWallpaper && !isGradesPage
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -1846,11 +2024,13 @@ function App() {
   }, [sessionState.user])
   const [heroHeight, setHeroHeight] = useState(null)
   const heroObserverRef = useRef(null)
+  const dashboardColumnElementRef = useRef(null)
 
   // The hero photo runs behind the header and the whole widget row (one or
   // two lines, fewer when widgets are hidden), then fades just below it.
   // Callback ref: the dashboard column mounts after auth/onboarding settle.
   const dashboardColumnRef = useCallback((column) => {
+    dashboardColumnElementRef.current = column
     heroObserverRef.current?.disconnect()
     heroObserverRef.current = null
 
@@ -1870,6 +2050,54 @@ function App() {
     observer.observe(column)
     heroObserverRef.current = observer
   }, [])
+
+  // Shows a page at its top, once it's rendered. Wide screens scroll the
+  // column itself, narrower ones the window.
+  const showPage = useCallback((page) => {
+    setActivePage(page)
+    setHasSwitchedPage(true)
+    window.requestAnimationFrame(() => {
+      dashboardColumnElementRef.current?.scrollTo({ top: 0 })
+      window.scrollTo({ top: 0 })
+    })
+  }, [])
+
+  // Sidebar / tab bar page switch: a new history entry.
+  const handleNavigatePage = useCallback((page) => {
+    if (page !== activePageRef.current) writeHistoryNav({ page })
+    showPage(page)
+  }, [showPage])
+
+  // The dashboard's "Dernière note": "Mes notes", opened on that grade.
+  const [pendingGradeRequest, setPendingGradeRequest] = useState(null)
+  const handleOpenLatestGrade = useCallback((grade) => {
+    setPendingGradeRequest({ evaluationId: grade.id, moduleCode: grade.resource })
+    handleNavigatePage('grades')
+  }, [handleNavigatePage])
+  const clearPendingGradeRequest = useCallback(() => setPendingGradeRequest(null), [])
+  // The grade service's app in the app lists: "Mes notes" rather than ScoDoc.
+  const handleOpenGradesPage = useCallback(() => handleNavigatePage('grades'), [handleNavigatePage])
+
+  // The current entry says which page it is (the first one included); the
+  // app sets scroll positions itself. Back and forward show the entry's page
+  // (a UE opened full page is handled by the grades page).
+  useEffect(() => {
+    activePageRef.current = activePage
+  }, [activePage])
+  useEffect(() => {
+    try {
+      window.history.scrollRestoration = 'manual'
+    } catch {
+      // Older browsers: their own restoration is harmless.
+    }
+    writeHistoryNav(readHistoryNav(), { replace: true })
+    const handlePopState = (event) => {
+      const { page } = readHistoryNav(event.state)
+      if (page !== activePageRef.current) showPage(page)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [showPage])
 
   const handleWidgetVisibilityChange = useCallback((widgetId, visible) => {
     track('setting_changed', { setting: 'widget_visibility', value: visible ? 'on' : 'off', widget: widgetId })
@@ -2251,6 +2479,8 @@ function App() {
     try {
       const result = await logoutFromEnt()
       clearLegacySensitiveClientCaches()
+      setActivePage('dashboard')
+      writeHistoryNav({ page: 'dashboard' }, { replace: true })
       setSessionState({
         checking: false,
         authenticated: false,
@@ -2300,10 +2530,12 @@ function App() {
     setDebugOpen(true)
   }
 
-  const handleDebugRestartOnboarding = useCallback(() => {
+  const handleDebugRestartOnboarding = useCallback(({ forceTpChoice = false } = {}) => {
     if (!sessionState.authenticated || !sessionState.user) {
       return
     }
+
+    debugForceTpChoiceRef.current = forceTpChoice
 
     clearStoredTpSelection()
     clearAdeTimetableCache()
@@ -2466,13 +2698,7 @@ function App() {
     sessionState.user,
     sessionState.givenName,
   )
-  const simpleLoadingDots = (
-    <span className="inline-flex items-center justify-center gap-[6px] text-text-muted" role="status" aria-live="polite" aria-label="Chargement">
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-    </span>
-  )
+  const simpleLoadingDots = <LoadingDots className="text-text-muted" />
 
   return (
     <main className="relative min-h-screen flex flex-col bg-bg overflow-x-hidden">
@@ -2507,7 +2733,7 @@ function App() {
       ) : shouldShowCompletionScreen ? (
         <OnboardingCompletionPage userName={completionScreenState.userName} isLeaving={completionScreenState.leaving} />
       ) : sessionState.authenticated ? (
-        <div key={`dashboard-${dashboardRevealNonce}`} className={`${dashboardRevealNonce > 0 ? 'dashboard-reveal-shell ' : ''}${showWallpaper ? '' : 'dashboard-no-wallpaper '}flex flex-col min-h-screen 4xl:h-screen 4xl:min-h-0 4xl:overflow-hidden`}>
+        <div key={`dashboard-${dashboardRevealNonce}`} className={`${dashboardRevealNonce > 0 ? 'dashboard-reveal-shell ' : ''}${isWallpaperShown ? '' : 'dashboard-no-wallpaper '}flex flex-col min-h-screen 4xl:h-screen 4xl:min-h-0 4xl:overflow-hidden`}>
           <Sidebar
             authenticated={sessionState.authenticated}
             checking={sessionState.checking}
@@ -2524,10 +2750,13 @@ function App() {
             onUpdateClick={handleApplyUpdate}
             showChangelogPill={showChangelogPill}
             establishment={establishment}
+            gradesSupported={gradesSupported}
+            activePage={isGradesPage ? 'grades' : 'dashboard'}
+            onNavigatePage={handleNavigatePage}
           />
-          <div ref={dashboardColumnRef} className={`relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
+          <div ref={dashboardColumnRef} className={`app-column relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
-            {showWallpaper ? (
+            {isWallpaperShown ? (
               <div
                 aria-hidden="true"
                 className="dashboard-hero pointer-events-none absolute inset-x-0 top-0 -z-10 h-[230px] bg-cover bg-[center_40%] max-md:h-[260px] dark:opacity-60"
@@ -2538,7 +2767,8 @@ function App() {
                 }}
               />
             ) : null}
-            <div className="4xl:hidden">
+            {/* On a phone, "Mes notes" starts with its own title: no top bar. */}
+            <div className={`${isGradesPage ? 'max-md:hidden ' : ''}4xl:hidden`}>
               <AppHeader
                 authenticated={sessionState.authenticated}
                 checking={sessionState.checking}
@@ -2564,11 +2794,14 @@ function App() {
                 </div>
               </div>
             ) : null}
-            <div className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
+            {/* Kept mounted behind other pages: coming back is instant and the
+                favorites it portals into the sidebar stay put. */}
+            <div className={`${hasSwitchedPage ? 'page-enter ' : ''}flex-1 min-h-0 4xl:flex-none 4xl:min-h-0`} hidden={isGradesPage}>
               <WidgetContainer
                 userName={sessionState.givenName ?? sessionState.user}
                 isSessionReady={!sessionState.checking}
                 establishment={establishment}
+                gradesSupported={gradesSupported}
                 sessionUser={sessionState.user}
                 selectedPlanningSelection={selectedTp}
                 nextClassLookaheadDays={appliedLookaheadDays}
@@ -2577,14 +2810,31 @@ function App() {
                 favoritesPortalTarget={isSidebarViewport ? favoritesSlotEl : null}
                 hiddenWidgets={hiddenWidgets}
                 onDismissGreeting={() => handleWidgetVisibilityChange('greeting', false)}
+                onOpenGrade={hasGradesPage ? handleOpenLatestGrade : null}
+                onOpenGradesPage={hasGradesPage ? handleOpenGradesPage : null}
                 showAppDescriptions={showAppDescriptions}
               />
             </div>
+            {isGradesPage ? (
+              <div className="page-enter flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
+                <GradesPage user={sessionState.user} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} />
+              </div>
+            ) : null}
             <div className="4xl:mt-auto">
-              <AppFooter heroCredit={showWallpaper ? heroImage.credit : null} />
+              <AppFooter heroCredit={isWallpaperShown ? heroImage.credit : null} />
             </div>
+            {/* Fades each page switch in (see .page-switch-veil). Keyed by page
+                so it replays on every switch. */}
+            {hasSwitchedPage ? (
+              <div key={activePage} aria-hidden="true" className="page-switch-veil pointer-events-none absolute inset-0 z-20" />
+            ) : null}
           </div>
-          <MobileTabBar establishment={establishment} />
+          <MobileTabBar
+            establishment={establishment}
+            gradesSupported={gradesSupported}
+            activePage={isGradesPage ? 'grades' : 'dashboard'}
+            onNavigatePage={handleNavigatePage}
+          />
         </div>
       ) : (
         <LoginPage
@@ -2808,10 +3058,34 @@ function App() {
               <button
                 type="button"
                 className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-not-allowed"
-                onClick={handleDebugRestartOnboarding}
+                onClick={() => handleDebugRestartOnboarding()}
                 disabled={!sessionState.authenticated || sessionState.checking}
               >
                 Refaire onboarding
+              </button>
+              {/* The TP step that students reach when their TP isn't found, even when it is. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-not-allowed"
+                onClick={() => handleDebugRestartOnboarding({ forceTpChoice: true })}
+                disabled={!sessionState.authenticated || sessionState.checking}
+              >
+                Onboarding : forcer le choix du TP
+              </button>
+              {/* Brings back the « Mes notes » launch as on release day (the
+                  dashboard card and the tab's « Nouveau »), only where it
+                  applies. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-wait"
+                onClick={() => void runDebugAction('Nouveautés : rejouer « Mes notes »', () => (
+                  replayChangelogEntry('mes-notes')
+                    ? { replayed: true }
+                    : { replayed: false, note: 'L’entrée ne s’applique pas ici : pas de page Mes notes, ou relevé non BUT (ou pas encore lu).' }
+                ))}
+                disabled={debugState.loading}
+              >
+                Nouveautés : rejouer « Mes notes »
               </button>
               <button
                 type="button"

@@ -5,7 +5,10 @@ import universityConfig from '@university'
 import { toAppSlug, track } from '../analytics'
 import { fetchAppIcons, getCachedAppIcons } from '../appIcons'
 import { scoreAppSearch, searchApps } from '../appSearch'
+import { getGradesOrigin, opensGradesPageInApp } from '../gradesPortalApp'
+import LoadingDots from './LoadingDots'
 import {
+  ENT_AUTH_PREFIX,
   ENT_ORIGIN,
   buildEntProxyHref,
   collectFavoritePortlets,
@@ -23,6 +26,8 @@ const FAVORITES_CONTEXT_MENU_WIDTH = 216
 const FAVORITES_CONTEXT_MENU_HEIGHT = 56
 const FAVORITES_CONTEXT_MENU_MARGIN = 12
 const FAVORITE_REMOVAL_ANIMATION_MS = 220
+// The sidebar only fits a few favorites; the rest stay starred in the full list.
+const SIDEBAR_FAVORITES_LIMIT = 4
 
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -70,10 +75,11 @@ function getApplicationKey(application = {}) {
 
 // Anonymous analytics: which application was opened, and from where. Only
 // the portal/app identifier (slugged) is sent — never its title or URL.
-function trackApplicationOpened(application, source) {
+// `in_app`: the grade service's app opened « Mes notes » rather than ScoDoc.
+function trackApplicationOpened(application, source, { inApp = false } = {}) {
   const app = toAppSlug(getApplicationKey(application))
   if (app) {
-    track('app_opened', { app, source })
+    track('app_opened', { app, source, in_app: inApp })
   }
 }
 
@@ -280,7 +286,7 @@ const AppIcon = memo(function AppIcon({ title, assignment = null, isLaunching = 
         : letterStyle ? { backgroundColor: letterStyle.bg, color: letterStyle.fg } : undefined}
     >
       {isLaunching ? (
-        <Icon icon="carbon:renew" className="badge-icon-spinning w-4 h-4 animate-spin-slow" />
+        <LoadingDots label={null} />
       ) : autoIcon?.isReady ? (
         // `ssr`: draw on the first render, the icon is already loaded.
         <Icon icon={autoIcon.icon} ssr className="w-[60%] h-[60%]" />
@@ -886,11 +892,24 @@ function getContextMenuPosition(event) {
   }
 }
 
+// What tells the grade service's app ("Notes IUT Lannion": ScoDoc) apart,
+// whatever the list it comes from (see gradesPortalApp.js).
+const GRADES_PORTAL_OPTIONS = {
+  gradesOrigin: getGradesOrigin(universityConfig.grades?.serviceUrl),
+  launchPath: `${ENT_AUTH_PREFIX}/launch`,
+  casOrigin: universityConfig.origins?.cas ?? '',
+}
+
+// `onOpenGradesPage`: the app's own grades page, passed only while the
+// student has it. With it, the grade service's app opens that page instead of
+// ScoDoc from every tile; a modified or middle click and « Ouvrir dans un
+// nouvel onglet » still open ScoDoc, its link stays on the tile for that.
 function AvailableApplications({
   establishment = null,
   canUseServerLaunch = true,
   favoritesPortalTarget = null,
   showDescriptions = false,
+  onOpenGradesPage = null,
 }) {
   const [viewState, setViewState] = useState({
     status: 'loading',
@@ -1734,11 +1753,32 @@ function AvailableApplications({
     }
   }
 
-  async function handleApplicationClick(event, application, source) {
-    // Modified clicks still open the app (natively, in a new tab).
-    trackApplicationOpened(application, source)
+  // The grade service's app while the student has « Mes notes ». Checks the
+  // resolved launch link too: the portal's own entry for ScoDoc only links
+  // to the ENT.
+  function opensGradesPage(application) {
+    return opensGradesPageInApp(application, {
+      ...GRADES_PORTAL_OPTIONS,
+      hasGradesPage: Boolean(onOpenGradesPage),
+      resolvedHref: launchTargets[getApplicationKey(application)]?.href,
+      base: window.location.href,
+    })
+  }
 
-    if (!isPlainLeftClick(event)) {
+  async function handleApplicationClick(event, application, source) {
+    // Modified clicks still open the app (natively, in a new tab), ScoDoc
+    // included: they don't count as opening « Mes notes ».
+    const plainClick = isPlainLeftClick(event)
+    const inApp = plainClick && opensGradesPage(application)
+    trackApplicationOpened(application, source, { inApp })
+
+    if (!plainClick) {
+      return
+    }
+
+    if (inApp) {
+      event.preventDefault()
+      onOpenGradesPage()
       return
     }
 
@@ -1771,10 +1811,15 @@ function AvailableApplications({
   }
 
   const isSidebarFavorites = Boolean(favoritesPortalTarget)
+  const displayedFavorites = isSidebarFavorites
+    ? orderedFavorites.slice(0, SIDEBAR_FAVORITES_LIMIT)
+    : orderedFavorites
   const shimmerClassName = 'bg-[linear-gradient(90deg,var(--color-bg-muted)_0%,var(--color-bg-subtle)_50%,var(--color-bg-muted)_100%)] bg-[length:200%_100%] animate-shimmer'
   // Radii are concentric: item radius = icon radius + item padding.
+  // min-w-0: as a grid item the list would otherwise grow to its longest
+  // title and push past the sidebar instead of letting it end in "…".
   const favoriteListClassName = isSidebarFavorites
-    ? 'flex flex-col gap-0.5'
+    ? 'flex flex-col gap-0.5 min-w-0'
     : 'flex flex-wrap gap-1.5 max-md:flex-nowrap max-md:gap-1 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:-mx-3 max-md:px-3 favorites-scroll-hide'
   const favoriteItemClassName = isSidebarFavorites
     ? 'flex items-center gap-2.5 w-full p-1 rounded-[13px]'
@@ -1792,7 +1837,11 @@ function AvailableApplications({
         <Icon icon="carbon:star" className="w-[17px] h-[17px] text-brand shrink-0" aria-hidden="true" />
         <h2 className="m-0 font-body text-base font-medium tracking-normal leading-[1.06]" id="favorites-strip-title">Favoris</h2>
         {shouldShowFavoriteRow ? (
-          <span className="ml-0.5 text-[13px] font-medium leading-none text-text-muted tabular-nums">{orderedFavorites.length}</span>
+          <span className="ml-0.5 text-[13px] font-medium leading-none text-text-muted tabular-nums">
+            {isSidebarFavorites && displayedFavorites.length >= SIDEBAR_FAVORITES_LIMIT
+              ? `${SIDEBAR_FAVORITES_LIMIT}/${SIDEBAR_FAVORITES_LIMIT}`
+              : displayedFavorites.length}
+          </span>
         ) : null}
       </div>
 
@@ -1822,11 +1871,15 @@ function AvailableApplications({
 
       {shouldShowFavoriteRow ? (
         <div className={`${favoriteListClassName} ${isDragging ? 'is-dragging' : ''}`} ref={favoritesRowRef}>
-          {orderedFavorites.map((application, index) => {
+          {displayedFavorites.map((application, index) => {
             const applicationKey = getApplicationKey(application)
             const resolvedLaunch = launchTargets[applicationKey]
             const href = resolvedLaunch?.href || application.href
-            const target = resolvedLaunch?.target || application.target
+            // In-app tiles drop `target` (a new tab a plain click doesn't
+            // open; a modified click still does, natively, hence `rel`) and
+            // say where they lead instead.
+            const opensInApp = opensGradesPage(application)
+            const target = opensInApp ? '' : resolvedLaunch?.target || application.target
             const isLaunching = Boolean(launchingKeys[applicationKey])
             const isRemovingFavorite = favoriteActionState.removingKey === applicationKey
             const isExitingFavorite = Boolean(exitingFavoriteKeys[applicationKey])
@@ -1840,8 +1893,9 @@ function AvailableApplications({
                 className={`favorites-strip-item app-card group relative border text-inherit no-underline min-w-0 cursor-pointer focus-visible:outline-none ${favoriteItemClassName} ${isLaunching ? 'pointer-events-none cursor-progress' : ''} ${(isRemovingFavorite || isExitingFavorite) ? 'pointer-events-none opacity-70' : ''} ${isExitingFavorite ? 'animate-favorite-remove' : ''} ${isContextOpen ? 'app-card--active' : ''} ${isSearchHighlighted ? 'favorite-search-highlight' : ''}`}
                 href={href}
                 target={target || undefined}
-                rel={target === '_blank' ? 'noreferrer' : undefined}
+                rel={target === '_blank' || opensInApp ? 'noreferrer' : undefined}
                 aria-label={`Ouvrir ${application.title}`}
+                aria-description={opensInApp ? 'Ouvre Mes notes' : undefined}
                 aria-busy={isLaunching || isRemovingFavorite || isExitingFavorite}
                 draggable="true"
                 onDragStart={(event) => handleDragStart(event, index)}
@@ -1939,7 +1993,8 @@ function AvailableApplications({
               const applicationKey = getApplicationKey(service)
               const resolvedLaunch = launchTargets[applicationKey]
               const href = resolvedLaunch?.href || service.href
-              const target = resolvedLaunch?.target || service.target
+              const opensInApp = opensGradesPage(service)
+              const target = opensInApp ? '' : resolvedLaunch?.target || service.target
               const isBusy = favoriteActionState.removingKey === applicationKey
               const isLaunching = Boolean(launchingKeys[applicationKey])
               const isContextOpen = contextMenuState.open && getApplicationKey(contextMenuState.application ?? {}) === applicationKey
@@ -1953,7 +2008,8 @@ function AvailableApplications({
                   style={{ animationDelay: `${Math.min(index, 24) * 20}ms` }}
                   href={href}
                   target={target || undefined}
-                  rel={target === '_blank' ? 'noreferrer' : undefined}
+                  rel={target === '_blank' || opensInApp ? 'noreferrer' : undefined}
+                  aria-description={opensInApp ? 'Ouvre Mes notes' : undefined}
                   aria-busy={isBusy || isLaunching}
                   onMouseEnter={() => warmApplicationLaunch(service)}
                   onFocus={() => warmApplicationLaunch(service)}

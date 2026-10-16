@@ -745,117 +745,13 @@ export function buildDemoAlertsPayload() {
   ]
 }
 
-export function buildDemoGradesPayload() {
-  const currentReleve = {
-    semestre: {
-      groupes: [
-        { group_name: 'TD B' },
-        { group_name: 'TP 3' },
-      ],
-    },
-    ressources: {
-      R5_07: {
-        titre: 'UX Writing',
-        moyenne: {
-          value: '15.6',
-          max: '20',
-          coef: '2',
-          moy: '13.4',
-        },
-        evaluations: [
-          {
-            date: '2026-03-12',
-            description: 'Atelier persona',
-            coef: '1',
-            note: {
-              value: '14',
-              max: '20',
-              moy: '12.6',
-            },
-          },
-          {
-            date: '2026-03-21',
-            description: 'Audit éditorial',
-            coef: '1',
-            note: {
-              value: '17',
-              max: '20',
-              moy: '13.9',
-            },
-          },
-        ],
-      },
-      R5_11: {
-        titre: 'Développement Front',
-        moyenne: {
-          value: '16.1',
-          max: '20',
-          coef: '3',
-          moy: '12.8',
-        },
-        evaluations: [
-          {
-            date: '2026-03-19',
-            description: 'Composants React',
-            coef: '2',
-            note: {
-              value: '16',
-              max: '20',
-              moy: '12.5',
-            },
-          },
-          {
-            date: '2026-03-26',
-            description: 'Accessibilité UI',
-            coef: '1',
-            note: {
-              value: '18',
-              max: '20',
-              moy: '13.2',
-            },
-          },
-        ],
-      },
-    },
-    saes: {
-      SAE5_PROTO: {
-        titre: 'Prototype interactif',
-        moyenne: {
-          value: '14.9',
-          max: '20',
-          coef: '4',
-          moy: '12.2',
-        },
-        evaluations: [
-          {
-            date: '2026-03-28',
-            description: 'Sprint review',
-            coef: '2',
-            note: {
-              value: '15.5',
-              max: '20',
-              moy: '12.7',
-            },
-          },
-        ],
-      },
-    },
-  }
-
-  return {
-    'relevé': currentReleve,
-    semestres: [
-      {
-        libelle: 'Semestre 4',
-        'relevé': currentReleve,
-      },
-      {
-        libelle: 'Semestre 5',
-        'relevé': currentReleve,
-      },
-    ],
-  }
-}
+// Demo ScoDoc relevés ("Mes notes"): see demoGrades.js.
+export {
+  DEMO_GRADES_DEPARTMENT_MESSAGE,
+  buildDemoEvaluationDistribution,
+  buildDemoGradesPayload,
+  buildDemoSemesterGradesPayload,
+} from './demoGrades.js'
 
 // Demo inbox for the "Mails récents" widget. `minutesAgo` is resolved against
 // the request time so the widget always shows fresh-looking relative dates.
