@@ -60,6 +60,9 @@ import {
   buildDemoMoodleDeadlinesPayload,
   buildDemoMoodleCoursesPayload,
   buildDemoMoodleCourseContentsPayload,
+  getDemoAssignmentDetails,
+  submitDemoAssignment,
+  removeDemoAssignmentFile,
   buildDemoPlanningPayload,
   buildDemoPortletFragment,
   buildDemoSemesterGradesPayload,
@@ -2135,7 +2138,8 @@ app.post('/__ent_auth/analytics', (req, res) => {
   })
 })
 
-app.use('/__ent_auth', express.json()) // Automatically parse incoming JSON requests for auth endpoints
+app.use('/__ent_auth', express.json({ limit: '50mb' })) // Automatically parse incoming JSON requests for auth endpoints
+app.use('/__ent_auth', express.urlencoded({ extended: true, limit: '50mb' }))
 app.use('/__ent_auth', (err, req, res, next) => {
   if (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400)) {
     return res.status(400).json({ error: 'Corps JSON invalide' })
@@ -3343,6 +3347,177 @@ async function fetchZimbraMessageDetail(session, messageId) {
   throw new Error('Unable to load message details.')
 }
 
+function parseRecipients(input, type = 't') {
+  if (!input) return []
+  const list = Array.isArray(input) ? input : String(input).split(/[,;]+/)
+  const recipients = []
+  for (const item of list) {
+    if (typeof item === 'object' && item !== null) {
+      const email = typeof item.email === 'string' ? item.email.trim() : ''
+      const name = typeof item.name === 'string' ? item.name.trim() : ''
+      if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        recipients.push({ t: type, a: email, ...(name ? { p: name } : {}) })
+      }
+    } else if (typeof item === 'string') {
+      const trimmed = item.trim()
+      const match = trimmed.match(/^(?:(.*)<)?([^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)>?$/)
+      if (match) {
+        const name = (match[1] || '').replace(/^["']|["']$/g, '').trim()
+        const email = match[2].trim()
+        recipients.push({ t: type, a: email, ...(name ? { p: name } : {}) })
+      }
+    }
+  }
+  return recipients
+}
+
+function convertHtmlToPlainText(html) {
+  if (!html) return ''
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*[/]?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<li>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<blockquote[^>]*>/gi, '> ')
+    .replace(/<\/blockquote>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+async function sendZimbraMail(session, { to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType } = {}) {
+  const toRecipients = parseRecipients(to, 't')
+  if (toRecipients.length === 0) {
+    throw new Error('Au moins une adresse de destinataire valide est requise.')
+  }
+  const ccRecipients = parseRecipients(cc, 'c')
+  const bccRecipients = parseRecipients(bcc, 'b')
+  const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients]
+
+  const cleanSubject = typeof subject === 'string' ? subject.trim() : ''
+  const finalSubject = cleanSubject || '(Sans objet)'
+
+  const plain = (bodyText || (bodyHtml ? convertHtmlToPlainText(bodyHtml) : '')).trim()
+  const html = (bodyHtml || (plain ? `<p>${plain.replace(/\n/g, '<br/>')}</p>` : '')).trim()
+
+  const messagePayload = {
+    e: allRecipients,
+    su: finalSubject,
+  }
+
+  if (origId) {
+    messagePayload.origid = String(origId)
+    if (replyType) {
+      messagePayload.rt = replyType
+    }
+  }
+
+  if (html && plain) {
+    messagePayload.mp = {
+      ct: 'multipart/alternative',
+      mp: [
+        { ct: 'text/plain', content: plain },
+        { ct: 'text/html', content: html },
+      ],
+    }
+  } else if (html) {
+    messagePayload.mp = {
+      ct: 'text/html',
+      content: html,
+    }
+  } else {
+    messagePayload.mp = {
+      ct: 'text/plain',
+      content: plain,
+    }
+  }
+
+  const context = await getZimbraContext(session)
+  const result = await zimbraSoapRequest(context, 'SendMsgRequest', {
+    m: messagePayload,
+  })
+
+  // Invalidate cached mail so newly sent items or inbox counts sync
+  runtimeMailCache.delete(session.id)
+
+  return {
+    ok: true,
+    messageId: result?.m?.id || null,
+  }
+}
+
+const DEMO_DIRECTORY_CONTACTS = [
+  { name: 'Secrétariat Pédagogique BUT MMI', email: 'secretariat-mmi@univ-rennes.fr', type: 'service', department: 'IUT de Lannion' },
+  { name: 'Scolarité Centrale', email: 'scolarite@univ-rennes.fr', type: 'service', department: 'Université de Rennes' },
+  { name: 'Dr. Sophie Bernard (Resp. BUT 3)', email: 'sophie.bernard@univ-rennes.fr', type: 'teacher', department: 'Département Informatique' },
+  { name: 'Marc Dupont (Enseignant R6.C.06)', email: 'marc.dupont@univ-rennes.fr', type: 'teacher', department: 'Département Réseaux & Télécoms' },
+  { name: 'Claire Martin (Enseignante Web & Multimédia)', email: 'claire.martin@univ-rennes.fr', type: 'teacher', department: 'Département MMI' },
+  { name: 'Alexandre Leroux (Professeur Développement)', email: 'alexandre.leroux@univ-rennes.fr', type: 'teacher', department: 'IUT de Lannion' },
+  { name: 'Service des Absences & Justificatifs', email: 'absences-mmi@univ-rennes.fr', type: 'service', department: 'Pôle Pédagogie' },
+  { name: 'Bibliothèque Universitaire (BU Beaulieu)', email: 'bu-contact@univ-rennes.fr', type: 'service', department: 'Documentation' },
+  { name: 'Bureau des Stages & Alternance', email: 'stages-alternance@univ-rennes.fr', type: 'service', department: 'Insertion Professionnelle' },
+  { name: 'Service Santé des Étudiants (SSE)', email: 'sante-etudiants@univ-rennes.fr', type: 'service', department: 'Vie Étudiante' },
+]
+
+async function searchZimbraDirectory(session, query) {
+  if (!query || typeof query !== 'string') return []
+  const clean = query.trim()
+  if (clean.length < 1) return []
+
+  const context = await getZimbraContext(session)
+  try {
+    const result = await zimbraSoapRequest(context, 'AutoCompleteRequest', {
+      name: clean,
+      t: 'all',
+      needExp: 1,
+    })
+    const rawMatches = Array.isArray(result?.match) ? result.match : result?.match ? [result.match] : []
+    return rawMatches.map((m) => ({
+      name: m.display || m.email || '',
+      email: m.email || '',
+      type: m.type === 'gal' ? 'gal' : 'contact',
+      department: m.department || null,
+      title: m.jobTitle || m.title || null,
+    })).filter((c) => c.email)
+  } catch {
+    try {
+      const galResult = await zimbraSoapRequest(context, 'SearchGalRequest', {
+        name: clean,
+        type: 'all',
+        limit: 15,
+      })
+      const entries = Array.isArray(galResult?.cn) ? galResult.cn : galResult?.cn ? [galResult.cn] : []
+      return entries.map((entry) => {
+        const attrs = Array.isArray(entry._attrs) ? entry._attrs : Array.isArray(entry.a) ? entry.a : []
+        const getAttr = (key) => {
+          const item = attrs.find((a) => (a.n || a._n) === key)
+          return item ? item._content || item.content || item._ || '' : ''
+        }
+        const email = getAttr('email') || getAttr('mail')
+        const fullName = getAttr('fullName') || getAttr('displayName') || `${getAttr('givenName')} ${getAttr('sn')}`.trim()
+        return {
+          name: fullName || email,
+          email,
+          type: 'gal',
+          department: getAttr('department') || null,
+          title: getAttr('title') || null,
+        }
+      }).filter((c) => c.email)
+    } catch {
+      return []
+    }
+  }
+}
+
 const MAIL_PROVIDERS = {
   zimbra: fetchZimbraRecentMail,
 }
@@ -3566,7 +3741,83 @@ app.post('/__ent_auth/mail/read', async (req, res) => {
   }
 })
 
-// 6g. Attachment / inline image proxy endpoint
+// 6g. Send mail message (for in-app composer)
+app.post('/__ent_auth/mail/send', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ authenticated: false, error: 'Non authentifié' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({
+        ok: true,
+        messageId: `demo-${Date.now()}`,
+        demo: true,
+      })
+    }
+
+    const { to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType } = req.body || {}
+    const result = await sendZimbraMail(session, {
+      to,
+      cc,
+      bcc,
+      subject,
+      bodyHtml,
+      bodyText,
+      origId,
+      replyType,
+    })
+
+    setSessionCookie(res, session)
+    return res.status(200).json(result)
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6h. Directory / Annuaire search endpoint
+app.get('/__ent_auth/mail/directory', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ authenticated: false, error: 'Non authentifié' })
+    }
+
+    const query = typeof req.query.q === 'string' ? req.query.q.trim() : ''
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const q = query.toLowerCase()
+      const matches = q
+        ? DEMO_DIRECTORY_CONTACTS.filter(
+            (c) =>
+              c.name.toLowerCase().includes(q) ||
+              c.email.toLowerCase().includes(q) ||
+              (c.department && c.department.toLowerCase().includes(q))
+          )
+        : DEMO_DIRECTORY_CONTACTS
+      return res.status(200).json({ ok: true, contacts: matches })
+    }
+
+    const contacts = await searchZimbraDirectory(session, query)
+    setSessionCookie(res, session)
+    return res.status(200).json({ ok: true, contacts })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6i. Attachment / inline image proxy endpoint
 app.get('/__ent_auth/mail/attachment', async (req, res) => {
   try {
     const session = getSessionFromRequest(req)
@@ -3798,9 +4049,13 @@ function normalizeMoodleEvent(event, nowMs) {
   const action = event.action && typeof event.action === 'object' ? event.action : null
   const title = [event.activityname, event.name]
     .find((value) => typeof value === 'string' && value.trim())
+  const rawUrl = typeof event.url === 'string' ? event.url : (typeof action?.url === 'string' ? action.url : '')
+  const cmidMatch = rawUrl.match(/[?&]id=(\d+)/)
+  const cmid = cmidMatch ? Number(cmidMatch[1]) : (event.instance ? Number(event.instance) : null)
 
   return {
     id: String(event.id ?? `${event.modulename ?? 'event'}-${event.instance ?? ''}-${timestamp}`),
+    cmid,
     title: title ? decodeHtmlEntities(title.trim()) : '',
     courseName: decodeHtmlEntities(String(event.course?.fullname || event.course?.shortname || '').trim()),
     dueAt: new Date(dueAtMs).toISOString(),
@@ -4674,6 +4929,507 @@ app.get('/__ent_auth/moodle/folder-contents', async (req, res) => {
   }
 })
 
+// 6g. Moodle assignment details & submission parsing
+function parseMoodleAssignmentPageHtml(html, cmid, moodleOrigin) {
+  const nameMatch = html.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i)
+    || html.match(/<div\b[^>]*class=["'][^"']*\bpage-header-headings\b[^"']*["'][^>]*>([\s\S]*?)<\/h[12]>/i)
+    || html.match(/data-region=["']header["'][^>]*>([\s\S]*?)<\/h[12]>/i)
+  const name = nameMatch ? decodeHtmlEntities(nameMatch[1].replace(/<[^>]+>/g, '').trim()) : `Devoir ${cmid}`
+
+  let introHtml = ''
+  const introMatch = html.match(/<div\b[^>]*class=["'][^"']*\b(intro|generalbox|no-overflow)\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)
+    || html.match(/<div\b[^>]*id=["']intro["'][^>]*>([\s\S]*?)<\/div>/i)
+  if (introMatch) {
+    introHtml = introMatch[2].trim().replace(/href=["']([^"']*pluginfile\.php[^"']*)["']/gi, (_m, u) => {
+      let full = u
+      if (full.startsWith('/')) full = `${moodleOrigin}${full}`
+      return `href="/__ent_auth/moodle/file?url=${encodeURIComponent(full)}&name=document"`
+    })
+  }
+
+  let status = 'not_submitted'
+  let statusLabel = 'Aucun devoir remis'
+  let gradingStatus = 'not_graded'
+  let gradingStatusLabel = 'Non noté'
+  let dueDateFormatted = ''
+  let timeRemaining = ''
+  let lastModified = ''
+  const submittedFiles = []
+  let onlineText = ''
+  const acceptedTypes = []
+
+  const rowRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi
+  let trMatch
+  while ((trMatch = rowRegex.exec(html)) !== null) {
+    const rowContent = trMatch[1]
+    const thMatch = rowContent.match(/<th\b[^>]*>([\s\S]*?)<\/th>/i)
+    const tdMatch = rowContent.match(/<td\b[^>]*>([\s\S]*?)<\/td>/i)
+    if (!thMatch || !tdMatch) continue
+
+    const header = thMatch[1].replace(/<[^>]+>/g, '').trim().toLowerCase()
+    const tdText = decodeHtmlEntities(tdMatch[1].replace(/<[^>]+>/g, '').trim())
+    const tdHtml = tdMatch[1]
+
+    if (header.includes('statut') && (header.includes('remis') || header.includes('travaux') || header.includes('submission'))) {
+      if (/remis pour|submitted for/i.test(tdText)) {
+        status = 'submitted'
+        statusLabel = 'Remis pour évaluation'
+      } else if (/brouillon|draft/i.test(tdText)) {
+        status = 'draft'
+        statusLabel = 'Brouillon (non remis)'
+      } else {
+        status = 'not_submitted'
+        statusLabel = tdText || 'Aucun devoir remis'
+      }
+    } else if (header.includes('évaluation') || header.includes('grading')) {
+      if (/non noté|not graded/i.test(tdText)) {
+        gradingStatus = 'not_graded'
+        gradingStatusLabel = 'Non noté'
+      } else if (/noté|graded|évalué/i.test(tdText)) {
+        gradingStatus = 'graded'
+        gradingStatusLabel = tdText || 'Noté'
+      }
+    } else if (header.includes('date limite') || header.includes('due date')) {
+      dueDateFormatted = tdText
+    } else if (header.includes('temps restant') || header.includes('time remaining')) {
+      timeRemaining = tdText
+    } else if (header.includes('dernière modification') || header.includes('last modified')) {
+      lastModified = tdText
+    } else if (header.includes('fichiers') || header.includes('file submissions')) {
+      const fileRegex = /<a\b[^>]*href=["']([^"']*pluginfile\.php[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi
+      let fMatch
+      while ((fMatch = fileRegex.exec(tdHtml)) !== null) {
+        let fileurl = fMatch[1].replace(/&amp;/g, '&')
+        if (fileurl.startsWith('/')) fileurl = `${moodleOrigin}${fileurl}`
+        const fname = decodeHtmlEntities(fMatch[2].replace(/<[^>]+>/g, '').trim())
+        if (fname && !submittedFiles.some((f) => f.filename === fname)) {
+          submittedFiles.push({
+            filename: fname,
+            fileurl,
+            proxyUrl: `/__ent_auth/moodle/file?url=${encodeURIComponent(fileurl)}&name=${encodeURIComponent(fname)}&download=1`,
+          })
+        }
+      }
+    } else if (header.includes('texte en ligne') || header.includes('online text')) {
+      onlineText = tdHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').trim()
+    } else if (header.includes('types de fichiers') || header.includes('accepted')) {
+      const exts = tdText.match(/\.[a-zA-Z0-9_-]+/g)
+      if (exts) {
+        for (const ext of exts) {
+          if (!acceptedTypes.includes(ext.toLowerCase())) acceptedTypes.push(ext.toLowerCase())
+        }
+      }
+    }
+  }
+
+  const canSubmit = /action=editsubmission/i.test(html) || /ajouter un travail|modifier le devoir/i.test(html)
+  const canFinalize = /action=submit\b/i.test(html) || /envoyer le devoir/i.test(html)
+  const canRemove = /action=removesubmissionconfirm/i.test(html) || /supprimer le devoir/i.test(html)
+
+  return {
+    cmid: Number(cmid),
+    name,
+    introHtml,
+    status,
+    statusLabel,
+    gradingStatus,
+    gradingStatusLabel,
+    dueDateFormatted,
+    timeRemaining,
+    lastModified,
+    submittedFiles,
+    onlineText,
+    acceptedTypes: acceptedTypes.length > 0 ? acceptedTypes : ['.pdf', '.zip', '.tar.gz', '.sql', '.md', '.txt', '.docx'],
+    maxFiles: 5,
+    maxFileSizeFormatted: '50 Mo',
+    canSubmit,
+    canEdit: canSubmit,
+    canFinalize,
+    canRemove,
+    launchHref: buildMoodleLaunchHref(`${moodleOrigin}/mod/assign/view.php?id=${cmid}`),
+  }
+}
+
+function extractMoodleFormHiddenInputs(html) {
+  const fields = {}
+  const inputRegex = /<input\b[^>]*>/gi
+  let match
+  while ((match = inputRegex.exec(html)) !== null) {
+    const tag = match[0]
+    if (!/\btype=["']hidden["']/i.test(tag)) continue
+    const nameMatch = tag.match(/\bname=["']([^"']+)["']/i)
+    const valueMatch = tag.match(/\bvalue=["']([^"']*?)["']/i)
+    if (nameMatch) {
+      fields[decodeHtmlEntities(nameMatch[1])] = valueMatch ? decodeHtmlEntities(valueMatch[1]) : ''
+    }
+  }
+  return fields
+}
+
+async function submitMoodleAssignmentLive(context, cmid, files, onlineText, finalize) {
+  const editUrl = `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}&action=editsubmission`
+  const { response: editResp, finalUrl: editFinalUrl } = await followRedirectChain(editUrl, context.jar, {
+    headers: {
+      Accept: MOODLE_ACCEPT_HTML,
+      Referer: `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`,
+    },
+  })
+  const editHtml = await editResp.text()
+
+  if (isCasLoginForm(editHtml, editFinalUrl) || isMoodleLoginPage(editHtml, editFinalUrl)) {
+    throw new MoodleAuthError('Session Moodle expirée, veuillez vous reconnecter.')
+  }
+
+  const sesskeyMatch = editHtml.match(/name=["']sesskey["'][^>]*value=["']([^"']+)["']/i)
+    || editHtml.match(/value=["']([^"']+)["'][^>]*name=["']sesskey["']/i)
+    || editHtml.match(/["']sesskey["']\s*:\s*["']([^"']+)["']/i)
+  const pageSesskey = sesskeyMatch ? sesskeyMatch[1] : context.sesskey
+
+  const hiddenInputs = extractMoodleFormHiddenInputs(editHtml)
+
+  let draftItemId = hiddenInputs['files_filemanager']
+  if (!draftItemId) {
+    const fmKey = Object.keys(hiddenInputs).find((k) => k.includes('filemanager') || k.includes('files'))
+    if (fmKey) draftItemId = hiddenInputs[fmKey]
+  }
+  if (!draftItemId) {
+    const draftItemMatch = editHtml.match(/name=["']files_filemanager["'][^>]*value=["'](\d+)["']/i)
+      || editHtml.match(/value=["'](\d+)["'][^>]*name=["']files_filemanager["']/i)
+      || editHtml.match(/["']itemid["']\s*:\s*(\d+)/i)
+      || editHtml.match(/draftitemid["']\s*:\s*(\d+)/i)
+    draftItemId = draftItemMatch ? draftItemMatch[1] : null
+  }
+
+  const repoMatch = editHtml.match(/["']type["']\s*:\s*["']upload["'][^}]*?["']id["']\s*:\s*(\d+)/i)
+    || editHtml.match(/["']id["']\s*:\s*(\d+)[^}]*?["']type["']\s*:\s*["']upload["']/i)
+    || editHtml.match(/repo_id["']?\s*[:=]\s*["']?(\d+)/i)
+  const repoId = repoMatch ? repoMatch[1] : '4'
+
+  if (draftItemId && Array.isArray(files) && files.length > 0) {
+    for (const file of files) {
+      const buffer = Buffer.from(file.base64 || '', 'base64')
+      const formData = new FormData()
+      formData.append('repo_id', repoId)
+      formData.append('itemid', draftItemId)
+      formData.append('sesskey', pageSesskey)
+      const filename = file.name || file.filename || 'rendu.md'
+      formData.append('title', filename)
+      formData.append('author', '')
+      formData.append('license', 'allrightsreserved')
+      formData.append('savepath', '/')
+      const blob = new Blob([buffer], { type: file.type || 'application/octet-stream' })
+      formData.append('repo_upload_file', blob, filename)
+
+      const uploadUrl = `${MOODLE_ORIGIN}/repository/repository_ajax.php?action=upload`
+      const uploadResp = await fetchWithJar(uploadUrl, context.jar, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          Origin: MOODLE_ORIGIN,
+          Referer: editFinalUrl || editUrl,
+        },
+      })
+
+      const uploadJson = await uploadResp.json().catch(() => null)
+      if (uploadJson && uploadJson.error) {
+        throw new Error(uploadJson.error || 'Erreur lors du dépôt du fichier dans Moodle.')
+      }
+    }
+  }
+
+  const saveParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(hiddenInputs)) {
+    saveParams.append(key, value)
+  }
+
+  saveParams.set('id', String(cmid))
+  saveParams.set('action', 'savesubmission')
+  saveParams.set('sesskey', pageSesskey)
+  saveParams.set('_qf__mod_assign_submission_form', '1')
+
+  if (draftItemId) {
+    saveParams.set('files_filemanager', String(draftItemId))
+  }
+
+  if (onlineText) {
+    saveParams.set('onlinetext_editor[text]', onlineText)
+    saveParams.set('onlinetext_editor[format]', '1')
+    if (hiddenInputs['onlinetext_editor[itemid]']) {
+      saveParams.set('onlinetext_editor[itemid]', hiddenInputs['onlinetext_editor[itemid]'])
+    }
+  }
+
+  if (/name=["']submissionstatement["']/i.test(editHtml)) {
+    saveParams.set('submissionstatement', '1')
+  }
+
+  const submitBtnMatch = editHtml.match(/name=["']submitbutton["'][^>]*value=["']([^"']*)["']/i)
+    || editHtml.match(/value=["']([^"']*)["'][^>]*name=["']submitbutton["']/i)
+  const submitButtonValue = submitBtnMatch ? decodeHtmlEntities(submitBtnMatch[1]) : 'Enregistrer les modifications'
+  saveParams.set('submitbutton', submitButtonValue)
+
+  const saveUrl = `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`
+  const { response: saveResp } = await followRedirectChain(saveUrl, context.jar, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Origin: MOODLE_ORIGIN,
+      Referer: editFinalUrl || editUrl,
+    },
+    body: saveParams.toString(),
+  })
+
+  const saveHtml = await saveResp.text()
+  const formErrorMatch = saveHtml.match(/class=["'][^"']*\b(form-control-feedback|error|alert-danger)\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p)>/i)
+  if (formErrorMatch && !saveResp.headers.get('location') && !/action=editsubmission/i.test(saveResp.url || '')) {
+    const errorText = decodeHtmlEntities(formErrorMatch[2].replace(/<[^>]+>/g, '').trim())
+    if (errorText) {
+      throw new Error(errorText)
+    }
+  }
+
+  if (finalize) {
+    const confirmParams = new URLSearchParams()
+    confirmParams.append('id', String(cmid))
+    confirmParams.append('action', 'submit')
+    confirmParams.append('sesskey', pageSesskey)
+    confirmParams.append('confirm', '1')
+
+    await followRedirectChain(`${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`, context.jar, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Origin: MOODLE_ORIGIN,
+        Referer: saveUrl,
+      },
+      body: confirmParams.toString(),
+    }).catch(() => null)
+  }
+
+  const { response: viewResp } = await followRedirectChain(`${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`, context.jar, {
+    headers: { Accept: MOODLE_ACCEPT_HTML },
+  })
+  const viewHtml = await viewResp.text()
+  return parseMoodleAssignmentPageHtml(viewHtml, cmid, MOODLE_ORIGIN)
+}
+
+async function removeMoodleAssignmentFileLive(context, cmid, filename) {
+  const editUrl = `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}&action=editsubmission`
+  const { response: editResp, finalUrl: editFinalUrl } = await followRedirectChain(editUrl, context.jar, {
+    headers: {
+      Accept: MOODLE_ACCEPT_HTML,
+      Referer: `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`,
+    },
+  })
+  const editHtml = await editResp.text()
+
+  const sesskeyMatch = editHtml.match(/name=["']sesskey["'][^>]*value=["']([^"']+)["']/i)
+    || editHtml.match(/value=["']([^"']+)["'][^>]*name=["']sesskey["']/i)
+    || editHtml.match(/["']sesskey["']\s*:\s*["']([^"']+)["']/i)
+  const pageSesskey = sesskeyMatch ? sesskeyMatch[1] : context.sesskey
+
+  const hiddenInputs = extractMoodleFormHiddenInputs(editHtml)
+  let draftItemId = hiddenInputs['files_filemanager']
+  if (!draftItemId) {
+    const fmKey = Object.keys(hiddenInputs).find((k) => k.includes('filemanager') || k.includes('files'))
+    if (fmKey) draftItemId = hiddenInputs[fmKey]
+  }
+
+  if (draftItemId) {
+    const deleteParams = new URLSearchParams()
+    deleteParams.append('sesskey', pageSesskey)
+    deleteParams.append('itemid', String(draftItemId))
+    deleteParams.append('filepath', '/')
+    deleteParams.append('filename', filename)
+
+    await fetchWithJar(`${MOODLE_ORIGIN}/repository/draftfiles_ajax.php?action=delete`, context.jar, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        Origin: MOODLE_ORIGIN,
+        Referer: editFinalUrl || editUrl,
+      },
+      body: deleteParams.toString(),
+    }).catch(() => null)
+  }
+
+  const saveParams = new URLSearchParams()
+  for (const [key, value] of Object.entries(hiddenInputs)) {
+    saveParams.append(key, value)
+  }
+  saveParams.set('id', String(cmid))
+  saveParams.set('action', 'savesubmission')
+  saveParams.set('sesskey', pageSesskey)
+  saveParams.set('_qf__mod_assign_submission_form', '1')
+  if (draftItemId) {
+    saveParams.set('files_filemanager', String(draftItemId))
+  }
+  saveParams.set('submitbutton', 'Enregistrer les modifications')
+
+  const saveUrl = `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`
+  await followRedirectChain(saveUrl, context.jar, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Origin: MOODLE_ORIGIN,
+      Referer: editFinalUrl || editUrl,
+    },
+    body: saveParams.toString(),
+  })
+
+  const { response: viewResp } = await followRedirectChain(`${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`, context.jar, {
+    headers: { Accept: MOODLE_ACCEPT_HTML },
+  })
+  const viewHtml = await viewResp.text()
+  return parseMoodleAssignmentPageHtml(viewHtml, cmid, MOODLE_ORIGIN)
+}
+
+// 6h. Moodle assignment details endpoint
+app.get('/__ent_auth/moodle/assignment-details', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+    if (!session) {
+      return res.status(200).json({ authenticated: false, assignment: null })
+    }
+
+    const cmid = Number(req.query.cmid)
+    const courseId = req.query.courseId ? Number(req.query.courseId) : null
+    if (!cmid || !Number.isFinite(cmid)) {
+      return res.status(400).json({ error: 'Paramètre cmid requis' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const assignment = getDemoAssignmentDetails(cmid, courseId)
+      return res.status(200).json({
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        assignment,
+      })
+    }
+
+    const context = await getMoodleContext(session)
+    const viewUrl = `${MOODLE_ORIGIN}/mod/assign/view.php?id=${encodeURIComponent(cmid)}`
+    const { response: resp } = await followRedirectChain(viewUrl, context.jar, {
+      headers: { Accept: MOODLE_ACCEPT_HTML },
+    })
+
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: `Moodle assign request failed (${resp.status})` })
+    }
+
+    const html = await resp.text()
+    const assignment = parseMoodleAssignmentPageHtml(html, cmid, MOODLE_ORIGIN)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      assignment,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6i. Moodle assignment submission endpoint
+app.post('/__ent_auth/moodle/submit-assignment', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+    if (!session) {
+      return res.status(401).json({ error: 'Session non authentifiée' })
+    }
+
+    const { cmid, files, onlineText, finalize } = req.body || {}
+    const numericCmid = Number(cmid)
+    if (!numericCmid || !Number.isFinite(numericCmid)) {
+      return res.status(400).json({ error: 'Paramètre cmid requis' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const assignment = submitDemoAssignment({
+        cmid: numericCmid,
+        files: Array.isArray(files) ? files : [],
+        onlineText: typeof onlineText === 'string' ? onlineText : '',
+        finalize: Boolean(finalize),
+      })
+      return res.status(200).json({
+        ok: true,
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        message: 'Devoir téléversé avec succès',
+        assignment,
+      })
+    }
+
+    const context = await getMoodleContext(session)
+    const assignment = await submitMoodleAssignmentLive(context, numericCmid, files, onlineText, finalize)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      ok: true,
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      message: 'Devoir téléversé avec succès sur Moodle',
+      assignment,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6j. Moodle remove assignment file endpoint
+app.post('/__ent_auth/moodle/assignment-file/remove', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+    if (!session) {
+      return res.status(401).json({ error: 'Session non authentifiée' })
+    }
+
+    const { cmid, filename } = req.body || {}
+    const numericCmid = Number(cmid)
+    if (!numericCmid || !filename) {
+      return res.status(400).json({ error: 'Paramètres cmid et filename requis' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      const assignment = removeDemoAssignmentFile({ cmid: numericCmid, filename })
+      return res.status(200).json({
+        ok: true,
+        authenticated: true,
+        sessionMode: DEMO_SESSION_MODE,
+        message: 'Fichier retiré',
+        assignment,
+      })
+    }
+
+    const context = await getMoodleContext(session)
+    const assignment = await removeMoodleAssignmentFileLive(context, numericCmid, filename)
+    setSessionCookie(res, session)
+    return res.status(200).json({
+      ok: true,
+      authenticated: true,
+      sessionMode: session.mode ?? null,
+      message: 'Fichier retiré avec succès sur Moodle',
+      assignment,
+    })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
 // Cache for resolved pluginfile URLs so subsequent clicks are instantaneous
 const moodleResolvedFileUrls = new Map()
 
@@ -4813,7 +5569,9 @@ app.get('/__ent_auth/moodle/file', async (req, res) => {
       if (last && last.includes('.')) {
         fileName = last
       }
-    } catch {}
+    } catch {
+      // Ignore URL parsing fallback
+    }
 
     if (!fileName) {
       fileName = 'document.pdf'

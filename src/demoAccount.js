@@ -1409,6 +1409,7 @@ export function buildDemoMailMessagePayload(id, { now = Date.now() } = {}) {
 const DEMO_MOODLE_DEADLINES = Object.freeze([
   {
     id: 'demo-moodle-tp3-api',
+    cmid: 2022,
     hoursFromNow: -2 * 24 - 3,
     title: 'TP 3 – API REST avec Express',
     courseName: 'R5.12 Développement back-end',
@@ -1417,9 +1418,19 @@ const DEMO_MOODLE_DEADLINES = Object.freeze([
   },
   {
     id: 'demo-moodle-sae501-livrable2',
+    cmid: 2032,
     hoursFromNow: 4,
     title: 'Rendu SAE 501 – Livrable 2',
     courseName: 'SAE 5.01 Développement web',
+    type: 'assign',
+    submitted: false,
+  },
+  {
+    id: 'demo-moodle-tp1-sql',
+    cmid: 2008,
+    hoursFromNow: 5 * 24,
+    title: 'TP 1 : Remise du code source & rapport',
+    courseName: 'R5.01 – Développement Web & Mobile avancé',
     type: 'assign',
     submitted: false,
   },
@@ -1441,6 +1452,7 @@ const DEMO_MOODLE_DEADLINES = Object.freeze([
   },
   {
     id: 'demo-moodle-veille',
+    cmid: 2042,
     hoursFromNow: 7 * 24,
     title: 'Dossier de veille technologique',
     courseName: 'R5.06 Culture numérique',
@@ -1690,6 +1702,15 @@ const DEMO_MOODLE_COURSE_CONTENTS = Object.freeze({
           url: 'https://developer.mozilla.org/fr/docs/Web/API/Service_Worker_API',
           contents: [],
         },
+        {
+          id: 2008,
+          name: 'TP 1 : Remise du code source & rapport',
+          modname: 'assign',
+          modplural: 'Devoirs',
+          modicon: 'https://foad.univ-rennes.fr/theme/image.php/boost/core/1/f/assign-24',
+          url: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2008',
+          contents: [],
+        },
       ],
     },
   ],
@@ -1934,4 +1955,207 @@ export function buildDemoMoodleCourseContentsPayload(courseId) {
     sections: cloneDemoValue(contents),
   }
 }
+
+const demoAssignmentSubmissions = new Map([
+  [
+    2008,
+    {
+      cmid: 2008,
+      name: 'TP 1 : Remise du code source & rapport',
+      courseName: 'R5.01 – Développement Web & Mobile avancé',
+      courseId: 101,
+      introHtml: '<p>Veuillez déposer ici votre fichier de compte-rendu (ex: <code>rendu.md</code> ou archive <code>.zip</code> / <code>.sql</code>) contenant l’ensemble de vos requêtes, captures d’écran et explications.</p><p>Assurez-vous de bien respecter la structure des questions et d’inclure vos résultats d’exécution.</p>',
+      dueDate: new Date(Date.now() + 10 * 86400000).toISOString(),
+      dueDateFormatted: 'Dimanche 25 octobre 2026, 23:59',
+      timeRemaining: 'Il reste 10 jours',
+      status: 'not_submitted',
+      statusLabel: 'Aucun devoir remis',
+      gradingStatus: 'not_graded',
+      gradingStatusLabel: 'Non noté',
+      canSubmit: true,
+      canEdit: true,
+      canRemove: false,
+      maxFiles: 5,
+      maxFileSize: 52428800,
+      maxFileSizeFormatted: '50 Mo',
+      acceptedTypes: ['.md', '.sql', '.pdf', '.zip', '.tar.gz', '.txt'],
+      submittedFiles: [],
+      lastModified: null,
+      onlineText: '',
+      launchHref: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2008',
+    },
+  ],
+  [
+    2022,
+    {
+      cmid: 2022,
+      name: 'TP 3 – API REST avec Express',
+      courseName: 'R5.12 Développement back-end',
+      courseId: 103,
+      introHtml: '<p>Déposez l’archive zip contenant vos routes Express, middlewares de validation et tests d’intégration.</p>',
+      dueDate: new Date(Date.now() - 2 * 86400000).toISOString(),
+      dueDateFormatted: 'Mardi 13 octobre 2026, 23:59',
+      timeRemaining: 'Devoir en retard de 2 jours',
+      status: 'draft',
+      statusLabel: 'Brouillon (non remis)',
+      gradingStatus: 'not_graded',
+      gradingStatusLabel: 'Non noté',
+      canSubmit: true,
+      canEdit: true,
+      canRemove: true,
+      maxFiles: 3,
+      maxFileSize: 20971520,
+      maxFileSizeFormatted: '20 Mo',
+      acceptedTypes: ['.zip', '.tar.gz'],
+      submittedFiles: [
+        {
+          filename: 'express_api_tp3_draft.zip',
+          filesize: 1420000,
+          timemodified: Math.floor(Date.now() / 1000) - 172800,
+          proxyUrl: '/__ent_auth/moodle/file?name=express_api_tp3_draft.zip&download=1',
+        },
+      ],
+      lastModified: '13 oct. 2026, 18:22',
+      onlineText: '',
+      launchHref: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2022',
+    },
+  ],
+  [
+    2032,
+    {
+      cmid: 2032,
+      name: 'Rendu SAE 501 – Livrable 2',
+      courseName: 'SAE 5.01 Développement web',
+      courseId: 104,
+      introHtml: '<p>Déposez le rapport intermédiaire du Livrable 2 (architecture, maquettes validées et backlog produit).</p>',
+      dueDate: new Date(Date.now() + 4 * 3600000).toISOString(),
+      dueDateFormatted: 'Aujourd\'hui à 15:30',
+      timeRemaining: 'Il reste 4 heures',
+      status: 'not_submitted',
+      statusLabel: 'Aucun devoir remis',
+      gradingStatus: 'not_graded',
+      gradingStatusLabel: 'Non noté',
+      canSubmit: true,
+      canEdit: true,
+      canRemove: false,
+      maxFiles: 2,
+      maxFileSize: 52428800,
+      maxFileSizeFormatted: '50 Mo',
+      acceptedTypes: ['.pdf', '.zip'],
+      submittedFiles: [],
+      lastModified: null,
+      onlineText: '',
+      launchHref: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2032',
+    },
+  ],
+  [
+    2042,
+    {
+      cmid: 2042,
+      name: 'Dossier de veille technologique',
+      courseName: 'R5.06 Culture numérique',
+      courseId: 105,
+      introHtml: '<p>Dépôt final du dossier de veille technologique au format PDF.</p>',
+      dueDate: new Date(Date.now() + 7 * 86400000).toISOString(),
+      dueDateFormatted: 'Jeudi 22 octobre 2026, 18:00',
+      timeRemaining: 'Il reste 7 jours',
+      status: 'submitted',
+      statusLabel: 'Remis pour évaluation',
+      gradingStatus: 'not_graded',
+      gradingStatusLabel: 'Non noté',
+      canSubmit: true,
+      canEdit: true,
+      canRemove: true,
+      maxFiles: 1,
+      maxFileSize: 31457280,
+      maxFileSizeFormatted: '30 Mo',
+      acceptedTypes: ['.pdf'],
+      submittedFiles: [
+        {
+          filename: 'Dossier_Veille_Techno_Elouan.pdf',
+          filesize: 2840000,
+          timemodified: Math.floor(Date.now() / 1000) - 86400,
+          proxyUrl: '/__ent_auth/moodle/file?name=Dossier_Veille_Techno_Elouan.pdf&download=1',
+        },
+      ],
+      lastModified: 'Hier à 14:15',
+      onlineText: '',
+      launchHref: 'https://foad.univ-rennes.fr/mod/assign/view.php?id=2042',
+    },
+  ],
+])
+
+export function getDemoAssignmentDetails(cmid, courseId) {
+  const numericCmid = Number(cmid)
+  if (demoAssignmentSubmissions.has(numericCmid)) {
+    return cloneDemoValue(demoAssignmentSubmissions.get(numericCmid))
+  }
+
+  const fallback = {
+    cmid: numericCmid,
+    name: `Devoir ${numericCmid}`,
+    courseName: 'Moodle',
+    courseId: Number(courseId) || 101,
+    introHtml: '<p>Veuillez déposer vos fichiers de travaux pour ce devoir.</p>',
+    dueDate: new Date(Date.now() + 5 * 86400000).toISOString(),
+    dueDateFormatted: 'Dimanche 25 octobre 2026, 23:59',
+    timeRemaining: 'Il reste 5 jours',
+    status: 'not_submitted',
+    statusLabel: 'Aucun devoir remis',
+    gradingStatus: 'not_graded',
+    gradingStatusLabel: 'Non noté',
+    canSubmit: true,
+    canEdit: true,
+    canRemove: false,
+    maxFiles: 5,
+    maxFileSize: 52428800,
+    maxFileSizeFormatted: '50 Mo',
+    acceptedTypes: ['.pdf', '.zip', '.tar.gz', '.sql', '.md', '.txt'],
+    submittedFiles: [],
+    lastModified: null,
+    onlineText: '',
+    launchHref: `https://foad.univ-rennes.fr/mod/assign/view.php?id=${numericCmid}`,
+  }
+  return cloneDemoValue(fallback)
+}
+
+export function submitDemoAssignment({ cmid, files = [], onlineText = '', finalize = false }) {
+  const existing = getDemoAssignmentDetails(cmid)
+  const now = new Date()
+  const newFiles = (files || []).map((f) => ({
+    filename: f.name || f.filename || 'rendu.md',
+    filesize: Number(f.size) || (f.base64 ? Math.round(f.base64.length * 0.75) : 1024),
+    timemodified: Math.floor(Date.now() / 1000),
+    proxyUrl: `/__ent_auth/moodle/file?name=${encodeURIComponent(f.name || f.filename || 'rendu.md')}&download=1`,
+  }))
+
+  const updatedFiles = [...(existing.submittedFiles || []), ...newFiles]
+  const updated = {
+    ...existing,
+    status: finalize || updatedFiles.length > 0 ? 'submitted' : existing.status,
+    statusLabel: finalize || updatedFiles.length > 0 ? 'Remis pour évaluation' : existing.statusLabel,
+    submittedFiles: updatedFiles,
+    onlineText: onlineText || existing.onlineText,
+    lastModified: `${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    canRemove: true,
+  }
+
+  demoAssignmentSubmissions.set(Number(cmid), updated)
+  return cloneDemoValue(updated)
+}
+
+export function removeDemoAssignmentFile({ cmid, filename }) {
+  const existing = getDemoAssignmentDetails(cmid)
+  const remainingFiles = (existing.submittedFiles || []).filter((f) => f.filename !== filename)
+  const updated = {
+    ...existing,
+    submittedFiles: remainingFiles,
+    status: remainingFiles.length === 0 ? 'not_submitted' : existing.status,
+    statusLabel: remainingFiles.length === 0 ? 'Aucun devoir remis' : existing.statusLabel,
+    canRemove: remainingFiles.length > 0,
+  }
+  demoAssignmentSubmissions.set(Number(cmid), updated)
+  return cloneDemoValue(updated)
+}
+
 

@@ -1,11 +1,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import universityConfig from '@university'
 import {
+  getMoodleAssignmentDetails,
   getMoodleCourseContents,
   getMoodleCourses,
   getMoodleDeadlines,
   getMoodleFolderContents,
+  removeMoodleAssignmentFile,
+  submitMoodleAssignment,
 } from '../entApi'
 import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
@@ -174,6 +176,17 @@ export default function MoodlePage() {
   const [folderError, setFolderError] = useState(null)
   const [folderSearchQuery, setFolderSearchQuery] = useState('')
 
+  // Assignment Modal & submission state
+  const [activeAssignment, setActiveAssignment] = useState(null)
+  const [assignmentDetails, setAssignmentDetails] = useState(null)
+  const [loadingAssignment, setLoadingAssignment] = useState(false)
+  const [assignmentError, setAssignmentError] = useState(null)
+  const [stagedFiles, setStagedFiles] = useState([])
+  const [submissionOnlineText, setSubmissionOnlineText] = useState('')
+  const [submittingAssignment, setSubmittingAssignment] = useState(false)
+  const [assignmentSuccessMsg, setAssignmentSuccessMsg] = useState(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+
   // View mode preference: 'grid' (cards) or 'list'
   const [viewLayout, setViewLayout] = useState(() => {
     try {
@@ -238,6 +251,129 @@ export default function MoodlePage() {
       // Ignored
     }
   }, [])
+
+  const openAssignmentModal = useCallback(async (assignInfo) => {
+    setActiveAssignment(assignInfo)
+    setAssignmentDetails(null)
+    setStagedFiles([])
+    setSubmissionOnlineText('')
+    setAssignmentSuccessMsg(null)
+    setAssignmentError(null)
+    setLoadingAssignment(true)
+
+    try {
+      const res = await getMoodleAssignmentDetails(assignInfo.cmid, assignInfo.courseId)
+      if (res.status === 'ok') {
+        setAssignmentDetails(res.assignment)
+      } else {
+        setAssignmentError(res.error || 'Impossible de charger les détails du devoir.')
+      }
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : 'Erreur de connexion.')
+    } finally {
+      setLoadingAssignment(false)
+    }
+  }, [])
+
+  const closeAssignmentModal = useCallback(() => {
+    setActiveAssignment(null)
+    setAssignmentDetails(null)
+    setStagedFiles([])
+    setAssignmentSuccessMsg(null)
+    setAssignmentError(null)
+  }, [])
+
+  const handleStageFiles = useCallback((filesToStage) => {
+    const list = Array.from(filesToStage || [])
+    if (!list.length) return
+
+    for (const file of list) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64 = typeof reader.result === 'string' ? reader.result.split(',')[1] : ''
+        setStagedFiles((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            size: file.size,
+            type: file.type || 'application/octet-stream',
+            base64,
+          },
+        ])
+      }
+      reader.readAsDataURL(file)
+    }
+  }, [])
+
+  const handleRemoveStagedFile = useCallback((index) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleRemoveSubmittedFile = useCallback(async (filename) => {
+    if (!activeAssignment?.cmid) return
+    try {
+      const res = await removeMoodleAssignmentFile({
+        cmid: activeAssignment.cmid,
+        filename,
+      })
+      if (res.status === 'ok' && res.assignment) {
+        setAssignmentDetails(res.assignment)
+      }
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : 'Erreur lors du retrait du fichier.')
+    }
+  }, [activeAssignment])
+
+  const handleSubmitAssignment = useCallback(async (finalize = false) => {
+    if (!activeAssignment?.cmid) return
+    if (!stagedFiles.length && !submissionOnlineText.trim() && !finalize) return
+
+    setSubmittingAssignment(true)
+    setAssignmentError(null)
+    setAssignmentSuccessMsg(null)
+
+    try {
+      const res = await submitMoodleAssignment({
+        cmid: activeAssignment.cmid,
+        files: stagedFiles,
+        onlineText: submissionOnlineText,
+        finalize,
+      })
+
+      if (res.status === 'ok' && res.assignment) {
+        setAssignmentDetails(res.assignment)
+        setStagedFiles([])
+        setAssignmentSuccessMsg(res.message || 'Devoir téléversé avec succès sur Moodle !')
+        void loadDeadlines()
+      } else {
+        setAssignmentError(res.error || 'Erreur lors de la soumission du devoir.')
+      }
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : 'Erreur de communication avec Moodle.')
+    } finally {
+      setSubmittingAssignment(false)
+    }
+  }, [activeAssignment, stagedFiles, submissionOnlineText, loadDeadlines])
+
+  useEffect(() => {
+    if (!activeAssignment) return
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') closeAssignmentModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeAssignment, closeAssignmentModal])
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const assignCmid = urlParams.get('assign') || urlParams.get('cmid')
+    if (assignCmid) {
+      const num = Number(assignCmid)
+      if (num && Number.isFinite(num)) {
+        void openAssignmentModal({ cmid: num, name: `Devoir ${num}` })
+      }
+    }
+  }, [openAssignmentModal])
 
   useEffect(() => {
     void loadCourses()
@@ -1293,7 +1429,21 @@ export default function MoodlePage() {
 
                                       {/* Document Title & Meta */}
                                       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                        {openTargetUrl ? (
+                                        {kind === 'assign' ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => void openAssignmentModal({
+                                              cmid: mod.id,
+                                              name: mod.name,
+                                              courseId: selectedCourse?.id,
+                                              courseName: selectedCourse?.shortname || selectedCourse?.fullname,
+                                            })}
+                                            className="font-body text-[14.5px] font-semibold leading-snug text-text group-hover:text-brand hover:underline transition-colors truncate block text-left cursor-pointer"
+                                            title={`Déposer ou consulter ${mod.name}`}
+                                          >
+                                            {mod.name}
+                                          </button>
+                                        ) : openTargetUrl ? (
                                           <a
                                             href={openTargetUrl}
                                             target="_blank"
@@ -1323,7 +1473,24 @@ export default function MoodlePage() {
 
                                     {/* Action buttons */}
                                     <div className="flex items-center gap-2 shrink-0">
-                                      {openTargetUrl && (
+                                      {kind === 'assign' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => void openAssignmentModal({
+                                            cmid: mod.id,
+                                            name: mod.name,
+                                            courseId: selectedCourse?.id,
+                                            courseName: selectedCourse?.shortname || selectedCourse?.fullname,
+                                          })}
+                                          className={`${SECONDARY_BUTTON} py-1.5 px-3 text-[12px] bg-brand/10 text-brand border-brand/25 hover:bg-brand/15 hover:border-brand/40 shadow-2xs font-semibold flex items-center gap-1.5`}
+                                          title="Déposer ou consulter ce devoir dans Tafac"
+                                        >
+                                          <Icon icon="carbon:upload" className="size-3.5 text-brand" />
+                                          <span>Déposer</span>
+                                        </button>
+                                      )}
+
+                                      {openTargetUrl && kind !== 'assign' && (
                                         <a
                                           href={openTargetUrl}
                                           target="_blank"
@@ -1405,9 +1572,24 @@ export default function MoodlePage() {
                         className="flex items-start justify-between gap-2.5 p-3 rounded-[16px] bg-bg-subtle/70 hover:bg-bg-subtle border border-border transition-colors group"
                       >
                         <div className="min-w-0 flex flex-col gap-0.5 flex-1">
-                          <span className="font-body text-[13px] font-semibold text-text truncate group-hover:text-brand transition-colors" title={item.title}>
-                            {item.title}
-                          </span>
+                          {item.type === 'assign' ? (
+                            <button
+                              type="button"
+                              onClick={() => void openAssignmentModal({
+                                cmid: item.cmid || item.id,
+                                name: item.title,
+                                courseName: item.courseName,
+                              })}
+                              className="font-body text-[13px] font-semibold text-text truncate hover:text-brand transition-colors text-left cursor-pointer"
+                              title={`Déposer ou consulter ${item.title}`}
+                            >
+                              {item.title}
+                            </button>
+                          ) : (
+                            <span className="font-body text-[13px] font-semibold text-text truncate group-hover:text-brand transition-colors" title={item.title}>
+                              {item.title}
+                            </span>
+                          )}
                           <span className="font-body text-[11.5px] text-text-muted truncate">
                             {item.courseName}
                           </span>
@@ -1420,20 +1602,42 @@ export default function MoodlePage() {
                             <span className={item.overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-text-muted font-medium'}>
                               {formatRelativeDueDate(item.dueAt)}
                             </span>
+                            {item.submitted && (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5 ml-1">
+                                <Icon icon="carbon:checkmark-filled" className="size-3" />
+                                <span>Rendu</span>
+                              </span>
+                            )}
                           </div>
                         </div>
 
-                        {item.href && (
-                          <a
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="size-7 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-widget-bg transition-colors shrink-0"
-                            title="Ouvrir le devoir sur Moodle"
-                          >
-                            <Icon icon="carbon:arrow-up-right" className="size-3.5" />
-                          </a>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {item.type === 'assign' && (
+                            <button
+                              type="button"
+                              onClick={() => void openAssignmentModal({
+                                cmid: item.cmid || item.id,
+                                name: item.title,
+                                courseName: item.courseName,
+                              })}
+                              className="size-7 rounded-full flex items-center justify-center text-brand hover:bg-brand/10 transition-colors shrink-0"
+                              title="Déposer / Consulter le devoir dans Tafac"
+                            >
+                              <Icon icon="carbon:upload" className="size-3.5" />
+                            </button>
+                          )}
+                          {item.href && (
+                            <a
+                              href={item.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="size-7 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-widget-bg transition-colors shrink-0"
+                              title="Ouvrir le devoir sur Moodle"
+                            >
+                              <Icon icon="carbon:arrow-up-right" className="size-3.5" />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1710,6 +1914,370 @@ export default function MoodlePage() {
           Espaces et documents synchronisés avec la plateforme Moodle officielle de ton université.
         </p>
       </div>
+
+      {/* Assignment Submission Modal */}
+      {activeAssignment && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="assignment-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeAssignmentModal()
+          }}
+        >
+          <div
+            className="relative w-full max-w-2xl bg-widget-bg border border-border rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* En-tête Modal */}
+            <div className="flex items-start justify-between gap-4 p-5 sm:p-6 border-b border-border/60 bg-bg-subtle/30 shrink-0">
+              <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                <div className="size-11 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/20 shadow-xs">
+                  <Icon icon="carbon:task" className="size-6" aria-hidden="true" />
+                </div>
+                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/20">
+                      {activeAssignment.courseName || selectedCourse?.shortname || 'Moodle'}
+                    </span>
+                    {assignmentDetails?.status && (
+                      <span
+                        className={`font-body text-[11.5px] font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                          assignmentDetails.status === 'submitted'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                            : assignmentDetails.status === 'draft'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
+                            : 'bg-slate-500/10 text-text-muted border-border'
+                        }`}
+                      >
+                        <Icon
+                          icon={
+                            assignmentDetails.status === 'submitted'
+                              ? 'carbon:checkmark-filled'
+                              : assignmentDetails.status === 'draft'
+                              ? 'carbon:time'
+                              : 'carbon:circle-dash'
+                          }
+                          className="size-3"
+                        />
+                        <span>{assignmentDetails.statusLabel || 'Non remis'}</span>
+                      </span>
+                    )}
+                  </div>
+                  <h2 id="assignment-modal-title" className="m-0 font-title text-[20px] font-bold text-text leading-snug">
+                    {assignmentDetails?.name || activeAssignment.name}
+                  </h2>
+                  {assignmentDetails?.dueDateFormatted && (
+                    <p className="m-0 font-body text-[12.5px] text-text-muted flex items-center gap-1.5">
+                      <Icon icon="carbon:calendar" className="size-3.5" />
+                      <span>Date limite : <strong>{assignmentDetails.dueDateFormatted}</strong></span>
+                      {assignmentDetails.timeRemaining && (
+                        <span className="text-text-secondary">({assignmentDetails.timeRemaining})</span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {(assignmentDetails?.launchHref || activeAssignment.launchHref) && (
+                  <a
+                    href={assignmentDetails?.launchHref || activeAssignment.launchHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="size-9 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-subtle transition-colors"
+                    title="Ouvrir ce devoir sur le Moodle universitaire"
+                  >
+                    <Icon icon="carbon:launch" className="size-4" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={closeAssignmentModal}
+                  className="size-9 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-subtle transition-colors cursor-pointer"
+                  title="Fermer"
+                  aria-label="Fermer"
+                >
+                  <Icon icon="carbon:close" className="size-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Corps Modal */}
+            <div className="p-5 sm:p-6 overflow-y-auto flex flex-col gap-5 flex-1 [scrollbar-width:thin]">
+              {loadingAssignment ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-3 text-text-muted">
+                  <LoadingDots text="Chargement des consignes et du statut Moodle…" />
+                </div>
+              ) : assignmentError ? (
+                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 font-body text-[13.5px] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Icon icon="carbon:warning-filled" className="size-5 shrink-0" />
+                    <span>{assignmentError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void openAssignmentModal(activeAssignment)}
+                    className="underline font-semibold cursor-pointer shrink-0"
+                  >
+                    Réessayer
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Message de succès après téléversement */}
+                  {assignmentSuccessMsg && (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-body text-[13.5px] flex items-center gap-2.5 animate-in fade-in duration-200">
+                      <Icon icon="carbon:checkmark-filled" className="size-5 text-emerald-500 shrink-0" />
+                      <span className="font-semibold">{assignmentSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {/* Consignes du devoir */}
+                  {assignmentDetails?.introHtml && (
+                    <div className="flex flex-col gap-2">
+                      <span className="font-body text-[12.5px] font-bold uppercase tracking-wider text-text-muted">
+                        Consignes de l’enseignant
+                      </span>
+                      <div
+                        className="p-4 rounded-2xl bg-bg-subtle/50 border border-border/70 font-body text-[13.5px] leading-relaxed text-text prose dark:prose-invert max-w-none overflow-x-auto"
+                        dangerouslySetInnerHTML={{ __html: assignmentDetails.introHtml }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Fichiers déjà remis */}
+                  {assignmentDetails?.submittedFiles && assignmentDetails.submittedFiles.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-body text-[12.5px] font-bold uppercase tracking-wider text-text-muted">
+                          Fichiers déposés sur Moodle ({assignmentDetails.submittedFiles.length})
+                        </span>
+                        {assignmentDetails.lastModified && (
+                          <span className="font-body text-[11.5px] text-text-muted">
+                            Modifié le {assignmentDetails.lastModified}
+                          </span>
+                        )}
+                      </div>
+
+                      <ul className="m-0 p-0 list-none flex flex-col gap-2">
+                        {assignmentDetails.submittedFiles.map((file, idx) => {
+                          const fIcon = getModuleIcon('file', file.filename)
+                          return (
+                            <li
+                              key={`${file.filename}-${idx}`}
+                              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-bg-subtle/60 border border-border/80"
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${fIcon.color}`}>
+                                  <Icon icon={fIcon.icon} className="size-4" />
+                                </div>
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  <span className="font-body text-[13.5px] font-semibold text-text truncate" title={file.filename}>
+                                    {file.filename}
+                                  </span>
+                                  {file.filesize > 0 && (
+                                    <span className="font-body text-[11.5px] text-text-muted">
+                                      {formatFileSize(file.filesize)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {file.proxyUrl && (
+                                  <a
+                                    href={file.proxyUrl}
+                                    download={file.filename}
+                                    className="size-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-widget-bg border border-border/60 transition-colors"
+                                    title={`Télécharger ${file.filename}`}
+                                  >
+                                    <Icon icon="carbon:download" className="size-4" />
+                                  </a>
+                                )}
+                                {assignmentDetails.canRemove && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRemoveSubmittedFile(file.filename)}
+                                    className="size-8 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 hover:bg-red-500/10 border border-red-500/20 transition-colors cursor-pointer"
+                                    title="Retirer ce fichier"
+                                  >
+                                    <Icon icon="carbon:trash-can" className="size-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Zone de Dépôt / Téléversement */}
+                  {assignmentDetails?.canSubmit ? (
+                    <div className="flex flex-col gap-3">
+                      <span className="font-body text-[12.5px] font-bold uppercase tracking-wider text-text-muted">
+                        Téléverser un nouveau rendu
+                      </span>
+
+                      {/* Drag and Drop Zone */}
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          setIsDragOver(true)
+                        }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          setIsDragOver(false)
+                          if (e.dataTransfer.files?.length) {
+                            handleStageFiles(e.dataTransfer.files)
+                          }
+                        }}
+                        className={`relative border-2 border-dashed rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center gap-2.5 text-center transition-all cursor-pointer ${
+                          isDragOver
+                            ? 'border-brand bg-brand/10 scale-[1.01]'
+                            : 'border-border/80 hover:border-brand/50 hover:bg-bg-subtle/40'
+                        }`}
+                        onClick={() => document.getElementById('assignment-file-input')?.click()}
+                      >
+                        <input
+                          id="assignment-file-input"
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files?.length) {
+                              handleStageFiles(e.target.files)
+                              e.target.value = ''
+                            }
+                          }}
+                        />
+                        <div className="size-12 rounded-2xl bg-brand/10 text-brand flex items-center justify-center shadow-xs">
+                          <Icon icon="carbon:cloud-upload" className="size-6" />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <p className="m-0 font-body text-[14.5px] font-semibold text-text">
+                            Glissez et déposez votre fichier ici
+                          </p>
+                          <p className="m-0 font-body text-[12.5px] text-text-muted">
+                            ou <span className="text-brand font-medium underline">parcourez vos documents</span> (ex: <code>rendu.md</code>, zip, pdf...)
+                          </p>
+                        </div>
+                        {assignmentDetails.acceptedTypes && assignmentDetails.acceptedTypes.length > 0 && (
+                          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+                            {assignmentDetails.acceptedTypes.slice(0, 7).map((t) => (
+                              <span key={t} className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-bg-subtle border border-border/60 text-text-muted">
+                                {t}
+                              </span>
+                            ))}
+                            <span className="font-body text-[11px] text-text-muted ml-1">
+                              (max {assignmentDetails.maxFileSizeFormatted || '50 Mo'})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Staged files ready to be uploaded */}
+                      {stagedFiles.length > 0 && (
+                        <div className="flex flex-col gap-2 mt-1">
+                          <span className="font-body text-[12px] font-semibold text-text">
+                            Fichiers prêts à être envoyés ({stagedFiles.length}) :
+                          </span>
+                          <ul className="m-0 p-0 list-none flex flex-col gap-2">
+                            {stagedFiles.map((staged, i) => {
+                              const fIcon = getModuleIcon('file', staged.name)
+                              return (
+                                <li
+                                  key={`${staged.name}-${i}`}
+                                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-brand/5 border border-brand/20 animate-in fade-in duration-150"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${fIcon.color}`}>
+                                      <Icon icon={fIcon.icon} className="size-4" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                      <span className="font-body text-[13.5px] font-semibold text-text truncate" title={staged.name}>
+                                        {staged.name}
+                                      </span>
+                                      <span className="font-body text-[11.5px] text-text-muted">
+                                        {formatFileSize(staged.size)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveStagedFile(i)}
+                                    className="size-7 rounded-full flex items-center justify-center text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    title="Retirer de la liste"
+                                  >
+                                    <Icon icon="carbon:close" className="size-4" />
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Online text comment */}
+                      <div className="flex flex-col gap-1.5 mt-1">
+                        <label htmlFor="assignment-comment" className="font-body text-[12px] font-medium text-text-muted">
+                          Commentaire ou texte d’accompagnement (optionnel) :
+                        </label>
+                        <textarea
+                          id="assignment-comment"
+                          rows={2}
+                          value={submissionOnlineText}
+                          onChange={(e) => setSubmissionOnlineText(e.target.value)}
+                          placeholder="Remarques pour l'enseignant..."
+                          className="w-full rounded-2xl bg-bg-subtle/50 border border-border p-3 text-[13px] font-body text-text placeholder:text-text-muted focus:outline-none focus:border-brand transition-colors resize-none"
+                        />
+                      </div>
+
+                      {/* Submit action button */}
+                      <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/60 mt-1">
+                        <button
+                          type="button"
+                          onClick={closeAssignmentModal}
+                          disabled={submittingAssignment}
+                          className={SECONDARY_BUTTON}
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleSubmitAssignment(false)}
+                          disabled={submittingAssignment || (!stagedFiles.length && !submissionOnlineText.trim())}
+                          className="cursor-pointer font-body text-[13.5px] font-bold px-5 py-2.5 rounded-2xl bg-brand text-bg shadow-md hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {submittingAssignment ? (
+                            <>
+                              <Icon icon="carbon:renew" className="size-4 animate-spin" />
+                              <span>Téléversement vers Moodle…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Icon icon="carbon:send-alt" className="size-4" />
+                              <span>Téléverser mon devoir sur Moodle</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-bg-subtle border border-border text-text-muted font-body text-[13px] flex items-center gap-2">
+                      <Icon icon="carbon:locked" className="size-4 shrink-0" />
+                      <span>Les dépôts sont actuellement fermés ou verrouillés pour ce devoir sur Moodle.</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Guided Tour Modal */}
       <PageGuidedTour

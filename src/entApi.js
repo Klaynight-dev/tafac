@@ -508,6 +508,42 @@ export async function markMailAsRead(id, read = true) {
   return response.ok
 }
 
+export async function sendMailMessage({ to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType } = {}) {
+  const response = await fetch(`${ENT_AUTH_PREFIX}/mail/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType }),
+    credentials: 'same-origin',
+  })
+
+  const payload = await response.json().catch(() => null)
+  if (!response.ok || !payload?.ok) {
+    throw createHttpError(
+      payload?.error || `Impossible d'envoyer l'e-mail (${response.status}).`,
+      response.status,
+    )
+  }
+
+  return payload
+}
+
+export async function searchMailDirectory(query = '') {
+  try {
+    const params = new URLSearchParams()
+    if (query) params.set('q', query.trim())
+    const response = await fetch(`${ENT_AUTH_PREFIX}/mail/directory?${params.toString()}`, {
+      credentials: 'same-origin',
+    })
+    const payload = await response.json().catch(() => null)
+    if (!response.ok || !payload?.ok) {
+      return []
+    }
+    return Array.isArray(payload.contacts) ? payload.contacts : []
+  } catch {
+    return []
+  }
+}
+
 const GRADES_CACHE_KEY = 'l-ent:grades-cache'
 
 // Upcoming Moodle deadlines for the "Échéances Moodle" widget.
@@ -686,6 +722,117 @@ export async function getMoodleFolderContents(cmid, courseId) {
     return {
       status: 'error',
       ...empty,
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
+export async function getMoodleAssignmentDetails(cmid, courseId) {
+  const empty = { cmid: Number(cmid), assignment: null }
+
+  if (!universityConfig.features?.moodle) {
+    return { status: 'disabled', ...empty }
+  }
+
+  try {
+    const params = new URLSearchParams({ cmid: String(cmid) })
+    if (courseId) params.set('courseId', String(courseId))
+    const response = await fetch(`${ENT_AUTH_PREFIX}/moodle/assignment-details?${params.toString()}`, {
+      credentials: 'same-origin',
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (payload?.disabled) {
+      return { status: 'disabled', ...empty }
+    }
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Moodle assignment request failed (${response.status}).`, response.status)
+    }
+
+    if (!payload.authenticated) {
+      return { status: 'unauthenticated', ...empty }
+    }
+
+    return {
+      status: 'ok',
+      cmid: Number(cmid),
+      assignment: payload.assignment || null,
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      ...empty,
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
+export async function submitMoodleAssignment({ cmid, files = [], onlineText = '', finalize = false }) {
+  try {
+    const response = await fetch(`${ENT_AUTH_PREFIX}/moodle/submit-assignment`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cmid: Number(cmid),
+        files,
+        onlineText,
+        finalize,
+      }),
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Moodle submit failed (${response.status}).`, response.status)
+    }
+
+    return {
+      status: 'ok',
+      assignment: payload.assignment || null,
+      message: payload.message || 'Devoir téléversé avec succès',
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      assignment: null,
+      error: error instanceof Error ? error.message : String(error),
+      errorKind: getRequestErrorKind(error),
+    }
+  }
+}
+
+export async function removeMoodleAssignmentFile({ cmid, filename }) {
+  try {
+    const response = await fetch(`${ENT_AUTH_PREFIX}/moodle/assignment-file/remove`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cmid: Number(cmid),
+        filename,
+      }),
+    })
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok || !payload) {
+      throw createHttpError(payload?.error || `Moodle file remove failed (${response.status}).`, response.status)
+    }
+
+    return {
+      status: 'ok',
+      assignment: payload.assignment || null,
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      assignment: null,
       error: error instanceof Error ? error.message : String(error),
       errorKind: getRequestErrorKind(error),
     }

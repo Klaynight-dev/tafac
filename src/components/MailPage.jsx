@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
-import universityConfig from '@university'
 import { getMailMessage, getMailMessages, markMailAsRead } from '../entApi'
 import { MAIL_HREF } from '../navItems'
 import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
 import PageGuidedTour from './PageGuidedTour'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
+import MailComposeModal from './mail/MailComposeModal'
+import MailDirectoryModal from './mail/MailDirectoryModal'
+import MailPreferencesModal from './mail/MailPreferencesModal'
 import {
   SHIMMER_CLASSES,
   calendarDayDiff,
@@ -20,6 +22,20 @@ const MAIL_TOUR_STEPS = [
     title: 'Bienvenue sur ta messagerie',
     body: 'Consulte tes e-mails universitaires en direct, lis tes messages récents et accède directement à Partage.',
     icon: 'carbon:email',
+  },
+  {
+    id: 'compose',
+    target: 'mail-compose-button',
+    title: 'Nouveau message',
+    body: 'Rédige des e-mails soignés avec un éditeur de texte complet, des styles personnalisés et des modèles prêts à l’emploi.',
+    icon: 'carbon:edit',
+  },
+  {
+    id: 'directory',
+    target: 'mail-directory-button',
+    title: 'Annuaire universitaire',
+    body: 'Recherche facilement les adresses de tes enseignants, de la scolarité et des services universitaires.',
+    icon: 'carbon:user-multiple',
   },
   {
     id: 'search',
@@ -39,7 +55,7 @@ const MAIL_TOUR_STEPS = [
     id: 'detail',
     target: 'mail-preview',
     title: 'Panneau de lecture',
-    body: 'Lis le corps du message complet, marque-le comme lu/non lu ou ouvre-le dans le webmail Partage.',
+    body: 'Lis le corps du message complet, réponds directement, marque-le comme lu/non lu ou ouvre-le dans Partage.',
     icon: 'carbon:view',
   },
 ]
@@ -267,7 +283,9 @@ function EmailBodyViewer({ html, text }) {
           setIframeHeight(newHeight + 24)
         }
       }
-    } catch {}
+    } catch {
+      // Ignored cross-origin iframe security restrictions
+    }
   }
 
   useEffect(() => {
@@ -427,7 +445,7 @@ export default function MailPage() {
           setUnreadCount((count) => Math.max(0, count - 1))
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (!isMounted) return
         // Fallback to list message info if full detail call fails
         if (listItem) {
@@ -476,6 +494,74 @@ export default function MailPage() {
       setCopiedAddress(true)
       setTimeout(() => setCopiedAddress(false), 2000)
     }).catch(() => {})
+  }
+
+  // Compose / Send modal state
+  const [composeState, setComposeState] = useState({
+    isOpen: false,
+    to: '',
+    cc: '',
+    subject: '',
+    body: '',
+    origId: null,
+    replyType: null,
+  })
+
+  const handleNewMessage = () => {
+    setComposeState({
+      isOpen: true,
+      to: '',
+      cc: '',
+      subject: '',
+      body: '',
+      origId: null,
+      replyType: null,
+    })
+  }
+
+  const handleReplyMessage = () => {
+    if (!selectedMessage) return
+    const senderEmail = selectedMessage.from?.email || ''
+    const senderName = selectedMessage.from?.name || senderEmail || ''
+    const rawSubject = selectedMessage.subject || ''
+    const replySubject = /^re\s*:/i.test(rawSubject) ? rawSubject : `Re: ${rawSubject}`
+    const dateFormatted = selectedMessage.receivedAt
+      ? fullDateFormatter.format(new Date(selectedMessage.receivedAt))
+      : ''
+
+    const quotedBody = `
+      <p><br/></p>
+      <hr/>
+      <p><strong>De :</strong> ${senderName} &lt;${senderEmail}&gt;<br/>
+      <strong>Date :</strong> ${dateFormatted}<br/>
+      <strong>Objet :</strong> ${rawSubject}</p>
+      <blockquote>${selectedMessage.bodyHtml || selectedMessage.bodyText || ''}</blockquote>
+    `
+
+    setComposeState({
+      isOpen: true,
+      to: senderEmail,
+      cc: '',
+      subject: replySubject,
+      body: quotedBody,
+      origId: selectedMessage.id,
+      replyType: 'r',
+    })
+  }
+
+  const [directoryOpen, setDirectoryOpen] = useState(false)
+  const [preferencesOpen, setPreferencesOpen] = useState(false)
+
+  const handleSelectDirectoryContact = (contact) => {
+    setComposeState({
+      isOpen: true,
+      to: contact.email,
+      cc: '',
+      subject: '',
+      body: '',
+      origId: null,
+      replyType: null,
+    })
   }
 
   const effectiveWebmailHref = webmailHref || MAIL_HREF || 'https://partage.univ-rennes.fr/'
@@ -538,38 +624,72 @@ export default function MailPage() {
           </div>
         </header>
 
-        {/* Search & Filter Bar */}
-        <div data-tour="mail-search" className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Icon
-              icon="carbon:search"
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-text-muted pointer-events-none"
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder="Rechercher par expéditeur, sujet…"
-              className="w-full h-10 pl-9 pr-9 rounded-full border border-white/60 dark:border-white/10 bg-widget-bg text-[14px] text-text placeholder:text-text-muted transition-colors focus:border-brand focus:outline-none"
-              style={{
-                WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-                backdropFilter: 'blur(20px) saturate(1.5)',
-              }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('')
-                  void loadMessages('')
+        {/* Search & Filter Bar with Nouveau Message */}
+        <div data-tour="mail-search" className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 flex-1 max-w-xl">
+            <div className="relative flex-1">
+              <Icon
+                icon="carbon:search"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-text-muted pointer-events-none"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="Rechercher par expéditeur, sujet…"
+                className="w-full h-10 pl-9 pr-9 rounded-full border border-white/60 dark:border-white/10 bg-widget-bg text-[14px] text-text placeholder:text-text-muted transition-colors focus:border-brand focus:outline-none"
+                style={{
+                  WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
+                  backdropFilter: 'blur(20px) saturate(1.5)',
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text rounded-full"
-                aria-label="Effacer la recherche"
-              >
-                <Icon icon="carbon:close" className="size-4" />
-              </button>
-            )}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    void loadMessages('')
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text rounded-full"
+                  aria-label="Effacer la recherche"
+                >
+                  <Icon icon="carbon:close" className="size-4" />
+                </button>
+              )}
+            </div>
+
+            <button
+              data-tour="mail-compose-button"
+              type="button"
+              onClick={handleNewMessage}
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-brand text-bg text-[14px] font-bold shadow-xs hover:opacity-90 active:scale-95 transition-all shrink-0 cursor-pointer"
+              title="Rédiger un nouvel e-mail"
+            >
+              <Icon icon="carbon:edit" className="size-4 shrink-0" aria-hidden="true" />
+              <span>Nouveau message</span>
+            </button>
+
+            <button
+              data-tour="mail-directory-button"
+              type="button"
+              onClick={() => setDirectoryOpen(true)}
+              className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full border border-border bg-widget-bg hover:bg-bg-subtle text-text text-[13px] font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
+              title="Consulter l'annuaire universitaire"
+            >
+              <Icon icon="carbon:user-multiple" className="size-4 text-brand shrink-0" aria-hidden="true" />
+              <span className="max-sm:hidden">Annuaire</span>
+            </button>
+
+            <button
+              data-tour="mail-preferences-button"
+              type="button"
+              onClick={() => setPreferencesOpen(true)}
+              className="inline-flex items-center justify-center size-10 rounded-full border border-border bg-widget-bg hover:bg-bg-subtle text-text shadow-2xs transition-colors shrink-0 cursor-pointer"
+              title="Préférences d'envoi & Signature"
+            >
+              <Icon icon="carbon:settings-adjust" className="size-4.5" aria-hidden="true" />
+            </button>
           </div>
 
           <SegmentedControl
@@ -744,6 +864,15 @@ export default function MailPage() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
+                              onClick={handleReplyMessage}
+                              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-brand/10 hover:bg-brand/20 text-brand text-[12px] font-semibold transition-colors shadow-2xs"
+                              title="Répondre à cet e-mail"
+                            >
+                              <Icon icon="carbon:reply" className="size-3.5" />
+                              <span className="max-xs:hidden">Répondre</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={handleToggleRead}
                               className="size-8 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-subtle transition-colors"
                               title={selectedMessage.unread ? 'Marquer comme lu' : 'Marquer comme non lu'}
@@ -872,7 +1001,33 @@ export default function MailPage() {
                             </div>
                           </div>
                         ) : (
-                          <EmailBodyViewer html={selectedMessage.bodyHtml} text={selectedMessage.bodyText} />
+                          <>
+                            <EmailBodyViewer html={selectedMessage.bodyHtml} text={selectedMessage.bodyText} />
+
+                            {/* Quick reply action bar at the bottom */}
+                            <div className="pt-6 mt-6 border-t border-border flex items-center justify-between flex-wrap gap-3">
+                              <button
+                                type="button"
+                                onClick={handleReplyMessage}
+                                className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-[13px] font-bold text-bg shadow-xs hover:opacity-90 transition-all cursor-pointer"
+                              >
+                                <Icon icon="carbon:reply" className="size-4" />
+                                <span>Répondre à ce message</span>
+                              </button>
+
+                              {effectiveWebmailHref && (
+                                <a
+                                  href={effectiveWebmailHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 text-[12px] font-medium text-text-muted hover:text-brand transition-colors"
+                                >
+                                  <span>Ouvrir dans Partage</span>
+                                  <Icon icon="carbon:launch" className="size-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          </>
                         )}
                       </div>
                     </>
@@ -909,6 +1064,33 @@ export default function MailPage() {
           </div>
         )}
       </div>
+
+      {/* Mail Composer Modal */}
+      <MailComposeModal
+        isOpen={composeState.isOpen}
+        onClose={() => setComposeState((prev) => ({ ...prev, isOpen: false }))}
+        initialTo={composeState.to}
+        initialCc={composeState.cc}
+        initialSubject={composeState.subject}
+        initialBody={composeState.body}
+        origId={composeState.origId}
+        replyType={composeState.replyType}
+        onSent={() => void loadMessages(searchQuery, true)}
+      />
+
+      {/* University Directory Modal */}
+      <MailDirectoryModal
+        isOpen={directoryOpen}
+        onClose={() => setDirectoryOpen(false)}
+        onSelectContact={handleSelectDirectoryContact}
+      />
+
+      {/* Email Preferences Modal */}
+      <MailPreferencesModal
+        isOpen={preferencesOpen}
+        onClose={() => setPreferencesOpen(false)}
+      />
+
       <PageGuidedTour
         storageKey="l-ent:tour:mail"
         steps={MAIL_TOUR_STEPS}

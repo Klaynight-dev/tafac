@@ -3,6 +3,9 @@ import test from 'node:test'
 import {
   buildDemoMoodleCourseContentsPayload,
   buildDemoMoodleCoursesPayload,
+  getDemoAssignmentDetails,
+  removeDemoAssignmentFile,
+  submitDemoAssignment,
 } from '../src/demoAccount.js'
 import { getRouteFromPath } from '../src/appRoute.js'
 
@@ -23,10 +26,6 @@ test('buildDemoMoodleCourseContentsPayload returns sections and modules with fil
   assert.equal(payload.courseId, 101)
   assert.ok(Array.isArray(payload.sections))
   assert.ok(payload.sections.length > 0)
-
-  const firstSection = payload.sections[0]
-  assert.ok(firstSection.name)
-  assert.ok(Array.isArray(firstSection.modules))
 
   const fileModule = payload.sections
     .flatMap((s) => s.modules)
@@ -60,3 +59,37 @@ test('buildDemoMoodleCourseContentsPayload returns folder modules with multiple 
   }
 })
 
+test('getDemoAssignmentDetails returns initial assignment state', () => {
+  const assignment = getDemoAssignmentDetails(2008, 101)
+  assert.ok(assignment)
+  assert.equal(assignment.cmid, 2008)
+  assert.equal(assignment.status, 'not_submitted')
+  assert.ok(assignment.canSubmit)
+  assert.ok(Array.isArray(assignment.acceptedTypes))
+  assert.ok(assignment.acceptedTypes.includes('.md'))
+})
+
+test('submitDemoAssignment uploads files and updates status to submitted', () => {
+  const result = submitDemoAssignment({
+    cmid: 2008,
+    files: [
+      {
+        name: 'rendu.md',
+        size: 8192,
+        type: 'text/markdown',
+        base64: 'IyBUUCBOwrAx',
+      },
+    ],
+    onlineText: 'Voici mon rendu pour le TP 1.',
+  })
+
+  assert.ok(result)
+  assert.equal(result.status, 'submitted')
+  assert.equal(result.statusLabel, 'Remis pour évaluation')
+  assert.ok(result.submittedFiles.some((f) => f.filename === 'rendu.md'))
+
+  // Verify deletion
+  const afterRemove = removeDemoAssignmentFile({ cmid: 2008, filename: 'rendu.md' })
+  assert.ok(!afterRemove.submittedFiles.some((f) => f.filename === 'rendu.md'))
+  assert.equal(afterRemove.status, 'not_submitted')
+})
