@@ -96,9 +96,10 @@ function getAvatarColor(name) {
   for (let i = 0; i < (name || '').length; i += 1) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const hues = [210, 260, 290, 330, 160, 190, 25, 45]
+  // Warm hues, the UE colours' family: senders apart without leaving the DA.
+  const hues = [8, 22, 34, 345, 150, 190, 270, 48]
   const hue = hues[Math.abs(hash) % hues.length]
-  return `hsl(${hue}, 65%, 45%)`
+  return `hsl(${hue}, 48%, 42%)`
 }
 
 function formatBytes(bytes) {
@@ -712,15 +713,11 @@ export default function MailPage() {
                         <button
                           type="button"
                           onClick={() => setSelectedId(message.id)}
-                          className={`w-full text-left p-3.5 rounded-[18px] border transition-all duration-150 flex flex-col gap-1.5 cursor-pointer relative ${
+                          className={`w-full text-left p-3.5 rounded-[18px] border bg-widget-bg transition-[background-color,box-shadow] duration-150 flex flex-col gap-1.5 cursor-pointer relative ${
                             isSelected
-                              ? 'border-accent-border bg-widget-bg shadow-md ring-2 ring-accent-border'
-                              : 'border-white/60 dark:border-white/10 bg-widget-bg hover:border-border-hover hover:bg-bg-subtle'
+                              ? 'border-accent-border shadow-md ring-2 ring-accent-border'
+                              : 'border-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:bg-row-hover dark:border-border'
                           }`}
-                          style={{
-                            WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-                            backdropFilter: 'blur(20px) saturate(1.5)',
-                          }}
                         >
                           <div className="flex items-center justify-between gap-2 min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
@@ -811,7 +808,7 @@ export default function MailPage() {
                             <button
                               type="button"
                               onClick={handleReplyMessage}
-                              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-brand/10 hover:bg-brand/20 text-brand text-[12px] font-semibold transition-colors shadow-2xs"
+                              className="accent-button inline-flex items-center gap-1.5 h-8 px-3 rounded-full border font-body text-[13px] font-semibold cursor-pointer transition-colors"
                               title="Répondre à cet e-mail"
                             >
                               <Icon icon="carbon:reply" className="size-3.5" />
@@ -963,7 +960,7 @@ export default function MailPage() {
                               <button
                                 type="button"
                                 onClick={handleReplyMessage}
-                                className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-[13px] font-bold text-bg shadow-xs hover:opacity-90 transition-all cursor-pointer"
+                                className="inline-flex items-center gap-2 rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg cursor-pointer transition-colors hover:bg-brand-hover"
                               >
                                 <Icon icon="carbon:reply" className="size-4" />
                                 <span>Répondre à ce message</span>
