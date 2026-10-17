@@ -80,6 +80,11 @@ export function isMoodlePageAvailable() {
   return Boolean(universityConfig.features?.moodle)
 }
 
+// Whether /ru can show the CROUS menus (« Menu du RU »).
+export function isCrousPageAvailable() {
+  return Boolean(universityConfig.features?.crous && universityConfig.crous?.region)
+}
+
 // `gradesSupported: false`: a student whose relevé Tafac can't read (not a
 // BUT): no "Mes notes".
 export function buildNavItems(establishment, { gradesSupported = true } = {}) {
@@ -109,6 +114,10 @@ export function buildNavItems(establishment, { gradesSupported = true } = {}) {
       : MOODLE_HREF
         ? [{ id: 'moodle', label: 'Moodle', icon: 'devicon-plain:moodle', href: MOODLE_HREF, target: '_blank' }]
         : []),
+    // Not in the tab bar (six tabs already): the dashboard's card opens it.
+    ...(isCrousPageAvailable()
+      ? [{ id: 'ru', label: 'Menu du RU', icon: 'carbon:restaurant', route: 'ru', inTabBar: false }]
+      : []),
   ]
 }
 
@@ -137,5 +146,5 @@ export function openNavItemLink(item, source) {
 // The shortcuts the mobile tab bar carries (every nav item but "Toutes les
 // applications", which is the dashboard itself). Empty means no tab bar.
 export function getMobileTabItems(establishment, options) {
-  return buildNavItems(establishment, options).filter((item) => item.id !== 'applications')
+  return buildNavItems(establishment, options).filter((item) => item.id !== 'applications' && item.inTabBar !== false)
 }

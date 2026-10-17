@@ -42,6 +42,7 @@ import {
 import { createPlanningPortalApiClient } from '../planningPortalApi.js'
 import { SchoolCertificateUnavailableError, buildDemoCertificatePdf, openCertificateDownload } from './schoolCertificate.js'
 import { createPlanningRpcClient } from '../planningRpc.js'
+import { createCrousFeed } from './crousFeed.js'
 import {
   DEMO_ACCOUNT,
   DEMO_GRADES_DEPARTMENT_MESSAGE,
@@ -5863,6 +5864,36 @@ app.get('/__ent_auth/student-pic', async (req, res) => {
     res.status(500).json({
       error: error instanceof Error ? error.message : String(error),
     })
+  }
+})
+
+// CROUS restaurants and menus (« Menu du RU »), from the CROUS's own public
+// feeds (server/crousFeed.js): no sign-in involved, cached for everyone.
+const getCrousFeed = FEATURES.crous && universityConfig.crous?.region
+  ? createCrousFeed({ region: universityConfig.crous.region })
+  : null
+
+// The region's restaurants, and the coming days of `resto` (an id from that
+// list) when asked: { restaurants, restaurantId, days, fetchedAt }.
+app.get('/__ent_auth/crous', async (req, res) => {
+  try {
+    if (!getCrousFeed) {
+      return res.status(404).json({ error: 'CROUS menus are not enabled.' })
+    }
+
+    const feed = await getCrousFeed()
+    const restaurantId = typeof req.query.resto === 'string' && feed.restaurants.some((resto) => resto.id === req.query.resto)
+      ? req.query.resto
+      : null
+    res.setHeader('Cache-Control', 'private, max-age=600')
+    res.status(200).json({
+      restaurants: feed.restaurants,
+      restaurantId,
+      days: restaurantId ? feed.menus.get(restaurantId) ?? [] : [],
+      fetchedAt: new Date(feed.fetchedAt).toISOString(),
+    })
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : String(error) })
   }
 })
 

@@ -1,155 +1,74 @@
-// CROUS restaurants and menus API for Tafac.
-// Provides campus cafeteria and restaurant menu consultation with offline caching.
+// CROUS restaurants and menus (« Menu du RU » and its dashboard card), from
+// the CROUS's own feeds through the server (/__ent_auth/crous). The last
+// answer per restaurant is kept offline for the canteen queue without signal.
+import universityConfig from '@university'
+import { ENT_AUTH_PREFIX } from './entApi'
+import { getOfflineCache, setOfflineCache } from './offlineStorage'
 
-import { setOfflineCache } from './offlineStorage'
+const CROUS_CONFIG = universityConfig.crous ?? {}
+const CROUS_STORAGE_KEY = 'tafac:crous:restaurant'
 
-export const CROUS_RESTAURANTS = [
-  {
-    id: 'lannion-astrolabe',
-    name: 'RU L’Astrolabe',
-    campus: 'Lannion (IUT & ENSSAT)',
-    address: 'Rue Edouard Branly, 22300 Lannion',
-    hours: '11h30 – 13h30',
-    type: 'Restaurant Universitaire',
-    establishmentMatch: ['iutlan', 'enssat'],
-  },
-  {
-    id: 'rennes-beaulieu',
-    name: 'RU Beaulieu',
-    campus: 'Rennes 1 (Beaulieu)',
-    address: '263 Avenue du Général Leclerc, 35042 Rennes',
-    hours: '11h30 – 14h00',
-    type: 'Restaurant Universitaire',
-    establishmentMatch: ['beaulieu', 'univ-rennes'],
-  },
-  {
-    id: 'rennes-villejean',
-    name: 'RU Le Métronome (Villejean)',
-    campus: 'Rennes 2 (Villejean)',
-    address: 'Avenue Charles Tillon, 35000 Rennes',
-    hours: '11h30 – 14h00',
-    type: 'Restaurant Universitaire',
-    establishmentMatch: ['villejean'],
-  },
-  {
-    id: 'rennes-centre',
-    name: 'RU Hoche / Centre',
-    campus: 'Rennes Centre (Droit / Eco)',
-    address: 'Place Hoche, 35000 Rennes',
-    hours: '11h30 – 14h00',
-    type: 'Restaurant & Brasserie',
-    establishmentMatch: ['centre', 'droit'],
-  },
-]
+export const CROUS_MEAL_PRICE = CROUS_CONFIG.mealPrice ?? null
 
-const CROUS_STORAGE_KEY = 'tafac:crous:selected_ru'
-
+// The restaurant picked last, else the establishment's, else the
+// university's default.
 export function getStoredCrousRestaurant(establishment = null) {
   try {
     const saved = localStorage.getItem(CROUS_STORAGE_KEY)
-    if (saved && CROUS_RESTAURANTS.some((r) => r.id === saved)) {
-      return saved
-    }
+    if (saved) return saved
   } catch {
-    // Best effort: nothing to do when it fails.
+    // Storage blocked: fall back to the defaults.
   }
-
-  // Match by establishment
-  if (establishment) {
-    const match = CROUS_RESTAURANTS.find((r) =>
-      r.establishmentMatch.some((key) => establishment.toLowerCase().includes(key))
-    )
-    if (match) return match.id
-  }
-
-  return 'lannion-astrolabe'
+  return CROUS_CONFIG.defaultRestaurantByEstablishment?.[establishment] ?? CROUS_CONFIG.fallbackRestaurant ?? null
 }
 
 export function setStoredCrousRestaurant(id) {
   try {
     localStorage.setItem(CROUS_STORAGE_KEY, id)
   } catch {
-    // Best effort: nothing to do when it fails.
+    // Storage blocked: the pick lasts this visit.
   }
 }
 
-const WEEKDAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
-
-export async function fetchCrousMenu(restaurantId = 'lannion-astrolabe') {
-  const cacheKey = `crous:menu:${restaurantId}`
-  const now = new Date()
-  const todayName = WEEKDAY_NAMES[now.getDay()]
-  const isWeekend = now.getDay() === 0 || now.getDay() === 6
-
-  // Sample realistic daily menus per RU
-  const menusByDay = {
-    Lundi: {
-      lunch: {
-        entrees: ['Salade piémontaise maison', 'Velouté de potimarron bio', 'Salade de crudités variées'],
-        mains: [
-          { name: 'Pavé de colin d’Alaska sauce oseille, riz pilaf', tag: 'Poisson' },
-          { name: 'Sauté de dinde aux champignons, purée maison', tag: 'Volaille' },
-          { name: 'Chili sin carne aux haricots rouges & maïs bio', tag: 'Végétarien' },
-        ],
-        desserts: ['Mousse au chocolat maison', 'Fruit frais de saison bio', 'Yaourt fermier breton'],
-      },
-    },
-    Mardi: {
-      lunch: {
-        entrees: ['Taboulé à la menthe fraîche', 'Terrine de légumes', 'Carottes râpées citronnées'],
-        mains: [
-          { name: 'Lasagnes bolognaise pur bœuf français', tag: 'Viande' },
-          { name: 'Dos de cabillaud gratiné, poêlée de brocolis', tag: 'Poisson' },
-          { name: 'Curry doux de pois chiches & lait de coco, riz basmati', tag: 'Végétarien' },
-        ],
-        desserts: ['Tarte aux pommes rustique', 'Fromage blanc au coulis de fruits rouges', 'Compote bio pomme-poire'],
-      },
-    },
-    Mercredi: {
-      lunch: {
-        entrees: ['Salade coleslaw maison', 'Potage de légumes anciens', 'Betteraves vinaigrette bio'],
-        mains: [
-          { name: 'Rôti de porc au jus de thym, pommes grenailles', tag: 'Porc' },
-          { name: 'Filet de merlu blanc sauce ciboulette, haricots verts', tag: 'Poisson' },
-          { name: 'Dahl de lentilles corail et patates douces rôties', tag: 'Végétarien' },
-        ],
-        desserts: ['Crème brûlée vanille', 'Clémentines de Corse', 'Entremets caramel au beurre salé'],
-      },
-    },
-    Jeudi: {
-      lunch: {
-        entrees: ['Salade grecque feta & olives', 'Soupe miso aux légumes', 'Céleri rémoulade'],
-        mains: [
-          { name: 'Poulet rôti Label Rouge, frites fraîches', tag: 'Volaille' },
-          { name: 'Saumon poché sauce hollandaise, fondue de poireaux', tag: 'Poisson' },
-          { name: 'Burger végétarien galette lentilles & cantal AOP', tag: 'Végétarien' },
-        ],
-        desserts: ['Île flottante caramel', 'Salade d’agrumes frais', 'Flan pâtissier'],
-      },
-    },
-    Vendredi: {
-      lunch: {
-        entrees: ['Salade de lentilles du Puy', 'Gaspacho andalou', 'Roulé de jambon macédoine'],
-        mains: [
-          { name: 'Poisson pané croustillant du chef, purée de carottes', tag: 'Poisson' },
-          { name: 'Boeuf bourguignon mijoté aux carottes, coquillettes', tag: 'Viande' },
-          { name: 'Risotto crémeux aux champignons de Paris & parmesan', tag: 'Végétarien' },
-        ],
-        desserts: ['Éclair au chocolat', 'Fruit bio de saison', 'Faisselle et miel'],
-      },
-    },
+// { restaurants, restaurantId, days: [{ date, meals }], fetchedAt, offline? }
+export async function fetchCrous(restaurantId = null) {
+  const cacheKey = `crous:${restaurantId ?? 'list'}`
+  try {
+    const params = restaurantId ? `?resto=${encodeURIComponent(restaurantId)}` : ''
+    const response = await fetch(`${ENT_AUTH_PREFIX}/crous${params}`, { credentials: 'same-origin' })
+    if (!response.ok) throw new Error(`CROUS answered ${response.status}`)
+    const data = await response.json()
+    void setOfflineCache(cacheKey, data)
+    return data
+  } catch (error) {
+    const offline = await getOfflineCache(cacheKey)
+    if (offline?.data) return { ...offline.data, offline: true }
+    throw error
   }
+}
 
-  const fallbackMenu = menusByDay[todayName] || menusByDay['Mardi']
+// "2026-10-20" in local time.
+export function todayKey(now = new Date()) {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
 
-  const result = {
-    restaurant: CROUS_RESTAURANTS.find((r) => r.id === restaurantId) || CROUS_RESTAURANTS[0],
-    isWeekend,
-    dateLabel: `${todayName} ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`,
-    menu: fallbackMenu,
-    tariff: '3,30 € (tarif étudiant) / 1,00 € (boursier)',
-  }
+// The day to show first: today's menu, else the next one with a menu
+// (`isToday` false then, so the page can say so).
+export function pickMenuDay(days = [], now = new Date()) {
+  const today = todayKey(now)
+  const upcoming = days.filter((day) => day.date >= today)
+  const withMenu = upcoming.find((day) => day.meals.some((meal) => meal.sections.length))
+  const todays = upcoming.find((day) => day.date === today)
+  if (todays?.meals.some((meal) => meal.sections.length)) return { day: todays, isToday: true }
+  return { day: withMenu ?? todays ?? upcoming[0] ?? null, isToday: false }
+}
 
-  void setOfflineCache(cacheKey, result)
-  return result
+// "Plats chauds" → its icon in the menu.
+export function sectionIcon(title) {
+  const text = String(title ?? '').toLowerCase()
+  if (/entr|hors/.test(text)) return 'carbon:sprout'
+  if (/dessert|fromage/.test(text)) return 'carbon:cafe'
+  if (/pizza|grill|snack|sandwich|burger/.test(text)) return 'carbon:fire'
+  if (/accomp|légume|legume|féculent|feculent/.test(text)) return 'carbon:wheat'
+  return 'carbon:restaurant'
 }

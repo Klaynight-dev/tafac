@@ -61,6 +61,8 @@ export const features = {
   // « Certificat de scolarité » in Réglages › Compte, from MonDossierWeb.
   schoolCertificate: true,
   weather: { enabled: true, defaultCity: 'Rennes' },
+  // « Menu du RU »: the CROUS's own menus (see `crous` below).
+  crous: true,
   serviceCategories: false,
   demo: true,
 }
@@ -95,4 +97,18 @@ export const gradesCopy = {
 export const appIcons = {
   style: 'phosphor-duotone',
   colorMode: 'soft',
+}
+
+// CROUS restaurants (features.crous): the region of the « Crous Mobile »
+// feeds (server/crousFeed.js), the RU shown first per establishment (the
+// feed's ids), and the meal price.
+export const crous = {
+  region: 'rennes',
+  defaultRestaurantByEstablishment: {
+    iutlan: 'r461',
+    enssat: 'r461',
+  },
+  fallbackRestaurant: 'r445',
+  // The CROUS's student meal: the same price for every student.
+  mealPrice: '1 €',
 }

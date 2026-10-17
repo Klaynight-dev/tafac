@@ -46,9 +46,9 @@ export const DASHBOARD_WIDGETS = [
   },
   {
     id: 'crous',
-    label: 'Menu du CROUS (RU)',
+    label: 'Menu du RU',
     icon: 'carbon:restaurant',
-    isAvailable: () => true,
+    isAvailable: () => Boolean(universityConfig.features?.crous && universityConfig.crous?.region),
   },
 ]
 

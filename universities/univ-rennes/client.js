@@ -12,6 +12,7 @@ import {
   id,
   branding,
   casOrigin,
+  crous,
   entOrigin,
   features,
   gradesCopy,
@@ -74,6 +75,7 @@ export default {
   },
 
   features,
+  crous,
 
   planning: {
     serviceUrl: planningServiceUrl,

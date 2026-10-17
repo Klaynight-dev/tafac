@@ -49,12 +49,13 @@ import LoadingDots from './components/LoadingDots'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
-import { getMobileTabItems, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from './navItems'
+import { getMobileTabItems, isCrousPageAvailable, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from './navItems'
 import { navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
 import AbsencesPage from './components/AbsencesPage'
 import PlanningPage from './components/PlanningPage'
 import MailPage from './components/MailPage'
 import MoodlePage from './components/MoodlePage'
+import CrousPage from './components/CrousPage'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import { getAvailableWidgets } from './dashboardWidgets'
 import useGradesFormation from './useGradesFormation'
@@ -471,7 +472,7 @@ function findTpOptionByLabel(options, labelOrLabels) {
 }
 
 // Sidebar order of the pages, for the direction of the page slide.
-const PAGE_ORDER = ['dashboard', 'grades', 'absences', 'planning']
+const PAGE_ORDER = ['dashboard', 'grades', 'absences', 'planning', 'mail', 'moodle', 'ru']
 
 // What a page transition fades: each frosted card on its own (its blur keeps
 // working, unlike under a fading ancestor) and every block without one.
@@ -2153,11 +2154,13 @@ function App() {
   const planningPageAvailable = isPlanningPageAvailable()
   const mailPageAvailable = isMailPageAvailable()
   const moodlePageAvailable = isMoodlePageAvailable()
+  const crousPageAvailable = isCrousPageAvailable()
   const activeRoute = (deferredRoute === 'grades' && gradesPageAvailable)
     || (deferredRoute === 'absences' && scodocPagesAvailable)
     || (deferredRoute === 'planning' && planningPageAvailable)
     || (deferredRoute === 'mail' && mailPageAvailable)
     || (deferredRoute === 'moodle' && moodlePageAvailable)
+    || (deferredRoute === 'ru' && crousPageAvailable)
     ? deferredRoute
     : 'dashboard'
   const hasGradesPage = gradesPageAvailable
@@ -2852,13 +2855,16 @@ function App() {
   // /notes or /absences for someone without ScoDoc pages (feature off,
   // establishment without grades): show the dashboard and drop the dead URL.
   useEffect(() => {
-    const unavailable = ((route === 'grades' || route === 'absences') && !gradesPageAvailable)
+    const unavailable = (route === 'grades' && !gradesPageAvailable)
+      || (route === 'absences' && !scodocPagesAvailable)
       || (route === 'planning' && !planningPageAvailable)
       || (route === 'mail' && !mailPageAvailable)
+      || (route === 'moodle' && !moodlePageAvailable)
+      || (route === 'ru' && !crousPageAvailable)
     if (isDashboardShellVisible && unavailable) {
       navigateTo('dashboard', { replace: true })
     }
-  }, [gradesPageAvailable, isDashboardShellVisible, mailPageAvailable, planningPageAvailable, route])
+  }, [crousPageAvailable, gradesPageAvailable, isDashboardShellVisible, mailPageAvailable, moodlePageAvailable, planningPageAvailable, route, scodocPagesAvailable])
 
   const scodocPageRef = useRef(null)
   const dashboardPageRef = useRef(null)
@@ -3005,6 +3011,7 @@ function App() {
                   {activeRoute === 'moodle' ? (
                     <MoodlePage />
                   ) : null}
+                  {activeRoute === 'ru' ? <CrousPage establishment={establishment} /> : null}
                 </PageErrorBoundary>
               </div>
             )}
