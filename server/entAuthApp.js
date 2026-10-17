@@ -3515,7 +3515,7 @@ function convertHtmlToPlainText(html) {
     .trim()
 }
 
-async function sendZimbraMail(session, { to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType } = {}) {
+async function sendZimbraMail(session, { to, cc, bcc, subject, bodyHtml, bodyText, attachments, origId, replyType } = {}) {
   const toRecipients = parseRecipients(to, 't')
   if (toRecipients.length === 0) {
     throw new Error('Au moins une adresse de destinataire valide est requise.')
