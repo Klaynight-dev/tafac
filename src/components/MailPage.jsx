@@ -596,7 +596,7 @@ export default function MailPage() {
       titleId="mail-page-title"
       title="Messagerie"
       controls={unreadCount > 0 ? (
-        <span className="font-body text-[15px] font-semibold leading-none text-text-secondary">
+        <span className="font-body text-[15px] font-semibold leading-none text-text-secondary max-md:hidden">
           {unreadCount > 99 ? '99+' : unreadCount} non lu{unreadCount > 1 ? 's' : ''}
         </span>
       ) : null}
@@ -609,16 +609,16 @@ export default function MailPage() {
             label="Rafraîchir"
             onClick={() => void loadMessages(searchQuery, true)}
             disabled={refreshing || loading}
-            className={`${ICON_ONLY} ${refreshing ? '[&_svg]:animate-spin' : ''}`}
+            className={`${ICON_ONLY} max-md:hidden ${refreshing ? '[&_svg]:animate-spin' : ''}`}
           />
-          <PageButton data-tour="mail-preferences-button" icon="carbon:settings-adjust" label="Préférences d’envoi et signature" onClick={() => setPreferencesOpen(true)} className={ICON_ONLY} />
+          <PageButton data-tour="mail-preferences-button" icon="carbon:settings-adjust" label="Préférences d’envoi et signature" onClick={() => setPreferencesOpen(true)} className={`${ICON_ONLY} max-md:hidden`} />
           {effectiveWebmailHref ? <PageButton icon="carbon:arrow-up-right" label="Partage" href={effectiveWebmailHref} /> : null}
-          <PageButton icon="carbon:help" label="Visite guidée" onClick={() => setTourTrigger((c) => c + 1)} className={ICON_ONLY} />
+          <PageButton icon="carbon:help" label="Visite guidée" onClick={() => setTourTrigger((c) => c + 1)} className={`${ICON_ONLY} max-md:hidden`} />
         </>
       )}
       overview={(
         <div data-tour="mail-search" className="flex flex-wrap items-center gap-2">
-          <label className="relative min-w-[220px] max-w-xl flex-1">
+          <label className="relative min-w-0 max-w-xl flex-1 max-md:basis-full">
             <span className="sr-only">Rechercher un e-mail</span>
             <Icon icon="carbon:search" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
             <input

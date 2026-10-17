@@ -45,8 +45,8 @@ export function PageButton({ icon, label, onClick, href = null, accent = false, 
 // (a page that puts a full-height tool right under its title).
 export function AppPage({ titleId, title, subtitle = null, controls = null, actions = null, overview = null, footer = null, bare = false, children = null, className = '' }) {
   return (
-    <section className={`grades-page w-full grid content-start gap-4 pt-4 px-6 pb-6 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-5 max-md:gap-3 ${className}`} aria-labelledby={titleId}>
-      <div className={bare ? 'grid gap-4' : 'page-top-band grid gap-5 -mx-6 -mt-4 px-6 pt-4 pb-6 4xl:-mt-5 4xl:pt-5 max-md:-mx-3 max-md:-mt-3 max-md:gap-4 max-md:px-3 max-md:pt-5 max-md:pb-4'}>
+    <section className={`grades-page w-full grid grid-cols-[minmax(0,1fr)] content-start gap-4 pt-4 px-6 pb-6 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-5 max-md:gap-3 ${className}`} aria-labelledby={titleId}>
+      <div className={bare ? 'grid grid-cols-[minmax(0,1fr)] gap-4' : 'page-top-band grid grid-cols-[minmax(0,1fr)] gap-5 -mx-6 -mt-4 px-6 pt-4 pb-6 4xl:-mt-5 4xl:pt-5 max-md:-mx-3 max-md:-mt-3 max-md:gap-4 max-md:px-3 max-md:pt-5 max-md:pb-4'}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:flex-nowrap max-md:items-center max-md:gap-x-2">
           <div className="flex min-w-0 flex-col gap-1 max-md:mr-auto">
             <h1 id={titleId} className="m-0 leading-[1.15] text-2xl font-bold max-md:flex max-md:min-h-10 max-md:items-center max-md:text-[26px] max-md:tracking-[-0.01em]">{title}</h1>
