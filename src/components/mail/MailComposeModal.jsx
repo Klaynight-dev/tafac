@@ -32,7 +32,36 @@ export default function MailComposeModal({
   const [showConfirmSend, setShowConfirmSend] = useState(false)
   const [showDirectoryModal, setShowDirectoryModal] = useState(false)
   const [showPreferencesModal, setShowPreferencesModal] = useState(false)
+  const [attachments, setAttachments] = useState([])
   const [activeFieldForDirectory, setActiveFieldForDirectory] = useState('to') // 'to' | 'cc' | 'bcc'
+
+  const handleAddFiles = (fileList) => {
+    const newFiles = Array.from(fileList || [])
+    for (const file of newFiles) {
+      if (file.size > 25 * 1024 * 1024) {
+        setError(`Le fichier « ${file.name} » dépasse la taille maximale autorisée (25 Mo).`)
+        continue
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64 = reader.result ? String(reader.result).split(',')[1] : ''
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            size: file.size,
+            type: file.type || 'application/octet-stream',
+            base64,
+          },
+        ])
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveAttachment = (indexToRemove) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove))
+  }
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([])
@@ -211,6 +240,7 @@ export default function MailComposeModal({
         bcc: bcc.trim() || undefined,
         subject: subject.trim() || '(Sans objet)',
         bodyHtml,
+        attachments: attachments.length ? attachments : undefined,
         origId,
         replyType,
       })
@@ -527,6 +557,56 @@ export default function MailComposeModal({
                 placeholder="Objet de votre e-mail"
                 className="w-full h-11 px-3.5 rounded-xl border border-border bg-bg-subtle text-[14px] font-semibold text-text placeholder:text-text-muted focus:border-brand focus:outline-none transition-colors"
               />
+            </div>
+
+            {/* Attachments Section */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+                  <Icon icon="carbon:attachment" className="size-3.5" />
+                  Pièces jointes {attachments.length > 0 && `(${attachments.length})`}
+                </span>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-border bg-widget-bg hover:bg-bg-subtle text-[12px] font-semibold text-text cursor-pointer transition-colors shadow-2xs">
+                  <Icon icon="carbon:document-add" className="size-3.5 text-brand" />
+                  <span>Ajouter un fichier</span>
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.length) {
+                        handleAddFiles(e.target.files)
+                        e.target.value = ''
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              {attachments.length > 0 && (
+                <ul className="m-0 p-0 list-none flex flex-wrap gap-2 animate-fadeIn">
+                  {attachments.map((att, idx) => (
+                    <li
+                      key={`${att.name}-${idx}`}
+                      className="inline-flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl border border-border bg-widget-bg text-[12.5px] font-medium text-text shadow-2xs"
+                    >
+                      <Icon icon="carbon:document" className="size-4 text-brand shrink-0" />
+                      <span className="max-w-[180px] truncate" title={att.name}>{att.name}</span>
+                      <span className="text-[11px] text-text-muted">
+                        ({att.size < 1024 * 1024 ? `${(att.size / 1024).toFixed(0)} Ko` : `${(att.size / (1024 * 1024)).toFixed(1)} Mo`})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(idx)}
+                        className="size-5 rounded-full flex items-center justify-center text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer ml-1"
+                        title="Retirer cette pièce jointe"
+                      >
+                        <Icon icon="carbon:close" className="size-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* Rich Text Editor */}

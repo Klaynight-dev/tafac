@@ -11,6 +11,7 @@ import {
 } from '../entApi'
 import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
+import { getOfflineCache, setOfflineCache } from '../offlineStorage'
 import PageGuidedTour from './PageGuidedTour'
 import {
   LoadingDots,
@@ -227,15 +228,27 @@ export default function MoodlePage() {
     try {
       const result = await getMoodleCourses()
       if (result.status === 'ok') {
-        setCourses(result.courses || [])
+        const list = result.courses || []
+        setCourses(list)
         setMoodleWebHref(result.moodleHref || null)
+        void setOfflineCache('moodle:courses', list)
       } else if (result.status === 'error') {
-        setCoursesError(result.error || 'Impossible de récupérer vos cours Moodle.')
+        const offline = await getOfflineCache('moodle:courses')
+        if (offline?.data?.length) {
+          setCourses(offline.data)
+        } else {
+          setCoursesError(result.error || 'Impossible de récupérer vos cours Moodle.')
+        }
       } else if (result.status === 'unauthenticated') {
         setCoursesError('Veuillez vous reconnecter pour accéder à Moodle.')
       }
     } catch (err) {
-      setCoursesError(err instanceof Error ? err.message : String(err))
+      const offline = await getOfflineCache('moodle:courses')
+      if (offline?.data?.length) {
+        setCourses(offline.data)
+      } else {
+        setCoursesError(err instanceof Error ? err.message : String(err))
+      }
     } finally {
       setLoadingCourses(false)
     }
@@ -245,10 +258,15 @@ export default function MoodlePage() {
     try {
       const result = await getMoodleDeadlines()
       if (result.status === 'ok') {
-        setDeadlines(result.items || [])
+        const items = result.items || []
+        setDeadlines(items)
+        void setOfflineCache('moodle:deadlines', items)
       }
     } catch {
-      // Ignored
+      const offline = await getOfflineCache('moodle:deadlines')
+      if (offline?.data?.length) {
+        setDeadlines(offline.data)
+      }
     }
   }, [])
 
@@ -1602,6 +1620,11 @@ export default function MoodlePage() {
                             <span className={item.overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-text-muted font-medium'}>
                               {formatRelativeDueDate(item.dueAt)}
                             </span>
+                            {!item.submitted && (item.overdue || formatRelativeDueDate(item.dueAt).startsWith('Aujourd') || formatRelativeDueDate(item.dueAt).startsWith('Demain')) && (
+                              <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-[10px] uppercase tracking-wide">
+                                Urgent
+                              </span>
+                            )}
                             {item.submitted && (
                               <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5 ml-1">
                                 <Icon icon="carbon:checkmark-filled" className="size-3" />
@@ -2044,6 +2067,33 @@ export default function MoodlePage() {
                         className="p-4 rounded-2xl bg-bg-subtle/50 border border-border/70 font-body text-[13.5px] leading-relaxed text-text prose dark:prose-invert max-w-none overflow-x-auto"
                         dangerouslySetInnerHTML={{ __html: assignmentDetails.introHtml }}
                       />
+                    </div>
+                  )}
+
+                  {/* Note et évaluation de l'enseignant si corrigé */}
+                  {(assignmentDetails?.grade || assignmentDetails?.feedbackComments) && (
+                    <div className="flex flex-col gap-2 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 animate-fadeIn">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-body text-[12.5px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                          <Icon icon="carbon:certificate" className="size-4 text-emerald-600 dark:text-emerald-400" />
+                          Évaluation de l'enseignant
+                        </span>
+                        {assignmentDetails.grade && (
+                          <span className="font-mono text-[14px] font-bold px-3 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                            {assignmentDetails.grade}
+                          </span>
+                        )}
+                      </div>
+                      {assignmentDetails.feedbackComments && (
+                        <p className="m-0 font-body text-[13px] leading-relaxed text-text mt-1">
+                          {assignmentDetails.feedbackComments}
+                        </p>
+                      )}
+                      {assignmentDetails.gradedBy && (
+                        <span className="font-body text-[11.5px] text-text-muted mt-0.5">
+                          Corrigé par {assignmentDetails.gradedBy}
+                        </span>
+                      )}
                     </div>
                   )}
 

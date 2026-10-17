@@ -9,10 +9,12 @@ import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
 import {
   addDays,
   capitalize,
+  downloadIcsCalendar,
   findCommonFreeSlots,
   formatWeekLabel,
   startOfWeek,
 } from '../planningUtils'
+import { getOfflineCache, setOfflineCache } from '../offlineStorage'
 
 import PlanningWeekGrid from './planning/PlanningWeekGrid'
 import PlanningDayView from './planning/PlanningDayView'
@@ -20,6 +22,7 @@ import PlanningListView from './planning/PlanningListView'
 import PlanningMonthView from './planning/PlanningMonthView'
 import TeacherCompareModal from './planning/TeacherCompareModal'
 import CourseDetailModal from './planning/CourseDetailModal'
+import FreeRoomsModal from './planning/FreeRoomsModal'
 import PageGuidedTour from './PageGuidedTour'
 
 const PLANNING_SERVICE_URL = universityConfig.planning?.serviceUrl ?? null
@@ -93,6 +96,7 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
   const [selectedTeacher, setSelectedTeacher] = useState(null)
   const [teacherState, setTeacherState] = useState({ status: 'idle', events: [] })
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false)
+  const [isFreeRoomsModalOpen, setIsFreeRoomsModalOpen] = useState(false)
 
   // Course detail modal state
   const [selectedEventForDetail, setSelectedEventForDetail] = useState(null)
@@ -155,11 +159,18 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     })
       .then((result) => {
         eventsCache.current.set(cacheKey, result)
+        void setOfflineCache(`planning:${cacheKey}`, result)
         setState({ status: 'ok', ...result })
       })
       .catch((error) => {
         if (error?.name !== 'AbortError') {
-          setState({ status: 'error', events: [], complete: true })
+          getOfflineCache(`planning:${cacheKey}`).then((offline) => {
+            if (offline?.data) {
+              setState({ status: 'ok', ...offline.data, fromCache: true })
+            } else {
+              setState({ status: 'error', events: [], complete: true })
+            }
+          })
         }
       })
 
@@ -553,6 +564,29 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
               )}
             </button>
 
+            {/* Salles libres button */}
+            <button
+              type="button"
+              onClick={() => setIsFreeRoomsModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-widget-bg px-3.5 py-2 font-body text-[14px] font-semibold text-text hover:bg-bg-subtle transition-all cursor-pointer"
+              title="Trouver une salle libre pour travailler en autonomie ou en groupe"
+            >
+              <Icon icon="carbon:workspace" className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Salles libres</span>
+            </button>
+
+            {/* Export ICS button */}
+            <button
+              type="button"
+              onClick={() => downloadIcsCalendar(state.events, 'planning-tafac.ics')}
+              disabled={!state.events.length}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-widget-bg px-3.5 py-2 font-body text-[14px] font-semibold text-text hover:bg-bg-subtle transition-all cursor-pointer disabled:opacity-40"
+              title="Exporter l'emploi du temps au format iCalendar (.ics) pour Google Agenda, Apple Calendar ou Outlook"
+            >
+              <Icon icon="carbon:calendar-tools" className="size-4" />
+              <span>Exporter (.ics)</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setTourTrigger((c) => c + 1)}
@@ -643,6 +677,14 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         loadingTeacher={teacherState.status === 'loading'}
         studentSelection={selection}
       />
+
+      {/* Free rooms finder modal */}
+      <FreeRoomsModal
+        isOpen={isFreeRoomsModalOpen}
+        onClose={() => setIsFreeRoomsModalOpen(false)}
+        events={state.events}
+      />
+
       <PageGuidedTour
         storageKey="l-ent:tour:planning"
         steps={PLANNING_TOUR_STEPS}

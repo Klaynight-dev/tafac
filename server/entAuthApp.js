@@ -3441,6 +3441,22 @@ async function sendZimbraMail(session, { to, cc, bcc, subject, bodyHtml, bodyTex
     }
   }
 
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    const attachmentParts = attachments.map((att) => ({
+      ct: att.type || 'application/octet-stream',
+      filename: att.name,
+      content: att.base64,
+    }))
+    const bodyPart = messagePayload.mp
+    messagePayload.mp = {
+      ct: 'multipart/mixed',
+      mp: [
+        bodyPart,
+        ...attachmentParts,
+      ],
+    }
+  }
+
   const context = await getZimbraContext(session)
   const result = await zimbraSoapRequest(context, 'SendMsgRequest', {
     m: messagePayload,
@@ -3741,7 +3757,41 @@ app.post('/__ent_auth/mail/read', async (req, res) => {
   }
 })
 
-// 6g. Send mail message (for in-app composer)
+// 6g. Move message to trash
+app.post('/__ent_auth/mail/trash', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ authenticated: false, error: 'Non authentifié' })
+    }
+
+    const { id } = req.body || {}
+    if (!id) {
+      return res.status(400).json({ error: 'Identifiant de message manquant' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({ ok: true })
+    }
+
+    const context = await getZimbraContext(session)
+    await zimbraSoapRequest(context, 'MsgActionRequest', {
+      action: { id, op: 'trash' },
+    })
+    runtimeMailCache.delete(session.id)
+    setSessionCookie(res, session)
+    return res.status(200).json({ ok: true })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// 6h. Send mail message (for in-app composer)
 app.post('/__ent_auth/mail/send', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store')
@@ -3760,7 +3810,7 @@ app.post('/__ent_auth/mail/send', async (req, res) => {
       })
     }
 
-    const { to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType } = req.body || {}
+    const { to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType, attachments } = req.body || {}
     const result = await sendZimbraMail(session, {
       to,
       cc,
@@ -3768,6 +3818,7 @@ app.post('/__ent_auth/mail/send', async (req, res) => {
       subject,
       bodyHtml,
       bodyText,
+      attachments,
       origId,
       replyType,
     })

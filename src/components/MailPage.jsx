@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { getMailMessage, getMailMessages, markMailAsRead } from '../entApi'
+import { getMailMessage, getMailMessages, markMailAsRead, trashMailMessage } from '../entApi'
+import { getOfflineCache, setOfflineCache } from '../offlineStorage'
 import { MAIL_HREF } from '../navItems'
 import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
@@ -368,6 +369,12 @@ export default function MailPage() {
           }
           return current
         })
+
+        void setOfflineCache('mail:inbox', {
+          messages: list,
+          unreadCount: result.unreadCount ?? list.filter((m) => m.unread).length,
+          webmailHref: result.webmailHref,
+        })
       } else if (result.status === 'disabled') {
         setError('La messagerie n’est pas configurée pour cet établissement.')
       } else if (result.status === 'unauthenticated') {
@@ -376,7 +383,14 @@ export default function MailPage() {
         setError(result.error || 'Erreur lors du chargement des e-mails.')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const offline = await getOfflineCache('mail:inbox')
+      if (offline?.data?.messages?.length) {
+        setMessages(offline.data.messages)
+        setUnreadCount(offline.data.unreadCount ?? 0)
+        if (offline.data.webmailHref) setWebmailHref(offline.data.webmailHref)
+      } else {
+        setError(err instanceof Error ? err.message : String(err))
+      }
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -485,6 +499,16 @@ export default function MailPage() {
     )
     setUnreadCount((count) => (targetState ? count + 1 : Math.max(0, count - 1)))
     await markMailAsRead(selectedMessage.id, !targetState)
+  }
+
+  const handleTrashMessage = async (e) => {
+    e?.stopPropagation()
+    if (!selectedMessage) return
+    const id = selectedMessage.id
+    setSelectedId(null)
+    setMessages((prev) => prev.filter((m) => m.id !== id))
+    setUnreadCount((count) => (selectedMessage.unread ? Math.max(0, count - 1) : count))
+    await trashMailMessage(id)
   }
 
   const handleCopySender = () => {
@@ -881,6 +905,14 @@ export default function MailPage() {
                                 icon={selectedMessage.unread ? 'carbon:email' : 'carbon:email-new'}
                                 className="size-4"
                               />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleTrashMessage}
+                              className="size-8 rounded-full flex items-center justify-center text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                              title="Déplacer vers la corbeille"
+                            >
+                              <Icon icon="carbon:trash-can" className="size-4" />
                             </button>
                             {effectiveWebmailHref && (
                               <a

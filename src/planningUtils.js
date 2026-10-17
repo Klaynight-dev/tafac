@@ -356,3 +356,165 @@ Seriez-vous disponible sur l'un de ces créneaux, ou auriez-vous une autre préf
 Bien cordialement,
 Les étudiants${groupText}`
 }
+
+// ── iCalendar (.ics) Export ──
+
+function formatIcsDate(isoString) {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+}
+
+function escapeIcsText(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+}
+
+export function generateIcsCalendar(events = [], calendarName = 'Emploi du temps - Tafac') {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Tafac//FR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${escapeIcsText(calendarName)}`,
+    'X-WR-TIMEZONE:Europe/Paris',
+  ]
+
+  const nowIcs = formatIcsDate(new Date().toISOString())
+
+  for (const event of events) {
+    if (!event?.start || !event?.end) continue
+    const startIcs = formatIcsDate(event.start)
+    const endIcs = formatIcsDate(event.end)
+    if (!startIcs || !endIcs) continue
+
+    const uid = event.id ? `${event.id}@tafac.fr` : `evt-${startIcs}-${Math.random().toString(36).slice(2)}@tafac.fr`
+    const summary = event.title || 'Cours'
+    const location = event.location || ''
+    const description = [
+      event.teacher ? `Enseignant: ${event.teacher}` : '',
+      event.groups?.length ? `Groupes: ${event.groups.join(', ')}` : '',
+    ].filter(Boolean).join('\n')
+
+    lines.push('BEGIN:VEVENT')
+    lines.push(`UID:${uid}`)
+    lines.push(`DTSTAMP:${nowIcs}`)
+    lines.push(`DTSTART:${startIcs}`)
+    lines.push(`DTEND:${endIcs}`)
+    lines.push(`SUMMARY:${escapeIcsText(summary)}`)
+    if (location) lines.push(`LOCATION:${escapeIcsText(location)}`)
+    if (description) lines.push(`DESCRIPTION:${escapeIcsText(description)}`)
+    lines.push('END:VEVENT')
+  }
+
+  lines.push('END:VCALENDAR')
+  return lines.join('\r\n')
+}
+
+export function downloadIcsCalendar(events = [], filename = 'emploi-du-temps.ics', calendarName) {
+  const content = generateIcsCalendar(events, calendarName)
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// ── Salles Libres (Trouver une salle libre pour bosser) ──
+
+export function findFreeRooms(events = [], atDate = new Date()) {
+  const atTimeMs = atDate.getTime()
+  const dateStr = formatDateOnly(atDate)
+
+  // Filter events of the day
+  const dayEvents = (events || []).filter((event) => {
+    if (!event?.start || !event?.end || !event?.location) return false
+    return event.start.startsWith(dateStr)
+  })
+
+  // Extract unique clean room names
+  const roomsMap = new Map()
+  for (const event of dayEvents) {
+    const rawLocations = String(event.location)
+      .split(/[,;\n/]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 2 && !/visio|teams|zoom|distance/i.test(s))
+
+    for (const room of rawLocations) {
+      if (!roomsMap.has(room)) {
+        roomsMap.set(room, [])
+      }
+      roomsMap.get(room).push({
+        ...event,
+        startMs: new Date(event.start).getTime(),
+        endMs: new Date(event.end).getTime(),
+      })
+    }
+  }
+
+  const results = []
+
+  for (const [room, roomEvts] of roomsMap.entries()) {
+    roomEvts.sort((a, b) => a.startMs - b.startMs)
+    const currentEvent = roomEvts.find((e) => e.startMs <= atTimeMs && e.endMs > atTimeMs)
+
+    if (currentEvent) {
+      const remainingMs = currentEvent.endMs - atTimeMs
+      const remainingMin = Math.max(1, Math.round(remainingMs / (60 * 1000)))
+      results.push({
+        room,
+        isFree: false,
+        statusLabel: 'Occupée',
+        currentClass: currentEvent.title,
+        untilTime: formatTime(currentEvent.end),
+        remainingMinutes: remainingMin,
+        detail: `Occupée par « ${currentEvent.title} » jusqu'à ${formatTime(currentEvent.end)}`,
+      })
+    } else {
+      const nextEvent = roomEvts.find((e) => e.startMs > atTimeMs)
+      if (nextEvent) {
+        const availableMs = nextEvent.startMs - atTimeMs
+        const availableMin = Math.round(availableMs / (60 * 1000))
+        results.push({
+          room,
+          isFree: true,
+          statusLabel: 'Disponible',
+          nextClass: nextEvent.title,
+          untilTime: formatTime(nextEvent.start),
+          availableMinutes: availableMin,
+          detail: `Libre jusqu'à ${formatTime(nextEvent.start)} (encore ${Math.floor(availableMin / 60)}h${availableMin % 60 ? `${availableMin % 60}`.padStart(2, '0') : ''})`,
+        })
+      } else {
+        results.push({
+          room,
+          isFree: true,
+          statusLabel: 'Disponible',
+          nextClass: null,
+          untilTime: null,
+          availableMinutes: 999,
+          detail: 'Libre pour tout le reste de la journée !',
+        })
+      }
+    }
+  }
+
+  results.sort((a, b) => {
+    if (a.isFree && !b.isFree) return -1
+    if (!a.isFree && b.isFree) return 1
+    if (a.isFree && b.isFree) return b.availableMinutes - a.availableMinutes
+    return a.remainingMinutes - b.remainingMinutes
+  })
+
+  return results
+}
+

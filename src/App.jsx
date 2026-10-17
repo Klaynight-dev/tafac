@@ -17,6 +17,7 @@ import OnboardingPage from './components/OnboardingPage'
 import PwaUpdateManager from './components/PwaUpdateManager'
 import UpdateNotice from './components/UpdateNotice'
 import WelcomeFromLent from './components/WelcomeFromLent'
+import OfflineBanner from './components/OfflineBanner'
 import { settingsTransfer } from './settingsTransferBoot'
 import { DEMO_CREDENTIALS, DEMO_SESSION_MODE } from './demoAccount'
 import { storeBrowserPasswordCredential } from './browserCredentials'
@@ -2810,6 +2811,7 @@ function App() {
               // the cards rather than pushing them down a full row.
               <ChangelogPill className="4xl:hidden flex justify-end px-6 pt-2 -mb-2 max-md:px-3 max-md:pt-1.5" />
             ) : null}
+            <OfflineBanner className="mx-6 mt-3 max-md:mx-3" />
             {sessionState.warning ? (
               <div className="px-6 pt-3 max-md:px-3 4xl:pt-5">
                 <div className="flex items-start gap-3 rounded-[20px] border border-[#f2cf8f] bg-[#fff7e8] px-4 py-3 text-text shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:border-[#6a4d15] dark:bg-[#2f2410]">

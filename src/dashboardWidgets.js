@@ -44,6 +44,12 @@ export const DASHBOARD_WIDGETS = [
     icon: 'carbon:task',
     isAvailable: () => Boolean(universityConfig.features?.moodleDeadlines),
   },
+  {
+    id: 'crous',
+    label: 'Menu du CROUS (RU)',
+    icon: 'carbon:restaurant',
+    isAvailable: () => true,
+  },
 ]
 
 export function isWidgetAvailable(widgetId, establishment) {

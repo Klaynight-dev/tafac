@@ -9,6 +9,7 @@ import WidgetAbsences from './WidgetAbsences'
 import WidgetListStrip from './WidgetListStrip'
 import WidgetNextClass from './WidgetNextClass'
 import WidgetRecentMail from './WidgetRecentMail'
+import WidgetCrous from './WidgetCrous'
 import { trackDashboardView } from '../analytics'
 import { isWidgetAvailable } from '../dashboardWidgets'
 import { useListCardOrder } from '../listCardOrder'
@@ -220,6 +221,7 @@ function WidgetContainer({
   const showAbsencesWidget = isShown('absences')
   const showMailWidget = isShown('mail')
   const showDeadlinesWidget = isShown('deadlines')
+  const showCrousWidget = isShown('crous')
   const pairListWidgets = showMailWidget && showDeadlinesWidget
   // The busier of the two goes first (src/listCardOrder.js). Keyed, so a swap
   // moves the cards instead of remounting (and refetching) them.
@@ -295,6 +297,11 @@ function WidgetContainer({
                 {showDeadlinesWidget ? <WidgetDeadlines visible={areWidgetsVisible} /> : null}
               </>
             )}
+          </div>
+        ) : null}
+        {showCrousWidget ? (
+          <div className="flex-[1_1_320px] max-w-[420px] min-w-[280px]">
+            <WidgetCrous visible={areWidgetsVisible} establishment={establishment} />
           </div>
         ) : null}
       </div>

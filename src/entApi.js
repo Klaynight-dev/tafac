@@ -508,11 +508,24 @@ export async function markMailAsRead(id, read = true) {
   return response.ok
 }
 
-export async function sendMailMessage({ to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType } = {}) {
+export async function trashMailMessage(id) {
+  if (!id) return false
+
+  const response = await fetch(`${ENT_AUTH_PREFIX}/mail/trash`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+    credentials: 'same-origin',
+  })
+
+  return response.ok
+}
+
+export async function sendMailMessage({ to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType, attachments } = {}) {
   const response = await fetch(`${ENT_AUTH_PREFIX}/mail/send`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType }),
+    body: JSON.stringify({ to, cc, bcc, subject, bodyHtml, bodyText, origId, replyType, attachments }),
     credentials: 'same-origin',
   })
 
