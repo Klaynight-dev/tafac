@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import { ENT_AUTH_PREFIX, getAdeTeachers } from '../entApi'
-import { HELP_TOUR_BUTTON, SECONDARY_BUTTON } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
 import { buildResourceIdsFromSelection, fetchUpcomingEvents, formatDateOnly } from '../upcomingClasses'
+import { AppPage, INLINE_BUTTON, PRIMARY_BUTTON, PageButton } from './AppPage'
+import { GradesNotice } from './GradesNotice'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
 import {
   addDays,
@@ -70,6 +71,13 @@ const PLANNING_TOUR_STEPS = [
 
 const VIEW_STORAGE_KEY = 'l-ent:planning-view-mode'
 
+// Previous / next period: a round white button.
+const NAV_BUTTON = 'inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-widget-bg text-text cursor-pointer transition-colors duration-150 hover:bg-bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
 export default function PlanningPage({ selection = null, sessionUser = null, onOpenAccount }) {
   const resourceIds = useMemo(() => buildResourceIdsFromSelection(selection), [selection])
   const scope = `${sessionUser ?? ''}::${resourceIds.join('|')}`
@@ -103,6 +111,8 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
   // Course detail modal state
   const [selectedEventForDetail, setSelectedEventForDetail] = useState(null)
   const [tourTrigger, setTourTrigger] = useState(0)
+  // Shown after « Aujourd’hui » landed on another day: { date, reason }.
+  const [jumpNotice, setJumpNotice] = useState(null)
 
   // Cache for fetched periods
   const eventsCache = useRef(new Map())
@@ -268,6 +278,7 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
   const isCurrentMonth = currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear()
 
   const handlePrev = () => {
+    setJumpNotice(null)
     if (viewMode === 'day') {
       setCurrentDate((curr) => {
         const day = curr.getDay() // 0 = Dimanche, 1 = Lundi, 6 = Samedi
@@ -291,6 +302,7 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
   }
 
   const handleNext = () => {
+    setJumpNotice(null)
     if (viewMode === 'day') {
       setCurrentDate((curr) => {
         const day = curr.getDay() // 0 = Dimanche, 5 = Vendredi, 6 = Samedi
@@ -313,11 +325,50 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     }
   }
 
-  const handleToday = () => {
+  // Today, or, without a course today (weekend, holidays), the next day with
+  // one (ADE, six weeks ahead), with a word on why. In the week view, the
+  // week of that day; in the month view, the month stays.
+  const showToday = useCallback(async () => {
     const today = new Date()
     setCurrentDate(today)
     setMonday(startOfWeek(today))
     setCurrentMonth(today)
+    setJumpNotice(null)
+    if (!resourceIds.length) return
+
+    let next = null
+    try {
+      const result = await fetchUpcomingEvents({ selection, startDate: formatDateOnly(today), lookaheadDays: 42 })
+      const todayKey = formatDateOnly(today)
+      next = result.events
+        .map((event) => new Date(event.start))
+        .filter((start) => formatDateOnly(start) >= todayKey)
+        .sort((left, right) => left - right)[0] ?? null
+    } catch {
+      return
+    }
+    if (!next || formatDateOnly(next) === formatDateOnly(today)) return
+
+    setCurrentDate(next)
+    setMonday(startOfWeek(next))
+    const day = today.getDay()
+    const gapDays = Math.round((startOfDay(next) - startOfDay(today)) / 86_400_000)
+    setJumpNotice({
+      date: next,
+      reason: gapDays > 4 ? 'holidays' : day === 0 || day === 6 ? 'weekend' : 'today',
+    })
+  }, [resourceIds.length, selection])
+
+  // On arrival, like « Aujourd’hui ».
+  const arrivedRef = useRef(false)
+  useEffect(() => {
+    if (arrivedRef.current || !resourceIds.length) return
+    arrivedRef.current = true
+    void showToday()
+  }, [resourceIds.length, showToday])
+
+  const handleToday = () => {
+    void showToday()
   }
 
   const isAtCurrentPeriod = viewMode === 'day' ? isToday : viewMode === 'month' ? isCurrentMonth : isCurrentWeek
@@ -380,13 +431,6 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     return formatWeekLabel(monday)
   }, [viewMode, currentDate, currentMonth, monday])
 
-  const adeButton = ADE_HREF ? (
-    <button type="button" onClick={() => window.open(ADE_HREF, '_blank', 'noopener,noreferrer')} className={SECONDARY_BUTTON}>
-      ADE
-      <Icon icon="carbon:arrow-up-right" className="size-3.5" aria-hidden="true" />
-    </button>
-  ) : null
-
   // View switcher options
   const viewOptions = [
     { value: 'week', label: 'Semaine' },
@@ -394,6 +438,17 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     { value: 'list', label: 'Liste' },
     { value: 'month', label: 'Mois' },
   ]
+
+  const jumpDayLabel = jumpNotice
+    ? jumpNotice.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+    : ''
+  const jumpTitle = jumpNotice
+    ? {
+        weekend: `C’est le week-end : reprise ${jumpDayLabel}`,
+        holidays: `Pas de cours d’ici là : reprise ${jumpDayLabel}`,
+        today: `Pas de cours aujourd’hui : prochain cours ${jumpDayLabel}`,
+      }[jumpNotice.reason]
+    : null
 
   let mainBody
   if (!resourceIds.length) {
@@ -403,7 +458,7 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         title="Groupe manquant"
         detail="Choisis ton groupe TD ou TP dans « Mon compte » pour voir ton planning."
         action={onOpenAccount ? (
-          <button type="button" onClick={onOpenAccount} className="rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover">
+          <button type="button" onClick={onOpenAccount} className={PRIMARY_BUTTON}>
             Ouvrir Mon compte
           </button>
         ) : null}
@@ -416,21 +471,10 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         title="Planning indisponible"
         detail="ADE ne répond pas pour le moment. Réessaie dans quelques minutes, ou ouvre-le directement."
         action={(
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={retry} className="rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover">
-              Réessayer
-            </button>
-            <button
-              type="button"
-              onClick={() => setTourTrigger((c) => c + 1)}
-              className={HELP_TOUR_BUTTON}
-              title="Aide & Visite guidée du planning"
-              aria-label="Visite guidée"
-            >
-              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
-            </button>
-            {adeButton}
-          </div>
+          <>
+            <button type="button" onClick={retry} className={PRIMARY_BUTTON}>Réessayer</button>
+            {ADE_HREF ? <PageButton icon="carbon:arrow-up-right" label="Ouvrir ADE" href={ADE_HREF} className="max-md:size-auto max-md:px-3.5 max-md:py-2 [&>span]:max-md:inline" /> : null}
+          </>
         )}
       />
     )
@@ -460,6 +504,7 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         monday={monday}
         now={now}
         onSelectDate={(d) => {
+          setJumpNotice(null)
           setCurrentDate(d)
           setMonday(startOfWeek(d))
         }}
@@ -475,6 +520,7 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         now={now}
         onSelectMonth={setCurrentMonth}
         onSelectDate={(d) => {
+          setJumpNotice(null)
           setCurrentDate(d)
           setMonday(startOfWeek(d))
           setViewMode('day')
@@ -492,169 +538,83 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     )
   }
 
-  return (
-    <section className="grades-page w-full pt-4 px-6 pb-12 4xl:pt-5 max-md:px-3 max-md:pt-3" aria-labelledby="planning-page-title">
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 max-md:gap-5">
-        {/* Top Header */}
-        <header className="flex items-end justify-between gap-4 flex-wrap">
-          <div className="flex flex-col gap-1 min-w-0">
-            <h1 id="planning-page-title" className="m-0 text-[36px] font-bold leading-none tracking-[-0.02em] max-md:text-[28px]">
-              Planning
-            </h1>
-            <p className="m-0 font-body text-[15px] font-medium text-text-secondary" aria-live="polite">
-              {subtitleLabel}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* View Switcher Segmented Control */}
-            <div data-tour="planning-views">
-              <SegmentedControl
-                label="Vue du planning"
-                options={viewOptions}
-                value={viewMode}
-                onChange={handleChangeView}
-              />
-            </div>
-
-            {/* Navigation buttons */}
-            <div data-tour="planning-nav" className="flex items-center gap-1.5 ml-1">
-              <button
-                type="button"
-                aria-label="Période précédente"
-                onClick={handlePrev}
-                className={SECONDARY_BUTTON}
-              >
-                <Icon icon="carbon:chevron-left" className="size-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                disabled={isAtCurrentPeriod}
-                onClick={handleToday}
-                className={`${SECONDARY_BUTTON} disabled:opacity-50 text-[13px]`}
-              >
-                Aujourd’hui
-              </button>
-              <button
-                type="button"
-                aria-label="Période suivante"
-                onClick={handleNext}
-                className={SECONDARY_BUTTON}
-              >
-                <Icon icon="carbon:chevron-right" className="size-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            {/* Compare / Move class button */}
-            <button
-              data-tour="planning-teacher"
-              type="button"
-              onClick={() => setIsCompareModalOpen(true)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 font-body text-[14px] font-semibold transition-all ${
-                selectedTeacher
-                  ? 'bg-brand text-bg shadow-xs hover:bg-brand-hover'
-                  : 'border border-border bg-widget-bg text-text hover:bg-bg-subtle'
-              }`}
-              title="Comparer avec l'emploi du temps d'un prof pour trouver des créneaux de déplacement"
-            >
-              <Icon icon="carbon:collaborate" className="size-4" />
-              <span>{selectedTeacher ? `Prof : ${selectedTeacher.name}` : 'Déplacer / Profs'}</span>
-              {commonSlots.length > 0 && (
-                <span className="flex size-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-                  {commonSlots.length}
-                </span>
-              )}
-            </button>
-
-            {/* Salles libres button */}
-            <button
-              type="button"
-              onClick={() => setIsFreeRoomsModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-widget-bg px-3.5 py-2 font-body text-[14px] font-semibold text-text hover:bg-bg-subtle transition-all cursor-pointer"
-              title="Trouver une salle libre pour travailler en autonomie ou en groupe"
-            >
-              <Icon icon="carbon:workspace" className="size-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Salles libres</span>
-            </button>
-
-            {/* Export ICS button */}
-            <button
-              type="button"
-              onClick={() => downloadIcsCalendar(state.events, 'planning-tafac.ics')}
-              disabled={!state.events.length}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-widget-bg px-3.5 py-2 font-body text-[14px] font-semibold text-text hover:bg-bg-subtle transition-all cursor-pointer disabled:opacity-40"
-              title="Exporter l'emploi du temps au format iCalendar (.ics) pour Google Agenda, Apple Calendar ou Outlook"
-            >
-              <Icon icon="carbon:calendar-tools" className="size-4" />
-              <span>Exporter (.ics)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTourTrigger((c) => c + 1)}
-              className={HELP_TOUR_BUTTON}
-              title="Aide & Visite guidée du planning"
-              aria-label="Visite guidée"
-            >
-              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
-            </button>
-
-            {adeButton}
-          </div>
-        </header>
-
-        {/* Teacher comparison explanation banner if active */}
-        {selectedTeacher && (
-          <aside className="flex items-center justify-between gap-4 rounded-2xl border-2 border-indigo-500 bg-white dark:bg-zinc-900 px-4 py-3 text-zinc-900 dark:text-zinc-100 flex-wrap shadow-md">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-400">
-                <Icon icon="carbon:collaborate" className="size-4" />
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-body text-[13px] font-bold">
-                    Comparaison avec {selectedTeacher.name}
-                  </span>
-                  {commonSlots.length > 0 ? (
-                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                      {commonSlots.length} créneau(x) libre(s) commun(s)
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                      Aucun créneau évident détecté cette semaine
-                    </span>
-                  )}
-                </div>
-                <span className="text-[12px] text-zinc-600 dark:text-zinc-400">
-                  Affichage côte à côte : vos cours sont à gauche, ceux de l'enseignant à droite.
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsCompareModalOpen(true)}
-                className="rounded-full bg-indigo-600 dark:bg-indigo-500 px-3.5 py-1.5 font-body text-[12px] font-semibold text-white shadow-xs hover:bg-indigo-700 transition-colors"
-              >
-                Créneaux & message →
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectTeacher(null)}
-                className="inline-flex items-center gap-1 rounded-full border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 font-body text-[12px] font-semibold text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-              >
-                <Icon icon="carbon:close" className="size-3.5" />
-                <span>Quitter</span>
-              </button>
-            </div>
-          </aside>
-        )}
-
-        {/* View body with swipe navigation */}
-        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="w-full touch-pan-y">
-          {mainBody}
+  // The band: the view and the period, then what's worth a word (the day
+  // shown instead of today, the teacher being compared).
+  const overview = resourceIds.length ? (
+    <div className="grid gap-4 max-md:gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="planning-views" className="max-w-full overflow-x-auto [scrollbar-width:none]">
+          <SegmentedControl label="Vue du planning" options={viewOptions} value={viewMode} onChange={handleChangeView} />
         </div>
+        <div data-tour="planning-nav" className="flex items-center gap-1.5 max-md:ml-auto">
+          <button type="button" aria-label="Période précédente" onClick={handlePrev} className={NAV_BUTTON}>
+            <Icon icon="carbon:chevron-left" className="size-4" aria-hidden="true" />
+          </button>
+          <button type="button" disabled={isAtCurrentPeriod && !jumpNotice} onClick={handleToday} className={INLINE_BUTTON}>
+            Aujourd’hui
+          </button>
+          <button type="button" aria-label="Période suivante" onClick={handleNext} className={NAV_BUTTON}>
+            <Icon icon="carbon:chevron-right" className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      {jumpTitle ? (
+        <GradesNotice icon="carbon:calendar" label="Jour affiché" title={jumpTitle} onDismiss={() => setJumpNotice(null)} />
+      ) : null}
+      {selectedTeacher ? (
+        <GradesNotice
+          icon="carbon:collaborate"
+          label="Comparaison avec un enseignant"
+          title={`Comparaison avec ${selectedTeacher.name}`}
+          badge={commonSlots.length ? `${commonSlots.length} créneau${commonSlots.length > 1 ? 'x' : ''} commun${commonSlots.length > 1 ? 's' : ''}` : null}
+          onDismiss={() => handleSelectTeacher(null)}
+        >
+          {commonSlots.length
+            ? 'Ses cours s’affichent à côté des tiens ; les créneaux libres pour vous deux sont surlignés.'
+            : 'Aucun créneau libre en commun repéré cette semaine.'}
+        </GradesNotice>
+      ) : null}
+      {state.fromCache ? (
+        <GradesNotice icon="carbon:cloud-offline" label="Hors ligne" title="Hors ligne : dernier planning enregistré" />
+      ) : null}
+    </div>
+  ) : null
+
+  return (
+    <AppPage
+      titleId="planning-page-title"
+      title="Planning"
+      controls={resourceIds.length ? (
+        <span className="font-body text-[15px] font-semibold leading-none text-text-secondary max-md:hidden" aria-live="polite">{subtitleLabel}</span>
+      ) : null}
+      actions={(
+        <>
+          <PageButton icon="carbon:workspace" label="Salles libres" onClick={() => setIsFreeRoomsModalOpen(true)} />
+          <PageButton
+            data-tour="planning-teacher"
+            icon="carbon:collaborate"
+            label={selectedTeacher ? 'Comparaison' : 'Profs'}
+            onClick={() => setIsCompareModalOpen(true)}
+            accent={Boolean(selectedTeacher)}
+          />
+          <PageButton
+            icon="carbon:calendar-add"
+            label="Exporter"
+            onClick={() => downloadIcsCalendar(state.events, 'planning-tafac.ics')}
+            disabled={!state.events.length}
+            title="Exporter au format .ics (Google Agenda, Apple Calendrier, Outlook)"
+          />
+          {ADE_HREF ? <PageButton icon="carbon:arrow-up-right" label="ADE" href={ADE_HREF} /> : null}
+          <PageButton icon="carbon:help" label="Aide" onClick={() => setTourTrigger((c) => c + 1)} className="max-xl:[&>span]:hidden max-xl:px-2.5" />
+        </>
+      )}
+      subtitle={resourceIds.length ? <span className="md:hidden">{subtitleLabel}</span> : null}
+      overview={overview}
+    >
+      {/* The calendar itself; swipe sideways on a phone for the next or
+          previous period. */}
+      <div data-tour="planning-content" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="w-full min-w-0 touch-pan-y">
+        {mainBody}
       </div>
 
       {/* Course detail modal (opened when clicking on a course) */}
@@ -680,7 +640,6 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         studentSelection={selection}
       />
 
-      {/* Free rooms finder modal */}
       <FreeRoomsModal
         isOpen={isFreeRoomsModalOpen}
         onClose={() => setIsFreeRoomsModalOpen(false)}
@@ -692,6 +651,6 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         steps={PLANNING_TOUR_STEPS}
         manualTrigger={tourTrigger}
       />
-    </section>
+    </AppPage>
   )
 }
