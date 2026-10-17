@@ -8,6 +8,7 @@ import {
   prefetchSemesterGrades,
 } from './entApi'
 import { getReleveDepartment, htmlToPlainText, listGradesSemesters } from './gradesReport'
+import { getOfflineCache, setOfflineCache } from './offlineStorage'
 import { describeLoadError } from './scodocPageUtils'
 
 // The semester picked on one ScoDoc page stays picked on the other.
@@ -17,8 +18,6 @@ const departmentMessages = new Map()
 
 // Everything the ScoDoc pages load: the first-connection answer (newest
 // semester), the other semesters on demand and in the background, the
-import { getOfflineCache, setOfflineCache } from './offlineStorage'
-
 // department notice. Starts from the cached answer when there is one and
 // refreshes it behind the scenes (`refreshing`).
 export function useScodocReleve() {
