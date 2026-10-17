@@ -2176,8 +2176,9 @@ function App() {
   useEffect(() => {
     if (isGradesPage && hasConfirmedGradesPage) markChangelogEntrySeen('mes-notes')
   }, [isGradesPage, hasConfirmedGradesPage])
-  // The grades page sits on the plain background, like with the wallpaper off.
-  const isWallpaperShown = showWallpaper && !isGradesPage
+  // The in-app pages sit on the plain background, like with the wallpaper
+  // off: their top is the tinted band (AppPage, « Mes notes »).
+  const isWallpaperShown = showWallpaper && activeRoute === 'dashboard'
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -2962,8 +2963,8 @@ function App() {
                 }}
               />
             ) : null}
-            {/* On a phone, "Mes notes" starts with its own title: no top bar. */}
-            <div className={`${isGradesPage ? 'max-md:hidden ' : ''}4xl:hidden`}>
+            {/* On a phone, the in-app pages start with their own title: no top bar. */}
+            <div className={`${activeRoute !== 'dashboard' ? 'max-md:hidden ' : ''}4xl:hidden`}>
               <AppHeader
                 authenticated={sessionState.authenticated}
                 checking={sessionState.checking}

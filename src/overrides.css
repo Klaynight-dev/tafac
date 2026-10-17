@@ -1200,23 +1200,27 @@
 
 /* Mes notes' "Simuler" button: a cream brown, warmer than the page's
    beige, so it reads as the way into something to play with. */
-.simulate-button {
+.simulate-button,
+.accent-button {
   border-color: #dcc5a6;
   background-color: #ead8bf;
   color: #4a2a12;
 }
 
-.simulate-button:hover {
+.simulate-button:hover,
+.accent-button:hover {
   background-color: #e3cdae;
 }
 
-:where([data-theme="dark"]) .simulate-button {
+:where([data-theme="dark"]) .simulate-button,
+:where([data-theme="dark"]) .accent-button {
   border-color: #5c4630;
   background-color: #4a3825;
   color: #f1e2cc;
 }
 
-:where([data-theme="dark"]) .simulate-button:hover {
+:where([data-theme="dark"]) .simulate-button:hover,
+:where([data-theme="dark"]) .accent-button:hover {
   background-color: #56422c;
 }
 

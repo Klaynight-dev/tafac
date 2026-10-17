@@ -1,19 +1,27 @@
 import { Icon } from '@iconify/react'
 import { GRADES_LAUNCH_HREF, openGradesService } from '../entApi'
 import { CARD_CLASSES, SECONDARY_BUTTON } from '../scodocPageUtils'
+import { PRIMARY_BUTTON } from './AppPage'
 import { useSlidingIndicator } from '../useSlidingIndicator'
 import { SlidingIndicator } from './SlidingIndicator'
+import SharedLoadingDots from './LoadingDots'
+import { GradesNotice } from './GradesNotice'
 
 // Building blocks shared by the ScoDoc pages ("Mes notes", "Absences").
 
-export function SectionTitle({ id, children, count = null, aside = null }) {
+// A section's title, as on « Mes notes »: an icon and the title in the
+// brand colour, a count after it, `aside` at the end of the row.
+export function SectionTitle({ id, children, icon = null, count = null, aside = null }) {
   return (
-    <div className="flex items-center justify-between gap-3 flex-wrap">
-      <h2 id={id} className="m-0 text-[22px] leading-[1.1] max-md:text-[20px]">
-        {children}
-        {count != null ? <span className="ml-2 font-body text-[15px] font-medium text-text-muted">{count}</span> : null}
-      </h2>
-      {aside}
+    <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex items-center gap-[5px] text-brand">
+        {icon ? <Icon icon={icon} className="w-[17px] h-[17px] shrink-0" aria-hidden="true" /> : null}
+        <h2 id={id} className="m-0 font-body text-base font-medium leading-[1.06]">
+          {children}
+          {count != null ? <span className="ml-1.5 text-text-muted">{count}</span> : null}
+        </h2>
+      </div>
+      {aside ? <div className="ml-auto flex items-center gap-2">{aside}</div> : null}
     </div>
   )
 }
@@ -27,10 +35,10 @@ export function SegmentedControl({ label, options, value, onChange, size = 'md',
       ref={groupRef}
       role="radiogroup"
       aria-label={label}
-      className={`relative inline-flex max-w-full gap-1 rounded-full border border-border bg-widget-bg p-1 ${className}`}
+      className={`relative inline-flex max-w-full gap-1 rounded-full bg-[#f3f1eb] p-1 dark:bg-[var(--color-bg-muted)] ${className}`}
       style={style}
     >
-      <SlidingIndicator box={box} className="rounded-full bg-brand" />
+      <SlidingIndicator box={box} className="rounded-full border border-white bg-widget-bg shadow-[0_1px_3px_rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.08)]" />
       {options.map((option) => {
         const selected = option.value === value
         return (
@@ -43,7 +51,7 @@ export function SegmentedControl({ label, options, value, onChange, size = 'md',
             onClick={() => onChange(option.value)}
             className={`relative flex shrink-0 flex-col items-center justify-center rounded-full border-0 bg-transparent font-body font-semibold leading-none transition-colors duration-200 ${
               size === 'lg' ? 'gap-1 px-4 py-2' : 'px-3.5 py-1.5 text-[14px]'
-            } ${selected ? 'text-bg' : 'text-text-secondary hover:text-text'}`}
+            } ${selected ? 'text-text' : 'text-text-secondary hover:text-text'}`}
           >
             <span className={size === 'lg' ? 'text-[15px]' : ''}>
               {option.label}
@@ -57,28 +65,28 @@ export function SegmentedControl({ label, options, value, onChange, size = 'md',
   )
 }
 
+// A whole-page state (nothing yet, unavailable…), as PageEmptyState draws
+// it: an icon in a soft disc, a title, a line, then `action`.
 export function StatusMessage({ icon, title, detail = null, action = null }) {
   return (
-    <div className={`${CARD_CLASSES} grades-reveal flex flex-col items-start gap-3 p-5`}>
-      <Icon icon={icon} className="size-6 text-text-muted" aria-hidden="true" />
-      <div className="flex flex-col gap-1">
-        <p className="m-0 font-body text-[16px] font-semibold text-text">{title}</p>
-        {detail ? <p className="m-0 font-body text-[14px] leading-snug text-text-secondary whitespace-pre-line">{detail}</p> : null}
-      </div>
-      {action}
+    <div className="page-enter flex flex-col items-center justify-center gap-3 px-6 py-14 text-center max-md:py-10" role="status">
+      <span className="inline-flex size-14 items-center justify-center rounded-full bg-brand-subtle text-text" aria-hidden="true">
+        <Icon icon={icon} className="size-[26px]" />
+      </span>
+      <p className="m-0 font-body text-[17px] font-semibold leading-[1.2] text-text">{title}</p>
+      {detail ? (
+        <p className="m-0 max-w-[420px] font-body text-[15px] font-medium leading-[1.4] text-text-secondary whitespace-pre-line">{detail}</p>
+      ) : null}
+      {action ? <div className="mt-1 flex flex-wrap justify-center gap-2">{action}</div> : null}
     </div>
   )
 }
 
 export function LoadingDots({ label }) {
   return (
-    <div className="flex items-center gap-3 py-10 text-text-muted" role="status" aria-live="polite">
-      <span className="inline-flex gap-[6px]" aria-hidden="true">
-        {[0, 140, 280].map((delay) => (
-          <span key={delay} className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: `${delay}ms` }} />
-        ))}
-      </span>
-      <span className="font-body text-[14px]">{label}</span>
+    <div className="flex items-center gap-3 py-10 text-text-muted">
+      <SharedLoadingDots label={label} />
+      <span className="font-body text-[14px] font-medium" aria-hidden="true">{label}</span>
     </div>
   )
 }
@@ -101,7 +109,7 @@ export function OpenScodocButton() {
 export function ScodocLoadState({ data, unavailableTitle }) {
   const { base, entry, activeSemester, retry } = data
   const retryButton = (
-    <button type="button" onClick={retry} className="rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover">
+    <button type="button" onClick={retry} className={PRIMARY_BUTTON}>
       Réessayer
     </button>
   )
@@ -179,18 +187,15 @@ export function ScodocPageHeader({ titleId, title, subtitle, actions = null, dat
   )
 }
 
+// The department's message, as « Mes notes » shows it.
 export function DepartmentNotice({ message }) {
   if (!message) {
     return null
   }
 
   return (
-    <aside className={`${CARD_CLASSES} grades-reveal flex gap-3 p-4`} aria-label="Message du département">
-      <Icon icon="carbon:information" className="mt-0.5 size-5 shrink-0 text-text-secondary" aria-hidden="true" />
-      <div className="flex flex-col gap-1 min-w-0">
-        <p className="m-0 font-body text-[14px] font-semibold text-text">Message de ton département</p>
-        <p className="m-0 font-body text-[14px] leading-relaxed text-text-secondary whitespace-pre-line">{message}</p>
-      </div>
-    </aside>
+    <GradesNotice icon="carbon:bullhorn" label="Message du département" title="Message de ton département" collapsible>
+      {message}
+    </GradesNotice>
   )
 }
