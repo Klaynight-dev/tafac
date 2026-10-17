@@ -243,6 +243,41 @@ export function useWidgetLoadReport(widget, outcome) {
   }, [widget, status, errorKind])
 }
 
+// « Mes notes », once per arrival on the page (GradesPage's mount; refs
+// survive StrictMode's second effect run): page_viewed with how the student
+// got there (`source`, see src/gradesAnalytics.js), then grades_loaded when
+// `outcome` (describeGradesLoad) first settles for the semester it opens on.
+// Later semester switches and background refreshes are never reported.
+export function useGradesPageReport(source, outcome) {
+  const startedAtRef = useRef(null)
+  const reportedRef = useRef({ view: false, load: false })
+  const status = outcome?.status ?? null
+  const errorKind = outcome?.errorKind ?? null
+
+  useEffect(() => {
+    if (startedAtRef.current === null) startedAtRef.current = performance.now()
+    const reported = reportedRef.current
+    if (!reported.view) {
+      reported.view = true
+      track('page_viewed', { page: 'grades', source })
+    }
+    if (!status || reported.load) return
+
+    reported.load = true
+    track('grades_loaded', {
+      status,
+      duration_bucket: getDurationBucket(performance.now() - startedAtRef.current),
+      ...(status === 'error' ? { error_kind: errorKind ?? 'other' } : null),
+    })
+  }, [source, status, errorKind])
+}
+
+// One thing done on « Mes notes » (grades_action): `action` and, for a
+// grade's detail sheet, where it was opened `from`.
+export function trackGradesAction(action, { from = null } = {}) {
+  track('grades_action', { action, ...(from ? { from } : null) })
+}
+
 // Application ids (portal fname or local service id) as a short slug.
 export function toAppSlug(value) {
   return String(value ?? '')

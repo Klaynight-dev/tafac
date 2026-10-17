@@ -1,14 +1,16 @@
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
+import { trackGradesAction } from '../analytics'
 import { shadeHex } from '../colorContrast'
 import { describeJuryDecision, formatJuryDate, hashNoticeText, readDismissedMessageHash, writeDismissedMessageHash } from '../gradesNotices'
 
 // One notice under the "Mes notes" cards: an icon in a soft disc (or any
 // `media`), a bold line with an optional `badge`, an optional text.
 // `collapsible` folds a long text to three lines behind "Lire la suite";
-// `onDismiss` adds a close button; `tint` washes the card in a colour.
+// `onDismiss` adds a close button; `tint` washes the card in a colour;
+// `onExpand` hears "Lire la suite" unfold it.
 // On a phone both buttons reach 44px of touch area past their drawn size.
-export function GradesNotice({ icon = null, media = null, tint = null, label, title, badge = null, children = null, collapsible = false, onDismiss = null }) {
+export function GradesNotice({ icon = null, media = null, tint = null, label, title, badge = null, children = null, collapsible = false, onDismiss = null, onExpand = null }) {
   const bodyId = useId()
   const bodyRef = useRef(null)
   const [expanded, setExpanded] = useState(false)
@@ -53,7 +55,10 @@ export function GradesNotice({ icon = null, media = null, tint = null, label, ti
         {collapsible && (overflowing || expanded) ? (
           <button
             type="button"
-            onClick={() => setExpanded((current) => !current)}
+            onClick={() => {
+              if (!expanded) onExpand?.()
+              setExpanded(!expanded)
+            }}
             aria-expanded={expanded}
             aria-controls={bodyId}
             className="-mx-1 mt-0.5 cursor-pointer rounded-md border-0 bg-transparent px-1 py-0.5 text-text underline decoration-text-30 underline-offset-[3px] transition-colors hover:decoration-text max-md:relative max-md:after:absolute max-md:after:-inset-x-2 max-md:after:-inset-y-2.5"
@@ -192,7 +197,7 @@ function GradesNotices({ releve, departmentMessage }) {
     <div className="grid gap-3 max-md:gap-2">
       {decision ? <JuryDecisionNotice decision={decision} /> : null}
       {showMessage ? (
-        <GradesNotice icon="carbon:bullhorn" label="Message de ton département" title="Message de ton département" collapsible onDismiss={dismissMessage}>
+        <GradesNotice icon="carbon:bullhorn" label="Message de ton département" title="Message de ton département" collapsible onDismiss={dismissMessage} onExpand={() => trackGradesAction('department_message_expanded')}>
           {departmentMessage}
         </GradesNotice>
       ) : null}

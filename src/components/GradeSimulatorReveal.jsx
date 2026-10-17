@@ -249,7 +249,8 @@ function MoveRow({ badge, label, move, start, delay }) {
 // burst of the UE's ribbons when it goes up; then the general average and
 // the other UEs that move. Screen readers get it all at
 // once, in words (speakOutcome). `flyFrom`: the corner badge's box.
-function GradeSimulatorReveal({ ue, ues, releve, overrides, flyFrom = null, onEdit, onClose }) {
+// `onShown(outcome)`: once per reveal, for the anonymous analytics.
+function GradeSimulatorReveal({ ue, ues, releve, overrides, flyFrom = null, onEdit, onShown = () => {}, onClose }) {
   const id = useId().replace(/:/g, '')
   const projection = useMemo(() => projectAverages(releve, overrides), [releve, overrides])
   const own = projection.ues[ue.code] ?? { official: ue.average, projected: null }
@@ -269,6 +270,15 @@ function GradeSimulatorReveal({ ue, ues, releve, overrides, flyFrom = null, onEd
   })
   const copy = COPY[outcome.tone]
   const isUp = UP_TONES.has(outcome.tone)
+  // Once per reveal (the ref outlives StrictMode's second effect run): the
+  // grades can't change while it's shown.
+  const hasReportedRef = useRef(false)
+  useEffect(() => {
+    if (hasReportedRef.current) return
+    hasReportedRef.current = true
+    onShown(outcome)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const from = outcome.official ?? 0
   const to = outcome.value ?? from
 

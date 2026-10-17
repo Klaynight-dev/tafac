@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon, iconLoaded, loadIcons } from '@iconify/react'
+import { track } from '../analytics'
 import { useChangelog } from '../changelogStore'
 import { getMobileTabItems, openNavItemLink } from '../navItems'
 
@@ -83,7 +84,9 @@ function MobileTabBar({ establishment, gradesSupported = true, activePage = 'das
     }
 
     if (item.page) {
-      onNavigatePage?.(item.page)
+      // Anonymous analytics: the tab's « Nouveau » dot was showing.
+      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker' })
+      onNavigatePage?.(item.page, 'tabbar')
       return
     }
 

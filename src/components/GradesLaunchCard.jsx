@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
+import { track } from '../analytics'
 import { markChangelogEntrySeen, useChangelog } from '../changelogStore'
 import { pickInkOn } from '../colorContrast'
 import { buildSegmentPath, pointAt } from '../ueRingGeometry'
@@ -153,25 +154,38 @@ function LaunchDial() {
 // way in. Only for students the entry applies to (a BUT relevé at a school
 // with the page, the device not new: changelogStore), until it's seen. It
 // stands in for the « Nouveautés » pill for this entry, which stays in the
-// list. `onOpen`: shows « Mes notes » (App's page switch).
+// list. `onOpen`: shows « Mes notes » (App's page switch, told it's from
+// here for its page_viewed).
 function GradesLaunchCard({ onOpen }) {
   const { unseenIds } = useChangelog()
   const titleId = useId()
   const [isLeaving, setIsLeaving] = useState(false)
   const leaveTimeoutRef = useRef(null)
+  const isShown = Boolean(onOpen) && unseenIds.includes(ENTRY_ID)
+  // Anonymous analytics: `shown` once per mount, when the card is there
+  // (the ref outlives StrictMode's second effect run).
+  const hasReportedShownRef = useRef(false)
 
   useEffect(() => () => window.clearTimeout(leaveTimeoutRef.current), [])
 
-  if (!onOpen || !unseenIds.includes(ENTRY_ID)) return null
+  useEffect(() => {
+    if (!isShown || hasReportedShownRef.current) return
+    hasReportedShownRef.current = true
+    track('launch_card', { action: 'shown' })
+  }, [isShown])
+
+  if (!isShown) return null
 
   const handleOpen = () => {
+    track('launch_card', { action: 'cta' })
     markChangelogEntrySeen(ENTRY_ID)
-    onOpen()
+    onOpen('launch_card')
   }
 
   // Seen once it's gone: marking it right away would unmount it mid-fade.
   const handleClose = () => {
     if (isLeaving) return
+    track('launch_card', { action: 'dismissed' })
     setIsLeaving(true)
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     leaveTimeoutRef.current = window.setTimeout(() => markChangelogEntrySeen(ENTRY_ID), reduceMotion ? 0 : LEAVE_MS)

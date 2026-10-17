@@ -99,8 +99,8 @@ function PromoRange({ place }) {
 // plain text rather than a pill — the quieter rows of the UE cards.
 // Under GradeDetailProvider (Mes notes) the row is a button opening the
 // grade's detail sheet (`moduleCode` finds it in the report); elsewhere it
-// stays plain.
-export function EvaluationRow({ evaluation, moduleCode = null, showPromoStats, weight = null, compact = false, isNew = false }) {
+// stays plain. `openFrom`: which list it's in, for the anonymous analytics.
+export function EvaluationRow({ evaluation, moduleCode = null, showPromoStats, weight = null, compact = false, isNew = false, openFrom = 'subjects' }) {
   const gradeDetail = useGradeDetail()
   const day = formatDay(evaluation.date)
   const isNumber = evaluation.grade.kind === 'number'
@@ -159,7 +159,7 @@ export function EvaluationRow({ evaluation, moduleCode = null, showPromoStats, w
         className="subject-evaluation-button flex w-full min-w-0 items-center gap-3 rounded-[15px] border-0 bg-transparent px-3 py-[10px] text-left text-text cursor-pointer"
         aria-haspopup="dialog"
         aria-label={`${spoken}. Voir le détail`}
-        onClick={() => gradeDetail.open({ moduleCode, evaluationId: evaluation.id, isNew })}
+        onClick={() => gradeDetail.open({ moduleCode, evaluationId: evaluation.id, isNew, from: openFrom })}
       >
         {content}
         <Icon icon="carbon:chevron-right" className="subject-evaluation-chevron -ml-1 -mr-[2px] size-[14px] shrink-0 text-text-30" aria-hidden="true" />

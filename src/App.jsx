@@ -1134,6 +1134,9 @@ function App() {
   // pages, and a reload stays on the page.
   const [activePage, setActivePage] = useState(() => readHistoryNav().page)
   const activePageRef = useRef(activePage)
+  // How the student last came to « Mes notes », for its page_viewed
+  // (src/gradesAnalytics.js): a reload already on it counts as history.
+  const [gradesArrivalSource, setGradesArrivalSource] = useState(() => (readHistoryNav().page === 'grades' ? 'history' : 'other'))
   // Page-switch animations only once the user has switched, not on first load.
   const [hasSwitchedPage, setHasSwitchedPage] = useState(false)
   const [theme, setTheme] = useState(() => getStoredTheme())
@@ -2053,7 +2056,9 @@ function App() {
 
   // Shows a page at its top, once it's rendered. Wide screens scroll the
   // column itself, narrower ones the window.
-  const showPage = useCallback((page) => {
+  // `source`: how « Mes notes » was reached (src/gradesAnalytics.js).
+  const showPage = useCallback((page, source = 'other') => {
+    if (page === 'grades') setGradesArrivalSource(source)
     setActivePage(page)
     setHasSwitchedPage(true)
     window.requestAnimationFrame(() => {
@@ -2062,21 +2067,23 @@ function App() {
     })
   }, [])
 
-  // Sidebar / tab bar page switch: a new history entry.
-  const handleNavigatePage = useCallback((page) => {
+  // Sidebar / tab bar page switch: a new history entry. `source` says where
+  // from, for « Mes notes »'s page_viewed ('nav', 'tabbar'…).
+  const handleNavigatePage = useCallback((page, source = 'other') => {
     if (page !== activePageRef.current) writeHistoryNav({ page })
-    showPage(page)
+    showPage(page, source)
   }, [showPage])
 
   // The dashboard's "Dernière note": "Mes notes", opened on that grade.
   const [pendingGradeRequest, setPendingGradeRequest] = useState(null)
   const handleOpenLatestGrade = useCallback((grade) => {
     setPendingGradeRequest({ evaluationId: grade.id, moduleCode: grade.resource })
-    handleNavigatePage('grades')
+    handleNavigatePage('grades', 'dashboard_card')
   }, [handleNavigatePage])
   const clearPendingGradeRequest = useCallback(() => setPendingGradeRequest(null), [])
-  // The grade service's app in the app lists: "Mes notes" rather than ScoDoc.
-  const handleOpenGradesPage = useCallback(() => handleNavigatePage('grades'), [handleNavigatePage])
+  // The grade service's app in the app lists ('tile': "Mes notes" rather
+  // than ScoDoc) and the launch card ('launch_card') say which they are.
+  const handleOpenGradesPage = useCallback((source = 'tile') => handleNavigatePage('grades', source), [handleNavigatePage])
 
   // The current entry says which page it is (the first one included); the
   // app sets scroll positions itself. Back and forward show the entry's page
@@ -2093,7 +2100,7 @@ function App() {
     writeHistoryNav(readHistoryNav(), { replace: true })
     const handlePopState = (event) => {
       const { page } = readHistoryNav(event.state)
-      if (page !== activePageRef.current) showPage(page)
+      if (page !== activePageRef.current) showPage(page, 'history')
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -2817,7 +2824,7 @@ function App() {
             </div>
             {isGradesPage ? (
               <div className="page-enter flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
-                <GradesPage user={sessionState.user} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} />
+                <GradesPage user={sessionState.user} arrivalSource={gradesArrivalSource} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} />
               </div>
             ) : null}
             <div className="4xl:mt-auto">

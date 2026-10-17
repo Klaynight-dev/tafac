@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Icon } from '@iconify/react'
+import { trackGradesAction } from '../analytics'
 import { formatRank, formatScore, formatSignedPoints, listUeGroups } from '../gradesSubjects'
 import { EvaluationRow, NewBadge, ScoreText } from './SubjectsList'
 import CardInfoTip from './CardInfoTip'
@@ -326,7 +327,7 @@ function UeModuleRow({ rowId, ueCode, module, isOpen, onToggle, icon, showPromoS
             {module.evaluations.length ? (
               <ol className="m-0 grid list-none gap-[6px] p-0">
                 {module.evaluations.map(({ evaluation, weight }) => (
-                  <EvaluationRow key={evaluation.id} evaluation={evaluation} moduleCode={module.code} weight={weight} showPromoStats={showPromoStats} isNew={newEvaluationIds.has(String(evaluation.id))} compact />
+                  <EvaluationRow key={evaluation.id} evaluation={evaluation} moduleCode={module.code} weight={weight} showPromoStats={showPromoStats} isNew={newEvaluationIds.has(String(evaluation.id))} compact openFrom="ue_view" />
                 ))}
               </ol>
             ) : (
@@ -530,6 +531,14 @@ function UeSubjectsList({ report, subjectIcon = () => null, newEvaluationIds = n
     if (target) expand(ueCode, target.module)
   }
 
+  // A tile opened by the student (its header or its news): the anonymous
+  // analytics' ue_view_opened. Not the views opened by history, a jump from
+  // another UE or a link elsewhere on the page.
+  const openFromTile = (code, module = null) => {
+    trackGradesAction('ue_view_opened')
+    expand(code, module)
+  }
+
   // "Toutes les UE" and Escape: a step back in history when the view has
   // its entry (so forward reopens it); popstate then closes it.
   const requestCollapse = () => {
@@ -634,7 +643,7 @@ function UeSubjectsList({ report, subjectIcon = () => null, newEvaluationIds = n
                   way in; the warning keeps its own click). */}
               <header
                 className="ue-card-header grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-[10px] rounded-[16px] p-2 max-md:gap-x-[10px]"
-                onClick={() => expand(ue.code)}
+                onClick={() => openFromTile(ue.code)}
               >
                 {/* Figma's skeuomorphic UE ribbon (UeBadge); ribbon and average
                     on top, the title under them. */}
@@ -670,7 +679,7 @@ function UeSubjectsList({ report, subjectIcon = () => null, newEvaluationIds = n
                   <div className="mx-2 mb-1 h-px bg-border/70" aria-hidden="true" />
                   <button
                     type="button"
-                    onClick={() => expand(ue.code, newsModules[0])}
+                    onClick={() => openFromTile(ue.code, newsModules[0])}
                     className="ue-card-news flex w-full min-w-0 items-center gap-2 rounded-[14px] border-0 bg-transparent px-2 py-[8px] text-left text-text-muted cursor-pointer"
                   >
                     <span className="shrink-0 rounded-full bg-brand px-[7px] py-[3px] font-body text-[11px] font-semibold leading-none text-bg">
