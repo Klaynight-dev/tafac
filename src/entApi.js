@@ -1,6 +1,7 @@
 import universityConfig from '@university'
 import { GRADES_UNAVAILABLE_MESSAGE } from './gradeFeatureState'
 import { buildAbsenceReport } from './gradesReport'
+import { clearOfflineCache } from './offlineStorage'
 
 export const ENT_ORIGIN = universityConfig.origins.ent
 const ENT_HOST = new URL(ENT_ORIGIN).hostname
@@ -250,6 +251,7 @@ export async function getAuthSession() {
 export async function loginToEnt({ username, password }) {
   clearGradesCache()
   localStorage.removeItem(ADE_TIMETABLE_CACHE_KEY)
+  void clearOfflineCache()
 
   const response = await fetch(`${ENT_AUTH_PREFIX}/login`, {
     method: 'POST',
@@ -275,6 +277,7 @@ export async function loginToEnt({ username, password }) {
 export async function logoutFromEnt() {
   clearGradesCache()
   localStorage.removeItem(ADE_TIMETABLE_CACHE_KEY)
+  void clearOfflineCache()
   clearRecentLoginMarker()
 
   const response = await fetch(`${ENT_AUTH_PREFIX}/logout`, {

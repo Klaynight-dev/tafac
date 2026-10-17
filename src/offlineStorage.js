@@ -114,6 +114,29 @@ export async function getOfflineCache(key) {
   return null
 }
 
+// Called on login/logout so a shared device never shows the previous user's data.
+export async function clearOfflineCache() {
+  try {
+    const db = await getIndexedDb()
+    if (db) {
+      await new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite')
+        tx.objectStore(STORE_NAME).clear()
+        tx.oncomplete = tx.onerror = tx.onabort = () => resolve()
+      })
+    }
+  } catch {
+    // Ignore
+  }
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(LOCAL_STORAGE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k))
+  } catch {
+    // Ignore
+  }
+}
+
 export function formatOfflineTime(timestamp) {
   if (!timestamp) return ''
   const date = new Date(timestamp)
