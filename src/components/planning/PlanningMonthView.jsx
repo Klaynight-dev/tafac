@@ -189,7 +189,7 @@ export default function PlanningMonthView({
                     return (
                       <div
                         key={`${event.uid || event.start}-${event.title}`}
-                        className="group/pill flex w-full items-center gap-1.5 overflow-hidden rounded-md border border-white/60 dark:border-white/5 bg-white/70 dark:bg-zinc-800/70 px-1.5 py-1 text-[11px] font-semibold leading-tight text-text shadow-2xs backdrop-blur-xs transition-colors hover:bg-white dark:hover:bg-zinc-800"
+                        className="group/pill flex w-full items-center gap-1.5 overflow-hidden rounded-md border border-white/60 dark:border-white/5 bg-white/70 dark:bg-brand px-1.5 py-1 text-[11px] font-semibold leading-tight text-text shadow-2xs backdrop-blur-xs transition-colors hover:bg-white dark:hover:bg-brand"
                         title={`${formatTime(event.start)}${event.end ? ` - ${formatTime(event.end)}` : ''} · ${event.title}${event.location ? ` (${event.location})` : ''}`}
                       >
                         <div

@@ -123,7 +123,7 @@ export default function CourseCard({
               {firstGroup}
             </span>
           ) : isTeacher ? (
-            <span className="text-[9px] text-indigo-600 dark:text-indigo-400 truncate shrink-0 font-medium">
+            <span className="text-[9px] text-accent-text dark:text-accent-text truncate shrink-0 font-medium">
               Prof
             </span>
           ) : null}
@@ -172,7 +172,7 @@ export default function CourseCard({
             </span>
           ) : <span />}
           {ongoing && (
-            <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+            <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-text dark:text-success-text uppercase tracking-wider">
               En cours
             </span>
           )}
@@ -233,7 +233,7 @@ export default function CourseCard({
             {firstGroup}
           </span>
         ) : isTeacher ? (
-          <span className={`block leading-none ${isShortClass ? 'text-[10px]' : 'text-[12px]'} font-semibold text-indigo-600 dark:text-indigo-400 shrink-0`}>
+          <span className={`block leading-none ${isShortClass ? 'text-[10px]' : 'text-[12px]'} font-semibold text-accent-text dark:text-accent-text shrink-0`}>
             Enseignant
           </span>
         ) : null}

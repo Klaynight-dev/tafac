@@ -127,7 +127,7 @@ export default function PlanningWeekGrid({
                       <span className="truncate rounded bg-brand/10 px-1 text-brand">
                         Mon groupe
                       </span>
-                      <span className="truncate rounded bg-indigo-500/15 px-1 text-indigo-700 dark:text-indigo-300">
+                      <span className="truncate rounded bg-accent-bg px-1 text-accent-text dark:text-accent-text">
                         {selectedTeacher.name}
                       </span>
                     </div>
@@ -206,8 +206,8 @@ export default function PlanningWeekGrid({
                       className="absolute inset-x-0 z-30 flex items-center pointer-events-none"
                       style={{ top: currentTimeTop }}
                     >
-                      <div className="size-2 -ml-1 rounded-full bg-red-500 shadow-xs" />
-                      <div className="h-[2px] flex-1 bg-red-500/80 shadow-xs" />
+                      <div className="size-2 -ml-1 rounded-full bg-error shadow-xs" />
+                      <div className="h-[2px] flex-1 bg-error shadow-xs" />
                     </div>
                   )}
 
@@ -219,12 +219,12 @@ export default function PlanningWeekGrid({
                         key={`${slot.startMs}-${slot.endMs}`}
                         type="button"
                         onClick={() => onSelectSlot && onSelectSlot(slot)}
-                        className="group absolute inset-x-1 z-10 flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-500/60 bg-emerald-500/10 p-1 text-center text-emerald-700 transition-all hover:bg-emerald-500/25 dark:text-emerald-300"
+                        className="group absolute inset-x-1 z-10 flex flex-col items-center justify-center rounded-xl border border-dashed border-success-text/40 bg-success-bg p-1 text-center text-success-text transition-all hover:bg-success-bg dark:text-success-text"
                         style={{ top: pos.top, height: pos.height }}
                         title={`Créneau libre commun : ${slot.startTime} – ${slot.endTime} (${Math.round(slot.durationMinutes / 60)}h)\nClique pour préparer un déplacement de cours`}
                       >
                         <span className="flex items-center gap-1 font-body text-[11px] font-bold">
-                          <Icon icon="carbon:checkmark-filled" className="size-3 text-emerald-500" />
+                          <Icon icon="carbon:checkmark-filled" className="size-3 text-success-text" />
                           Créneau libre ({slot.startTime}–{slot.endTime})
                         </span>
                       </button>

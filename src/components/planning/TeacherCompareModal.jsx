@@ -126,7 +126,7 @@ export default function TeacherCompareModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[26px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[26px] border border-border dark:border-border bg-white dark:bg-brand shadow-2xl">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2.5">
@@ -239,7 +239,7 @@ export default function TeacherCompareModal({
                   <span className="font-body text-[14px] font-bold text-text">
                     {selectedTeacher.name}
                   </span>
-                  <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                  <span className="rounded-full bg-accent-bg px-2 py-0.5 text-[11px] font-semibold text-accent-text dark:text-accent-text">
                     {loadingTeacher ? 'Chargement…' : `${teacherEvents.length} cours ce prof cette semaine`}
                   </span>
                 </div>
@@ -286,7 +286,7 @@ export default function TeacherCompareModal({
                   <span className="font-body text-[13px] font-semibold text-text">
                     Créneaux libres en commun trouvés :
                   </span>
-                  <span className="text-[12px] font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-[12px] font-bold text-success-text dark:text-success-text">
                     {commonSlots.length} créneau(x)
                   </span>
                 </div>
@@ -300,7 +300,7 @@ export default function TeacherCompareModal({
                     {commonSlots.map((slot) => (
                       <div
                         key={`${slot.startMs}-${slot.endMs}`}
-                        className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-950 dark:text-emerald-100"
+                        className="flex items-center justify-between rounded-xl border border-success-text/40 bg-success-bg px-3 py-2 text-success-text dark:text-success-text"
                       >
                         <div className="flex flex-col">
                           <span className="font-body text-[12px] font-bold">
@@ -310,7 +310,7 @@ export default function TeacherCompareModal({
                             {Math.floor(slot.durationMinutes / 60)}h{slot.durationMinutes % 60 ? slot.durationMinutes % 60 : ''} libres
                           </span>
                         </div>
-                        <Icon icon="carbon:checkmark-filled" className="size-4 text-emerald-500" />
+                        <Icon icon="carbon:checkmark-filled" className="size-4 text-success-text" />
                       </div>
                     ))}
                   </div>
@@ -327,7 +327,7 @@ export default function TeacherCompareModal({
                     <select
                       value={selectedCourseTitle}
                       onChange={(e) => setSelectedCourseTitle(e.target.value)}
-                      className="max-w-full sm:max-w-[280px] truncate rounded-lg border border-border bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-[12px] font-medium text-text"
+                      className="max-w-full sm:max-w-[280px] truncate rounded-lg border border-border bg-muted-fill dark:bg-brand px-2 py-1 text-[12px] font-medium text-text"
                     >
                       {studentCourseTitles.map((t) => (
                         <option key={t} value={t}>{t}</option>
@@ -352,7 +352,7 @@ export default function TeacherCompareModal({
                     {selectedTeacher && (
                       <a
                         href={`mailto:${selectedTeacher.email || ''}?subject=${encodeURIComponent(`Demande de déplacement de cours – ${selectedCourseTitle || 'Planning'} (${groupLabel})`)}&body=${encodeURIComponent(generatedMessage)}`}
-                        className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-border bg-zinc-100 dark:bg-zinc-800 py-2 font-body text-[13px] font-semibold text-text hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors no-underline"
+                        className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted-fill dark:bg-brand py-2 font-body text-[13px] font-semibold text-text hover:bg-muted-fill dark:hover:bg-brand-hover transition-colors no-underline"
                       >
                         <Icon icon="carbon:email" className="size-4 text-brand" />
                         <span>Ouvrir dans mon mail</span>

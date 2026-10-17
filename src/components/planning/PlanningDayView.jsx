@@ -115,9 +115,9 @@ export default function PlanningDayView({
 
       {/* Common slots notification if comparing with a teacher */}
       {selectedTeacher && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 text-indigo-950 dark:text-indigo-100 flex-wrap">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-accent-border bg-accent-bg p-3.5 text-accent-text dark:text-accent-text flex-wrap">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-bg text-accent-text dark:text-accent-text">
               <Icon icon="carbon:collaborate" className="size-4" />
             </div>
             <div>
@@ -161,7 +161,7 @@ export default function PlanningDayView({
               <button
                 type="button"
                 onClick={() => onSelectSlot && onSelectSlot(dayCommonSlots[0])}
-                className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-xs transition-transform hover:scale-105"
+                className="rounded-full bg-success-bg px-3 py-1 text-[11px] font-semibold text-white shadow-xs transition-transform hover:scale-105"
               >
                 Créneaux libres ({dayCommonSlots.length})
               </button>
@@ -178,7 +178,7 @@ export default function PlanningDayView({
             <span />
             <div className="grid grid-cols-2 gap-3 text-center">
               <span className="rounded-lg bg-brand/10 py-1 text-brand">Mon groupe</span>
-              <span className="rounded-lg bg-indigo-500/15 py-1 text-indigo-700 dark:text-indigo-300">
+              <span className="rounded-lg bg-accent-bg py-1 text-accent-text dark:text-accent-text">
                 {selectedTeacher.name}
               </span>
             </div>
@@ -224,9 +224,9 @@ export default function PlanningDayView({
                 className="absolute inset-x-0 z-30 flex items-center pointer-events-none"
                 style={{ top: currentTimeTop }}
               >
-                <div className="size-2.5 -ml-1.5 rounded-full bg-red-500 shadow-md ring-2 ring-white" />
-                <div className="h-[2px] flex-1 bg-red-500 shadow-xs" />
-                <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-bold text-white uppercase">
+                <div className="size-2.5 -ml-1.5 rounded-full bg-error shadow-md ring-2 ring-white" />
+                <div className="h-[2px] flex-1 bg-error shadow-xs" />
+                <span className="ml-1 rounded-full bg-error px-1.5 py-0.5 text-[9px] font-bold text-white uppercase">
                   Maintenant
                 </span>
               </div>
@@ -240,17 +240,17 @@ export default function PlanningDayView({
                   key={`day-slot-${slot.startMs}`}
                   type="button"
                   onClick={() => onSelectSlot && onSelectSlot(slot)}
-                  className="group absolute inset-x-2 z-10 flex items-center justify-between rounded-2xl border border-dashed border-emerald-500/70 bg-emerald-500/10 px-4 text-emerald-700 transition-all hover:bg-emerald-500/20 dark:text-emerald-300"
+                  className="group absolute inset-x-2 z-10 flex items-center justify-between rounded-2xl border border-dashed border-success-text/40 bg-success-bg px-4 text-success-text transition-all hover:bg-success-bg dark:text-success-text"
                   style={{ top: pos.top, height: pos.height }}
                   title="Clique pour générer le message de déplacement"
                 >
                   <div className="flex items-center gap-2">
-                    <Icon icon="carbon:checkmark-filled" className="size-4 text-emerald-500" />
+                    <Icon icon="carbon:checkmark-filled" className="size-4 text-success-text" />
                     <span className="font-body text-[13px] font-bold">
                       Créneau libre commun : {slot.startTime} – {slot.endTime} ({Math.round(slot.durationMinutes / 60)}h)
                     </span>
                   </div>
-                  <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  <span className="rounded-full bg-success-bg px-2.5 py-1 text-[11px] font-semibold text-success-text dark:text-success-text">
                     Proposer ce créneau
                   </span>
                 </button>

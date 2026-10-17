@@ -96,7 +96,7 @@ export default function CourseDetailModal({
           </div>
 
           {/* Meta details */}
-          <div className="flex flex-col gap-2.5 rounded-2xl border border-zinc-200/60 dark:border-white/5 bg-white/60 dark:bg-zinc-800/60 p-3.5 text-[14px]">
+          <div className="flex flex-col gap-2.5 rounded-2xl border border-border dark:border-white/5 bg-white/60 dark:bg-brand p-3.5 text-[14px]">
             {event.location && (
               <div className="flex items-center gap-2.5 text-text">
                 <Icon icon="carbon:location" className="size-4 text-text-muted shrink-0" />
@@ -124,7 +124,7 @@ export default function CourseDetailModal({
             <button
               type="button"
               onClick={onClose}
-              className="w-full rounded-xl bg-zinc-900 dark:bg-zinc-100 py-2.5 font-body text-[14px] font-semibold text-white dark:text-zinc-900 transition-transform hover:scale-[1.01] active:scale-[0.99]"
+              className="w-full rounded-xl bg-brand dark:bg-muted-fill py-2.5 font-body text-[14px] font-semibold text-white dark:text-text-secondary transition-transform hover:scale-[1.01] active:scale-[0.99]"
             >
               Fermer
             </button>
