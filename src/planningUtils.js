@@ -431,33 +431,35 @@ export function downloadIcsCalendar(events = [], filename = 'emploi-du-temps.ics
 
 // ── Salles Libres (Trouver une salle libre pour bosser) ──
 
-export function findFreeRooms(events = [], atDate = new Date()) {
+// `rooms` ([{ id, name }], ADE's "Salles"): every room counts, a room with no
+// course that day being free all day; a course is in a room when it carries
+// its id (`roomId`, the demo) or its location names it. `events`: that day's
+// courses in those rooms.
+export function findFreeRooms(events = [], atDate = new Date(), rooms = []) {
   const atTimeMs = atDate.getTime()
   const dateStr = formatDateOnly(atDate)
 
-  // Filter events of the day
-  const dayEvents = (events || []).filter((event) => {
-    if (!event?.start || !event?.end || !event?.location) return false
-    return event.start.startsWith(dateStr)
-  })
+  // Courses of that day (local day: ADE's times are ISO, in UTC).
+  const dayEvents = (events || []).filter((event) => (
+    event?.start && event?.end && formatDateOnly(new Date(event.start)) === dateStr
+  ))
 
-  // Extract unique clean room names
-  const roomsMap = new Map()
+  const roomsMap = new Map((rooms || []).map((room) => [room.name, []]))
+  // The whole name, not a prefix: "A1" isn't in "A10".
+  const namePatterns = new Map((rooms || []).map((room) => [
+    room.name,
+    new RegExp(`(^|[\\s,;/])${room.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[\\s,;/])`),
+  ]))
   for (const event of dayEvents) {
-    const rawLocations = String(event.location)
-      .split(/[,;\n/]/)
-      .map((s) => s.trim())
-      .filter((s) => s.length >= 2 && !/visio|teams|zoom|distance/i.test(s))
-
-    for (const room of rawLocations) {
-      if (!roomsMap.has(room)) {
-        roomsMap.set(room, [])
+    const location = String(event.location ?? '')
+    for (const room of rooms || []) {
+      if (event.roomId === room.id || (location && namePatterns.get(room.name).test(location))) {
+        roomsMap.get(room.name).push({
+          ...event,
+          startMs: new Date(event.start).getTime(),
+          endMs: new Date(event.end).getTime(),
+        })
       }
-      roomsMap.get(room).push({
-        ...event,
-        startMs: new Date(event.start).getTime(),
-        endMs: new Date(event.end).getTime(),
-      })
     }
   }
 

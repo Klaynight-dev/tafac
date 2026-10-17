@@ -645,6 +645,34 @@ const DEMO_TEACHER_SCHEDULES = {
   ],
 }
 
+// Demo rooms for the free-room finder: the rooms the demo courses use, plus
+// a few never booked, in two buildings.
+export const DEMO_ROOMS = Object.freeze([
+  { id: 'room-a08', name: 'A08 - Info 2', path: ['IUT Lannion', 'Bâtiment A'] },
+  { id: 'room-a10', name: 'A10 - Info 3', path: ['IUT Lannion', 'Bâtiment A'] },
+  { id: 'room-b01', name: 'B01', path: ['IUT Lannion', 'Bâtiment B'] },
+  { id: 'room-b03', name: 'B03 - Salle Atelier', path: ['IUT Lannion', 'Bâtiment B'] },
+  { id: 'room-b05', name: 'B05 - Salle projet', path: ['IUT Lannion', 'Bâtiment B'] },
+  { id: 'room-c12', name: 'C12 - FabLab', path: ['IUT Lannion', 'Bâtiment C'] },
+  { id: 'room-amphi2', name: 'Amphi 2', path: ['IUT Lannion', 'Amphithéâtres'] },
+])
+
+// The demo courses of `date` held in the rooms `roomIds`, each tagged with
+// its room id (`roomId`).
+export function buildDemoRoomEvents({ date, roomIds = [] } = {}) {
+  const day = parseDateOnly(date || formatDateOnly(new Date()))
+  const wanted = new Map(DEMO_ROOMS.filter((room) => roomIds.includes(room.id)).map((room) => [room.name, room.id]))
+  const events = [
+    ...buildDemoEventsForWeek(day, 'TP 1'),
+    ...Object.keys(DEMO_TEACHER_SCHEDULES).flatMap((teacherId) => buildDemoEventsForWeek(day, 'TP 1', teacherId)),
+  ]
+  const seen = new Set()
+  return events
+    .filter((event) => formatDateOnly(new Date(event.start)) === formatDateOnly(day))
+    .filter((event) => wanted.has(event.location) && !seen.has(`${event.location}|${event.start}`) && seen.add(`${event.location}|${event.start}`))
+    .map((event) => ({ ...event, roomId: wanted.get(event.location) }))
+}
+
 function buildDemoEventsForWeek(anchorDate, selectionLabel, resourceId = null) {
   const weekStart = startOfWeek(anchorDate)
 

@@ -878,6 +878,31 @@ export function createPlanningPortalApiClient({
     }
   }
 
+  // Leaves of the "Salles" branch (category id -3), each with the names of
+  // the folders above it (site, building…), for the free-room finder.
+  // Empty when the account is not allowed to browse rooms.
+  async function listPortalClassrooms(jar, { cacheScope = null } = {}) {
+    const tree = await fetchPortalTree(jar, { cacheScope })
+    const roomRoot = (tree.fullRoot?.children ?? []).find((node) => (
+      String(node.id) === '-3' || String(node.family ?? '').toLowerCase() === 'classroom'
+    ))
+    const rooms = []
+    const walk = (node, path) => {
+      for (const child of node.children ?? []) {
+        if (child.children?.length) walk(child, [...path, child.name])
+        else rooms.push({ id: String(child.id), name: child.name, path })
+      }
+    }
+    if (roomRoot) walk(roomRoot, [])
+
+    return {
+      available: Boolean(roomRoot),
+      rooms,
+      projectId: tree.projectId,
+      cache: tree.cache,
+    }
+  }
+
   async function fetchPortalCalendar(jar, { cacheScope = null } = {}) {
     const context = await authenticatePortal(jar, { cacheScope })
     const cached = getFreshCacheEntry(portalCalendarCache, cacheScope, PORTAL_CALENDAR_TTL_MS)
@@ -968,6 +993,7 @@ export function createPlanningPortalApiClient({
     fetchPortalEvents,
     fetchPortalStatus,
     fetchPortalTree,
+    listPortalClassrooms,
     listPortalInstructors,
     searchPortalTree,
   }

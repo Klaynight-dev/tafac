@@ -117,6 +117,18 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
                 ],
               }],
             }],
+          }, {
+            category: 'classroom',
+            branch: [{
+              id: 700,
+              name: 'Lannion',
+              branch: [{
+                id: 701,
+                name: 'IUT Bât. A',
+                leaf: [{ id: 702, name: 'A101' }, { id: 703, name: 'A102' }],
+              }],
+              leaf: [{ id: 704, name: 'Amphi Lannion' }],
+            }],
           }],
         },
       })
@@ -304,4 +316,15 @@ test('maps a non-BUT path to generic level, TD and TP selections', async () => {
   })
   const levelFocus = levelTree.root.children[0].children[0].children[0].children[0]
   assert.deepEqual(levelFocus.children.map(({ id }) => id), ['604'])
+})
+
+test('lists the rooms of the "Salles" branch with the folders above them', async () => {
+  const { client } = createFixtureClient()
+  const result = await client.listPortalClassrooms({}, { cacheScope: 'portal-fixture-rooms' })
+  assert.equal(result.available, true)
+  assert.deepEqual(result.rooms.map(({ id, name, path }) => [id, name, path.join(' › ')]).sort(), [
+    ['702', 'A101', 'Lannion › IUT Bât. A'],
+    ['703', 'A102', 'Lannion › IUT Bât. A'],
+    ['704', 'Amphi Lannion', 'Lannion'],
+  ])
 })

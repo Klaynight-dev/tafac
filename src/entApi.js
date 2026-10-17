@@ -1621,6 +1621,29 @@ export async function getAdeTeachers(query = '') {
   return parseJsonPayload(response)
 }
 
+// ADE's rooms ("Salles"), each with its site and building above it.
+export async function getAdeRooms() {
+  const response = await fetch(`${ENT_AUTH_PREFIX}/ade/rooms`, { credentials: 'same-origin' })
+  return parseJsonPayload(response)
+}
+
+// The courses of `date` (YYYY-MM-DD) held in the rooms `roomIds`, asked by
+// batches the server accepts.
+const ROOMS_PER_REQUEST = 120
+
+export async function getAdeRoomEvents(roomIds, date) {
+  const batches = []
+  for (let index = 0; index < roomIds.length; index += ROOMS_PER_REQUEST) {
+    batches.push(roomIds.slice(index, index + ROOMS_PER_REQUEST))
+  }
+  const answers = await Promise.all(batches.map(async (ids) => {
+    const params = new URLSearchParams({ date, ids: ids.join(',') })
+    const response = await fetch(`${ENT_AUTH_PREFIX}/ade/rooms/events?${params}`, { credentials: 'same-origin' })
+    return parseJsonPayload(response)
+  }))
+  return answers.flatMap((answer) => answer?.events ?? [])
+}
+
 function buildAdeQueryString({ date, ...extra } = {}) {
   const params = new URLSearchParams()
 

@@ -42,7 +42,7 @@ export function PageButton({ icon, label, onClick, href = null, accent = false, 
 // (a page that puts a full-height tool right under its title).
 export function AppPage({ titleId, title, subtitle = null, controls = null, actions = null, overview = null, footer = null, bare = false, children = null, className = '' }) {
   return (
-    <section className={`w-full grid content-start gap-4 pt-4 px-6 pb-6 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-5 max-md:gap-3 ${className}`} aria-labelledby={titleId}>
+    <section className={`grades-page w-full grid content-start gap-4 pt-4 px-6 pb-6 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-5 max-md:gap-3 ${className}`} aria-labelledby={titleId}>
       <div className={bare ? 'grid gap-4' : 'page-top-band grid gap-5 -mx-6 -mt-4 px-6 pt-4 pb-6 4xl:-mt-5 4xl:pt-5 max-md:-mx-3 max-md:-mt-3 max-md:gap-4 max-md:px-3 max-md:pt-5 max-md:pb-4'}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:flex-nowrap max-md:items-center max-md:gap-x-2">
           <div className="flex min-w-0 flex-col gap-1 max-md:mr-auto">
@@ -94,7 +94,7 @@ export function StatCard({ label, value, unit = null, detail = null, icon = null
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick ?? undefined}
-      className={`${PAGE_CARD} relative flex min-h-[132px] flex-[1_1_180px] flex-col gap-[6px] p-4 text-left max-md:min-h-[116px] max-md:flex-[1_0_clamp(136px,42%,180px)] max-md:snap-start max-md:p-3 ${onClick ? 'cursor-pointer transition-colors duration-150 hover:bg-bg-subtle' : ''} ${className}`}
+      className={`${PAGE_CARD} relative flex min-h-[132px] w-[220px] flex-[0_1_220px] flex-col gap-[6px] p-4 text-left max-md:min-h-[116px] max-md:flex-[1_0_clamp(136px,42%,180px)] max-md:snap-start max-md:p-3 ${onClick ? 'cursor-pointer transition-colors duration-150 hover:bg-bg-subtle' : ''} ${className}`}
     >
       <span className="flex min-w-0 items-center gap-[5px] font-body text-base font-medium leading-[1.06] text-text-muted max-md:text-[14px]">
         {icon ? <Icon icon={icon} className="size-4 shrink-0" aria-hidden="true" /> : null}

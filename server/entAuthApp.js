@@ -46,11 +46,13 @@ import {
   DEMO_ACCOUNT,
   DEMO_GRADES_DEPARTMENT_MESSAGE,
   DEMO_SESSION_MODE,
+  DEMO_ROOMS,
   DEMO_TEACHERS,
   applyDemoLayoutMutation,
   buildDemoAdeTreePayload,
   buildDemoAlertsPayload,
   buildDemoCalendarPayload,
+  buildDemoRoomEvents,
   buildDemoEvaluationDistribution,
   buildDemoGradesPayload,
   buildDemoLayoutData,
@@ -2104,6 +2106,7 @@ const {
   fetchPortalEvents = null,
   fetchPortalStatus = null,
   fetchPortalTree = null,
+  listPortalClassrooms = null,
   listPortalInstructors = null,
   searchPortalTree = null,
 } = portalClient ?? {}
@@ -6390,6 +6393,70 @@ app.get('/__ent_auth/ade/teachers', async (req, res) => {
     }
 
     res.status(200).json({ authenticated: true, teachers: [], available: false })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// 10c. ADE rooms (free-room finder): every room of the "Salles" branch, with
+// the folders above it (site, building) to pick a building by.
+app.get('/__ent_auth/ade/rooms', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const entSession = getSessionFromRequest(req)
+    if (!entSession) return res.status(200).json({ authenticated: false, rooms: [] })
+
+    if (isDemoSession(entSession)) {
+      setSessionCookie(res, entSession)
+      return res.status(200).json({ authenticated: true, available: true, rooms: DEMO_ROOMS })
+    }
+
+    if (USE_PLANNING_PORTAL_REST && listPortalClassrooms) {
+      const result = await listPortalClassrooms(entSession.jar, { cacheScope: getPlanningCacheScope(entSession) })
+      setSessionCookie(res, entSession)
+      return res.status(200).json({ authenticated: true, available: result.available, rooms: result.rooms })
+    }
+
+    res.status(200).json({ authenticated: true, available: false, rooms: [] })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// Rooms asked at once: a building's worth, not the whole university.
+const MAX_ROOMS_PER_REQUEST = 120
+
+// 10d. The courses held on one day in the rooms `ids` (comma-separated), to
+// tell which are free.
+app.get('/__ent_auth/ade/rooms/events', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const entSession = getSessionFromRequest(req)
+    if (!entSession) return res.status(200).json({ authenticated: false, events: [] })
+
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date ?? '')) ? String(req.query.date) : null
+    const ids = [...new Set(String(req.query.ids ?? '').split(',').map((id) => id.trim()).filter(Boolean))]
+    if (!date || !ids.length || ids.length > MAX_ROOMS_PER_REQUEST) {
+      return res.status(400).json({ error: `Expected a date and 1 to ${MAX_ROOMS_PER_REQUEST} room ids.` })
+    }
+
+    if (isDemoSession(entSession)) {
+      setSessionCookie(res, entSession)
+      return res.status(200).json({ authenticated: true, events: buildDemoRoomEvents({ date, roomIds: ids }) })
+    }
+
+    if (!USE_PLANNING_PORTAL_REST || !ids.every((id) => /^-?\d+$/.test(id))) {
+      return res.status(400).json({ error: 'Unknown rooms.' })
+    }
+
+    const result = await fetchPortalEvents(entSession.jar, {
+      date,
+      lookaheadDays: 1,
+      resourceIds: ids,
+      cacheScope: getPlanningCacheScope(entSession),
+    })
+    setSessionCookie(res, entSession)
+    res.status(200).json({ authenticated: true, events: result.events })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
   }
