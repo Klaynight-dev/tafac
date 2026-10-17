@@ -3,8 +3,9 @@ import { Icon } from '@iconify/react'
 import { getMailMessage, getMailMessages, markMailAsRead, trashMailMessage } from '../entApi'
 import { getOfflineCache, setOfflineCache } from '../offlineStorage'
 import { MAIL_HREF } from '../navItems'
-import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON } from '../scodocPageUtils'
+import { CARD_CLASSES } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
+import { AppPage, ICON_ONLY, PageButton } from './AppPage'
 import PageGuidedTour from './PageGuidedTour'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
 import MailComposeModal from './mail/MailComposeModal'
@@ -591,147 +592,68 @@ export default function MailPage() {
   const effectiveWebmailHref = webmailHref || MAIL_HREF || 'https://partage.univ-rennes.fr/'
 
   return (
-    <section className="grades-page w-full pt-4 px-6 pb-12 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-24" aria-labelledby="mail-page-title">
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 max-md:gap-4">
-        {/* Page Header */}
-        <header className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 id="mail-page-title" className="m-0 text-[36px] leading-none tracking-[-0.02em] max-md:text-[28px] font-bold text-text">
-              Messagerie
-            </h1>
-            {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[12px] font-bold tabular-nums">
-                {unreadCount > 99 ? '99+' : unreadCount} non lu{unreadCount > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => void loadMessages(searchQuery, true)}
-              disabled={refreshing || loading}
-              aria-label="Rafraîchir les e-mails"
-              className={SECONDARY_BUTTON}
-              title="Rafraîchir"
-            >
-              <Icon
-                icon="carbon:renew"
-                className={`size-4 ${refreshing ? 'animate-spin text-brand' : ''}`}
-                aria-hidden="true"
-              />
-              <span className="max-xs:hidden">Rafraîchir</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTourTrigger((c) => c + 1)}
-              className={HELP_TOUR_BUTTON}
-              title="Aide & Visite guidée de la messagerie"
-              aria-label="Visite guidée"
-            >
-              <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
-            </button>
-
-            {effectiveWebmailHref && (
-              <a
-                href={effectiveWebmailHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={SECONDARY_BUTTON}
-                title="Ouvrir le webmail Zimbra / Partage dans un nouvel onglet"
-              >
-                <span>Ouvrir dans Partage</span>
-                <Icon icon="carbon:arrow-up-right" className="size-3.5 opacity-70" aria-hidden="true" />
-              </a>
-            )}
-          </div>
-        </header>
-
-        {/* Search & Filter Bar with Nouveau Message */}
-        <div data-tour="mail-search" className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2.5 flex-1 max-w-xl">
-            <div className="relative flex-1">
-              <Icon
-                icon="carbon:search"
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-text-muted pointer-events-none"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                placeholder="Rechercher par expéditeur, sujet…"
-                className="w-full h-10 pl-9 pr-9 rounded-full border border-white/60 dark:border-white/10 bg-widget-bg text-[14px] text-text placeholder:text-text-muted transition-colors focus:border-brand focus:outline-none"
-                style={{
-                  WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-                  backdropFilter: 'blur(20px) saturate(1.5)',
+    <AppPage
+      titleId="mail-page-title"
+      title="Messagerie"
+      controls={unreadCount > 0 ? (
+        <span className="font-body text-[15px] font-semibold leading-none text-text-secondary">
+          {unreadCount > 99 ? '99+' : unreadCount} non lu{unreadCount > 1 ? 's' : ''}
+        </span>
+      ) : null}
+      actions={(
+        <>
+          <PageButton accent data-tour="mail-compose-button" icon="carbon:edit" label="Nouveau message" onClick={handleNewMessage} />
+          <PageButton data-tour="mail-directory-button" icon="carbon:user-multiple" label="Annuaire" onClick={() => setDirectoryOpen(true)} />
+          <PageButton
+            icon="carbon:renew"
+            label="Rafraîchir"
+            onClick={() => void loadMessages(searchQuery, true)}
+            disabled={refreshing || loading}
+            className={`${ICON_ONLY} ${refreshing ? '[&_svg]:animate-spin' : ''}`}
+          />
+          <PageButton data-tour="mail-preferences-button" icon="carbon:settings-adjust" label="Préférences d’envoi et signature" onClick={() => setPreferencesOpen(true)} className={ICON_ONLY} />
+          {effectiveWebmailHref ? <PageButton icon="carbon:arrow-up-right" label="Partage" href={effectiveWebmailHref} /> : null}
+          <PageButton icon="carbon:help" label="Visite guidée" onClick={() => setTourTrigger((c) => c + 1)} className={ICON_ONLY} />
+        </>
+      )}
+      overview={(
+        <div data-tour="mail-search" className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-[220px] max-w-xl flex-1">
+            <span className="sr-only">Rechercher un e-mail</span>
+            <Icon icon="carbon:search" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Rechercher par expéditeur, sujet…"
+              className="h-10 w-full rounded-full border border-white bg-widget-bg pl-9 pr-9 font-body text-[14px] text-text shadow-[0_1px_3px_rgba(0,0,0,0.06)] placeholder:text-text-muted focus:border-brand focus:outline-none dark:border-border"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('')
+                  void loadMessages('')
                 }}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('')
-                    void loadMessages('')
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text rounded-full"
-                  aria-label="Effacer la recherche"
-                >
-                  <Icon icon="carbon:close" className="size-4" />
-                </button>
-              )}
-            </div>
-
-            <button
-              data-tour="mail-compose-button"
-              type="button"
-              onClick={handleNewMessage}
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-brand text-bg text-[14px] font-bold shadow-xs hover:opacity-90 active:scale-95 transition-all shrink-0 cursor-pointer"
-              title="Rédiger un nouvel e-mail"
-            >
-              <Icon icon="carbon:edit" className="size-4 shrink-0" aria-hidden="true" />
-              <span>Nouveau message</span>
-            </button>
-
-            <button
-              data-tour="mail-directory-button"
-              type="button"
-              onClick={() => setDirectoryOpen(true)}
-              className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-full border border-border bg-widget-bg hover:bg-bg-subtle text-text text-[13px] font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
-              title="Consulter l'annuaire universitaire"
-            >
-              <Icon icon="carbon:user-multiple" className="size-4 text-brand shrink-0" aria-hidden="true" />
-              <span className="max-sm:hidden">Annuaire</span>
-            </button>
-
-            <button
-              data-tour="mail-preferences-button"
-              type="button"
-              onClick={() => setPreferencesOpen(true)}
-              className="inline-flex items-center justify-center size-10 rounded-full border border-border bg-widget-bg hover:bg-bg-subtle text-text shadow-2xs transition-colors shrink-0 cursor-pointer"
-              title="Préférences d'envoi & Signature"
-            >
-              <Icon icon="carbon:settings-adjust" className="size-4.5" aria-hidden="true" />
-            </button>
-          </div>
-
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-full border-0 bg-transparent p-0.5 text-text-muted hover:text-text"
+                aria-label="Effacer la recherche"
+              >
+                <Icon icon="carbon:close" className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </label>
           <SegmentedControl
             label="Filtrer les messages"
             value={filterMode}
             onChange={setFilterMode}
-            className="self-start sm:self-auto shrink-0 border-white/60 dark:border-white/10"
-            style={{
-              WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-              backdropFilter: 'blur(20px) saturate(1.5)',
-            }}
             options={[
-              { value: 'all', label: 'Tous', count: `(${messages.length})` },
-              { value: 'unread', label: 'Non lus', count: `(${messages.filter((m) => m.unread).length})` },
+              { value: 'all', label: 'Tous', count: messages.length },
+              { value: 'unread', label: 'Non lus', count: messages.filter((m) => m.unread).length },
             ]}
           />
         </div>
-
+      )}
+    >
         {/* Error message */}
         {error && (
           <StatusMessage
@@ -792,7 +714,7 @@ export default function MailPage() {
                           onClick={() => setSelectedId(message.id)}
                           className={`w-full text-left p-3.5 rounded-[18px] border transition-all duration-150 flex flex-col gap-1.5 cursor-pointer relative ${
                             isSelected
-                              ? 'border-brand bg-brand-subtle/80 dark:bg-zinc-900/70 shadow-md ring-2 ring-brand/50'
+                              ? 'border-accent-border bg-widget-bg shadow-md ring-2 ring-accent-border'
                               : 'border-white/60 dark:border-white/10 bg-widget-bg hover:border-border-hover hover:bg-bg-subtle'
                           }`}
                           style={{
@@ -804,7 +726,7 @@ export default function MailPage() {
                             <div className="flex items-center gap-2 min-w-0">
                               <span
                                 className={`size-2 rounded-full shrink-0 ${
-                                  message.unread ? 'bg-blue-500' : 'opacity-0'
+                                  message.unread ? 'bg-brand' : 'opacity-0'
                                 }`}
                                 aria-label={message.unread ? 'Non lu' : undefined}
                               />
@@ -1095,7 +1017,6 @@ export default function MailPage() {
             </div>
           </div>
         )}
-      </div>
 
       {/* Mail Composer Modal */}
       <MailComposeModal
@@ -1128,6 +1049,6 @@ export default function MailPage() {
         steps={MAIL_TOUR_STEPS}
         manualTrigger={tourTrigger}
       />
-    </section>
+    </AppPage>
   )
 }

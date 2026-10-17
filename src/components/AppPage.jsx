@@ -12,6 +12,9 @@ export const PAGE_BUTTON = 'relative inline-flex shrink-0 items-center gap-1.5 r
 // The page's one highlighted action (Simuler, Nouveau message…): the warm
 // accent of « Mes notes » (.accent-button).
 export const PAGE_ACCENT_BUTTON = PAGE_BUTTON.replace('border-border bg-widget-bg', 'accent-button').replace('hover:bg-bg-subtle ', '')
+// Add to a PageButton's className: an icon in a round button everywhere
+// (secondary actions), its label kept as the accessible name.
+export const ICON_ONLY = 'md:size-10 md:justify-center md:p-0 [&>span]:hidden'
 // Inside a card or a section: a smaller pill that keeps its text everywhere.
 export const INLINE_BUTTON = 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-widget-bg px-3 py-1.5 font-body text-[13px] font-semibold text-text no-underline cursor-pointer transition-colors duration-150 hover:bg-bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-45'
 export const PRIMARY_BUTTON = 'inline-flex shrink-0 items-center gap-1.5 rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg no-underline cursor-pointer transition-colors duration-150 hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-45'

@@ -12,6 +12,7 @@ import {
 import { CARD_CLASSES, HELP_TOUR_BUTTON, SECONDARY_BUTTON, revealStyle } from '../scodocPageUtils'
 import { APP_NAME } from '../seo'
 import { getOfflineCache, setOfflineCache } from '../offlineStorage'
+import { AppPage, ICON_ONLY, PageButton } from './AppPage'
 import PageGuidedTour from './PageGuidedTour'
 import {
   LoadingDots,
@@ -111,15 +112,15 @@ function getModuleKind(modname) {
 function getModuleIcon(kind, filename = '') {
   const ext = String(filename).split('.').pop()?.toLowerCase() || ''
   if (kind === 'file') {
-    if (ext === 'pdf') return { icon: 'carbon:document-pdf', color: 'text-red-500 bg-red-500/10' }
+    if (ext === 'pdf') return { icon: 'carbon:document-pdf', color: 'text-error bg-error-bg' }
     if (['zip', 'rar', 'tar', 'gz', '7z', 'bz2'].includes(ext)) {
-      return { icon: 'carbon:zip', color: 'text-amber-500 bg-amber-500/10' }
+      return { icon: 'carbon:zip', color: 'text-accent-text bg-accent-bg' }
     }
     if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) {
       return { icon: 'carbon:document-word', color: 'text-blue-500 bg-blue-500/10' }
     }
     if (['xls', 'xlsx', 'ods', 'csv', 'tsv'].includes(ext)) {
-      return { icon: 'carbon:table', color: 'text-emerald-500 bg-emerald-500/10' }
+      return { icon: 'carbon:table', color: 'text-success-text bg-success-bg' }
     }
     if (['ppt', 'pptx', 'odp', 'key'].includes(ext)) {
       return { icon: 'carbon:presentation-file', color: 'text-orange-500 bg-orange-500/10' }
@@ -137,17 +138,17 @@ function getModuleIcon(kind, filename = '') {
       return { icon: 'carbon:video', color: 'text-rose-500 bg-rose-500/10' }
     }
     if (['txt', 'md'].includes(ext)) {
-      return { icon: 'carbon:document-blank', color: 'text-slate-500 bg-slate-500/10' }
+      return { icon: 'carbon:document-blank', color: 'text-text-secondary bg-muted-fill' }
     }
     return { icon: 'carbon:document', color: 'text-blue-500 bg-blue-500/10' }
   }
-  if (kind === 'folder') return { icon: 'carbon:folder', color: 'text-amber-500 bg-amber-500/10' }
+  if (kind === 'folder') return { icon: 'carbon:folder', color: 'text-accent-text bg-accent-bg' }
   if (kind === 'assign') return { icon: 'carbon:task', color: 'text-purple-500 bg-purple-500/10' }
-  if (kind === 'quiz') return { icon: 'carbon:help', color: 'text-emerald-500 bg-emerald-500/10' }
+  if (kind === 'quiz') return { icon: 'carbon:help', color: 'text-success-text bg-success-bg' }
   if (kind === 'forum') return { icon: 'carbon:chat', color: 'text-sky-500 bg-sky-500/10' }
   if (kind === 'link') return { icon: 'carbon:launch', color: 'text-indigo-500 bg-indigo-500/10' }
   if (kind === 'page') return { icon: 'carbon:notebook', color: 'text-teal-500 bg-teal-500/10' }
-  return { icon: 'carbon:circle-dash', color: 'text-slate-500 bg-slate-500/10' }
+  return { icon: 'carbon:circle-dash', color: 'text-text-secondary bg-muted-fill' }
 }
 
 export default function MoodlePage() {
@@ -653,93 +654,59 @@ export default function MoodlePage() {
   const effectiveMoodleHref = selectedFolder?.launchHref || selectedCourse?.moodleHref || moodleWebHref
 
   return (
-    <section className="grades-page w-full pt-4 px-6 pb-12 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-24" aria-labelledby="moodle-page-title">
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-8 max-md:gap-6">
-
-        {/* ── Page Header (Identical to ScodocPageHeader) ── */}
-        <header className="flex flex-col gap-4">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex flex-col gap-1 min-w-0">
-              <h1 id="moodle-page-title" className="m-0 text-[36px] leading-none tracking-[-0.02em] max-md:text-[30px] font-title">
-                {selectedFolder ? selectedFolder.name : (selectedCourse ? 'Cours Moodle' : 'Moodle')}
-              </h1>
-              <p className="m-0 flex flex-wrap items-center gap-x-2 font-body text-[15px] font-medium text-text-secondary">
-                {selectedFolder ? (
-                  <span>{selectedCourse?.shortname || selectedCourse?.fullname} · {selectedFolder.sectionName || 'Dossier'}</span>
-                ) : selectedCourse ? (
-                  <span>{selectedCourse.category ? `${selectedCourse.category} · ` : ''}{selectedCourse.shortname || 'Ressources'}</span>
-                ) : (
-                  <span>Espace pédagogique · {courses.length ? `${courses.length} cours disponibles` : 'Université'}</span>
-                )}
-                {loadingCourses && (
-                  <span className="scodoc-refreshing inline-flex items-center gap-1 text-[13px] text-text-muted" role="status">
-                    <Icon icon="carbon:renew" className="size-3.5 animate-spin" aria-hidden="true" />
-                    Actualisation…
-                  </span>
-                )}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void loadCourses()}
-                disabled={loadingCourses}
-                className={SECONDARY_BUTTON}
-                title="Actualiser les cours"
-              >
-                <Icon
-                  icon="carbon:renew"
-                  className={`size-4 ${loadingCourses ? 'animate-spin' : ''}`}
-                  aria-hidden="true"
-                />
-                <span className="max-xs:hidden">Actualiser</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedFolder(null)
-                  setSelectedCourse(null)
-                  setTourTrigger((c) => c + 1)
-                }}
-                className={HELP_TOUR_BUTTON}
-                title="Aide & Visite guidée"
-                aria-label="Visite guidée"
-              >
-                <Icon icon="carbon:help" className="size-5 shrink-0" aria-hidden="true" />
-              </button>
-
-              {effectiveMoodleHref && (
-                <a
-                  href={effectiveMoodleHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={SECONDARY_BUTTON}
-                  title="Ouvrir sur le Moodle officiel"
-                >
-                  <span>Moodle</span>
-                  <Icon icon="carbon:arrow-up-right" className="size-3.5" aria-hidden="true" />
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* Segmented Category Filter (when on all courses view) */}
-          {!selectedCourse && categoryOptions.length > 2 && (
-            <div className="flex items-center overflow-x-auto py-1 [scrollbar-width:none]">
-              <SegmentedControl
-                label="Catégories de cours"
-                options={categoryOptions}
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                size="md"
-                className="backdrop-blur-md bg-widget-bg/85 border border-border shadow-2xs"
-              />
-            </div>
-          )}
-        </header>
-
+    <AppPage
+      titleId="moodle-page-title"
+      title={selectedFolder ? selectedFolder.name : (selectedCourse ? (selectedCourse.shortname || 'Cours Moodle') : 'Moodle')}
+      controls={(
+        <span className="inline-flex flex-wrap items-center gap-x-2 font-body text-[15px] font-semibold leading-none text-text-secondary max-md:hidden">
+          {selectedFolder
+            ? `${selectedCourse?.shortname || selectedCourse?.fullname} · ${selectedFolder.sectionName || 'Dossier'}`
+            : selectedCourse
+              ? (selectedCourse.category || 'Ressources')
+              : (courses.length ? `${courses.length} cours` : null)}
+          {loadingCourses ? (
+            <span className="scodoc-refreshing inline-flex items-center gap-1 text-[13px] font-medium text-text-muted" role="status">
+              <Icon icon="carbon:renew" className="size-3.5 animate-spin" aria-hidden="true" />
+              Actualisation…
+            </span>
+          ) : null}
+        </span>
+      )}
+      actions={(
+        <>
+          <PageButton
+            icon="carbon:renew"
+            label="Actualiser les cours"
+            onClick={() => void loadCourses()}
+            disabled={loadingCourses}
+            className={`${ICON_ONLY} ${loadingCourses ? '[&_svg]:animate-spin' : ''}`}
+          />
+          {effectiveMoodleHref ? <PageButton icon="carbon:arrow-up-right" label="Moodle" href={effectiveMoodleHref} /> : null}
+          <PageButton
+            icon="carbon:help"
+            label="Visite guidée"
+            onClick={() => {
+              setSelectedFolder(null)
+              setSelectedCourse(null)
+              setTourTrigger((c) => c + 1)
+            }}
+            className={ICON_ONLY}
+          />
+        </>
+      )}
+      overview={!selectedCourse && categoryOptions.length > 2 ? (
+        <div className="flex max-w-full items-center overflow-x-auto [scrollbar-width:none]">
+          <SegmentedControl
+            label="Catégories de cours"
+            options={categoryOptions}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+          />
+        </div>
+      ) : null}
+      bare={Boolean(selectedCourse)}
+    >
+      <div className="flex w-full min-w-0 flex-col gap-8 max-md:gap-6">
         {/* ── COURSE & FOLDER DETAIL VIEW ── */}
         {selectedCourse ? (
           selectedFolder ? (
@@ -765,10 +732,10 @@ export default function MoodlePage() {
                         href={selectedFolder.downloadFolderProxyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`${SECONDARY_BUTTON} border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium`}
+                        className={`${SECONDARY_BUTTON} border-accent-border text-accent-text dark:text-accent-text hover:bg-accent-bg font-medium`}
                         title="Télécharger tous les fichiers du dossier en archive .zip"
                       >
-                        <Icon icon="carbon:zip" className="size-4 text-amber-500" />
+                        <Icon icon="carbon:zip" className="size-4 text-accent-text" />
                         <span>Télécharger le dossier (.zip)</span>
                       </a>
                     )}
@@ -790,13 +757,13 @@ export default function MoodlePage() {
 
                 {/* Folder Header presentation */}
                 <div className="flex items-start gap-4">
-                  <div className="size-14 rounded-2xl flex items-center justify-center shrink-0 text-amber-500 bg-amber-500/10 border border-amber-500/20 shadow-sm">
+                  <div className="size-14 rounded-2xl flex items-center justify-center shrink-0 text-accent-text bg-accent-bg border border-accent-border shadow-sm">
                     <Icon icon="carbon:folder-open" className="size-8" />
                   </div>
 
                   <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="font-body text-[12px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 uppercase tracking-wider border border-amber-500/20">
+                      <span className="font-body text-[12px] font-bold px-2.5 py-0.5 rounded-full bg-accent-bg text-accent-text dark:text-accent-text uppercase tracking-wider border border-accent-border">
                         Dossier pédagogique
                       </span>
                       {selectedFolder.sectionName && (
@@ -898,7 +865,7 @@ export default function MoodlePage() {
                           href={selectedFolder.downloadFolderProxyUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-body text-[12.5px] font-medium text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                          className="font-body text-[12.5px] font-medium text-accent-text dark:text-accent-text hover:underline flex items-center gap-1"
                         >
                           <Icon icon="carbon:zip" className="size-3.5" />
                           <span>Tout télécharger</span>
@@ -1244,7 +1211,7 @@ export default function MoodlePage() {
                                           }}
                                           title={`Entrer dans le dossier ${mod.name}`}
                                         >
-                                          <div className="size-9 rounded-xl flex items-center justify-center shrink-0 text-amber-500 bg-amber-500/10 border border-amber-500/20 shadow-2xs group-hover:scale-105 group-hover:bg-amber-500/15 transition-transform">
+                                          <div className="size-9 rounded-xl flex items-center justify-center shrink-0 text-accent-text bg-accent-bg border border-accent-border shadow-2xs group-hover:scale-105 group-hover:bg-accent-bg transition-transform">
                                             <Icon icon={isExpanded ? 'carbon:folder-open' : 'carbon:folder'} className="size-5" />
                                           </div>
 
@@ -1253,7 +1220,7 @@ export default function MoodlePage() {
                                               <span className="font-body text-[14.5px] font-semibold leading-snug text-text group-hover:text-brand transition-colors truncate">
                                                 {mod.name}
                                               </span>
-                                              <span className="shrink-0 text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                              <span className="shrink-0 text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full bg-accent-bg text-accent-text dark:text-accent-text border border-accent-border">
                                                 Dossier
                                               </span>
                                             </div>
@@ -1306,7 +1273,7 @@ export default function MoodlePage() {
                                               className={`${SECONDARY_BUTTON} py-1.5 px-3 text-[12px] shadow-2xs`}
                                               title={`Télécharger tout le dossier (${mod.name}.zip)`}
                                             >
-                                              <Icon icon="carbon:zip" className="size-3.5 text-amber-500" />
+                                              <Icon icon="carbon:zip" className="size-3.5 text-accent-text" />
                                               <span className="max-sm:hidden font-medium">.zip</span>
                                             </a>
                                           )}
@@ -1620,19 +1587,19 @@ export default function MoodlePage() {
                           <div className="flex items-center gap-1.5 mt-1 text-[11px] font-body">
                             <span
                               className={`size-1.5 rounded-full ${
-                                item.overdue ? 'bg-red-500' : 'bg-brand'
+                                item.overdue ? 'bg-error' : 'bg-brand'
                               }`}
                             />
-                            <span className={item.overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-text-muted font-medium'}>
+                            <span className={item.overdue ? 'text-error dark:text-error font-semibold' : 'text-text-muted font-medium'}>
                               {formatRelativeDueDate(item.dueAt)}
                             </span>
                             {!item.submitted && (item.overdue || formatRelativeDueDate(item.dueAt).startsWith('Aujourd') || formatRelativeDueDate(item.dueAt).startsWith('Demain')) && (
-                              <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-[10px] uppercase tracking-wide">
+                              <span className="px-1.5 py-0.2 rounded-md bg-accent-bg text-accent-text dark:text-accent-text font-bold text-[10px] uppercase tracking-wide">
                                 Urgent
                               </span>
                             )}
                             {item.submitted && (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5 ml-1">
+                              <span className="text-success-text dark:text-success-text font-semibold flex items-center gap-0.5 ml-1">
                                 <Icon icon="carbon:checkmark-filled" className="size-3" />
                                 <span>Rendu</span>
                               </span>
@@ -1846,8 +1813,8 @@ export default function MoodlePage() {
                             </span>
 
                             {hasDeadlines && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400 shrink-0">
-                                <span className="size-1.5 rounded-full bg-red-500" />
+                              <span className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-[11px] font-semibold text-error dark:text-error shrink-0">
+                                <span className="size-1.5 rounded-full bg-error" />
                                 Devoir
                               </span>
                             )}
@@ -1898,8 +1865,8 @@ export default function MoodlePage() {
                                 {course.shortname || 'COURS'}
                               </span>
                               {hasDeadlines && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400">
-                                  <span className="size-1.5 rounded-full bg-red-500" />
+                                <span className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-[11px] font-semibold text-error dark:text-error">
+                                  <span className="size-1.5 rounded-full bg-error" />
                                   Devoir à rendre
                                 </span>
                               )}
@@ -1974,10 +1941,10 @@ export default function MoodlePage() {
                       <span
                         className={`font-body text-[11.5px] font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border ${
                           assignmentDetails.status === 'submitted'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                            ? 'bg-success-bg text-success-text dark:text-success-text border-success-text/40'
                             : assignmentDetails.status === 'draft'
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
-                            : 'bg-slate-500/10 text-text-muted border-border'
+                            ? 'bg-accent-bg text-accent-text dark:text-accent-text border-accent-border'
+                            : 'bg-muted-fill text-text-muted border-border'
                         }`}
                       >
                         <Icon
@@ -2040,7 +2007,7 @@ export default function MoodlePage() {
                   <LoadingDots text="Chargement des consignes et du statut Moodle…" />
                 </div>
               ) : assignmentError ? (
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 font-body text-[13.5px] flex items-center justify-between gap-3">
+                <div className="p-4 rounded-2xl bg-error-bg border border-error/40 text-error dark:text-error font-body text-[13.5px] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Icon icon="carbon:warning-filled" className="size-5 shrink-0" />
                     <span>{assignmentError}</span>
@@ -2057,8 +2024,8 @@ export default function MoodlePage() {
                 <>
                   {/* Message de succès après téléversement */}
                   {assignmentSuccessMsg && (
-                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-body text-[13.5px] flex items-center gap-2.5 animate-in fade-in duration-200">
-                      <Icon icon="carbon:checkmark-filled" className="size-5 text-emerald-500 shrink-0" />
+                    <div className="p-4 rounded-2xl bg-success-bg border border-success-text/40 text-success-text dark:text-success-text font-body text-[13.5px] flex items-center gap-2.5 animate-in fade-in duration-200">
+                      <Icon icon="carbon:checkmark-filled" className="size-5 text-success-text shrink-0" />
                       <span className="font-semibold">{assignmentSuccessMsg}</span>
                     </div>
                   )}
@@ -2078,14 +2045,14 @@ export default function MoodlePage() {
 
                   {/* Note et évaluation de l'enseignant si corrigé */}
                   {(assignmentDetails?.grade || assignmentDetails?.feedbackComments) && (
-                    <div className="flex flex-col gap-2 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 animate-fadeIn">
+                    <div className="flex flex-col gap-2 p-4 rounded-2xl bg-success-bg border border-success-text/40 animate-fadeIn">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-body text-[12.5px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                          <Icon icon="carbon:certificate" className="size-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="font-body text-[12.5px] font-bold uppercase tracking-wider text-success-text dark:text-success-text flex items-center gap-1.5">
+                          <Icon icon="carbon:certificate" className="size-4 text-success-text dark:text-success-text" />
                           Évaluation de l'enseignant
                         </span>
                         {assignmentDetails.grade && (
-                          <span className="font-mono text-[14px] font-bold px-3 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                          <span className="font-mono text-[14px] font-bold px-3 py-0.5 rounded-full bg-success-bg text-success-text dark:text-success-text">
                             {assignmentDetails.grade}
                           </span>
                         )}
@@ -2156,7 +2123,7 @@ export default function MoodlePage() {
                                   <button
                                     type="button"
                                     onClick={() => void handleRemoveSubmittedFile(file.filename)}
-                                    className="size-8 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 hover:bg-red-500/10 border border-red-500/20 transition-colors cursor-pointer"
+                                    className="size-8 rounded-lg flex items-center justify-center text-error hover:text-error hover:bg-error-bg border border-error/40 transition-colors cursor-pointer"
                                     title="Retirer ce fichier"
                                   >
                                     <Icon icon="carbon:trash-can" className="size-4" />
@@ -2265,7 +2232,7 @@ export default function MoodlePage() {
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveStagedFile(i)}
-                                    className="size-7 rounded-full flex items-center justify-center text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    className="size-7 rounded-full flex items-center justify-center text-text-muted hover:text-error hover:bg-error-bg transition-colors cursor-pointer"
                                     title="Retirer de la liste"
                                   >
                                     <Icon icon="carbon:close" className="size-4" />
@@ -2341,6 +2308,6 @@ export default function MoodlePage() {
         steps={MOODLE_TOUR_STEPS}
         manualTrigger={tourTrigger}
       />
-    </section>
+    </AppPage>
   )
 }

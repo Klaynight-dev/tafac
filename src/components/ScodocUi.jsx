@@ -35,10 +35,10 @@ export function SegmentedControl({ label, options, value, onChange, size = 'md',
       ref={groupRef}
       role="radiogroup"
       aria-label={label}
-      className={`relative inline-flex max-w-full gap-1 rounded-full bg-[#f3f1eb] p-1 dark:bg-[var(--color-bg-muted)] ${className}`}
+      className={`relative inline-flex max-w-full gap-1 rounded-full border border-white bg-widget-bg p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border ${className}`}
       style={style}
     >
-      <SlidingIndicator box={box} className="rounded-full border border-white bg-widget-bg shadow-[0_1px_3px_rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.08)]" />
+      <SlidingIndicator box={box} className="rounded-full bg-accent-bg" />
       {options.map((option) => {
         const selected = option.value === value
         return (
@@ -51,7 +51,7 @@ export function SegmentedControl({ label, options, value, onChange, size = 'md',
             onClick={() => onChange(option.value)}
             className={`relative flex shrink-0 flex-col items-center justify-center rounded-full border-0 bg-transparent font-body font-semibold leading-none transition-colors duration-200 ${
               size === 'lg' ? 'gap-1 px-4 py-2' : 'px-3.5 py-1.5 text-[14px]'
-            } ${selected ? 'text-text' : 'text-text-secondary hover:text-text'}`}
+            } ${selected ? 'text-accent-text' : 'text-text-secondary hover:text-text'}`}
           >
             <span className={size === 'lg' ? 'text-[15px]' : ''}>
               {option.label}
