@@ -653,6 +653,61 @@ export default function MoodlePage() {
 
   const effectiveMoodleHref = selectedFolder?.launchHref || selectedCourse?.moodleHref || moodleWebHref
 
+  // The band's overview, like « Dernières notes » on Mes notes: what's due,
+  // soonest first, as cards in a row (sideways on a phone). Overdue in red,
+  // due today or tomorrow in the accent, handed in in green.
+  const pendingDeadlines = deadlines.filter((item) => !item.submitted)
+  const overdueCount = pendingDeadlines.filter((item) => item.overdue).length
+  const deadlineOverview = deadlines.length ? (
+    <div data-tour="moodle-overview" className="grid gap-3">
+      <div className="flex items-center gap-[5px] text-brand">
+        <Icon icon="carbon:delivery-parcel" className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
+        <h2 className="m-0 font-body text-base font-medium leading-[1.06]">
+          À rendre
+          <span className="ml-1.5 text-text-muted">{pendingDeadlines.length}</span>
+          {overdueCount ? <span className="ml-2 text-error">· {overdueCount} en retard</span> : null}
+        </h2>
+      </div>
+      <ul className="m-0 flex list-none gap-3 overflow-x-auto p-0 -mx-6 -mt-2 -mb-7 px-6 pt-2 pb-7 snap-x scroll-px-6 max-md:-mx-3 max-md:gap-2 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-3 max-md:px-3 max-md:pt-2 max-md:pb-7 favorites-scroll-hide">
+        {deadlines.slice(0, 6).map((item) => {
+          const due = formatRelativeDueDate(item.dueAt)
+          const urgent = !item.submitted && (item.overdue || due.startsWith('Aujourd') || due.startsWith('Demain'))
+          const canSubmit = item.type === 'assign'
+          const open = canSubmit
+            ? () => void openAssignmentModal({ cmid: item.cmid || item.id, name: item.title, courseName: item.courseName })
+            : item.href ? () => window.open(item.href, '_blank', 'noopener,noreferrer') : null
+          return (
+            <li key={item.id} className="flex w-[260px] shrink-0 snap-start max-md:w-[78%]">
+              <button
+                type="button"
+                onClick={open ?? undefined}
+                disabled={!open}
+                className="latest-grade-card widget-card widget-card-visible flex w-full min-w-0 flex-col gap-[6px] rounded-[22px] border border-white bg-widget-bg p-3 text-left text-text shadow-md cursor-pointer disabled:cursor-default max-md:rounded-[20px] dark:border-border"
+              >
+                <span className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="min-w-0 truncate font-body text-[13px] font-medium text-text-muted">{item.courseName}</span>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 font-body text-[12px] font-semibold ${
+                    item.submitted ? 'bg-success-bg text-success-text' : item.overdue ? 'bg-error-bg text-error' : urgent ? 'bg-accent-bg text-accent-text' : 'bg-muted-fill text-text-secondary'
+                  }`}
+                  >
+                    {item.submitted ? 'Rendu' : due}
+                  </span>
+                </span>
+                <span className="line-clamp-2 font-body text-[15px] font-semibold leading-snug text-text">{item.title}</span>
+                {canSubmit && !item.submitted ? (
+                  <span className="mt-auto inline-flex items-center gap-1 pt-1 font-body text-[13px] font-semibold text-text-secondary">
+                    <Icon icon="carbon:upload" className="size-3.5" aria-hidden="true" />
+                    Déposer dans Tafac
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  ) : null
+
   return (
     <AppPage
       titleId="moodle-page-title"
@@ -694,14 +749,19 @@ export default function MoodlePage() {
           />
         </>
       )}
-      overview={!selectedCourse && categoryOptions.length > 2 ? (
-        <div className="flex max-w-full items-center overflow-x-auto [scrollbar-width:none]">
-          <SegmentedControl
-            label="Catégories de cours"
-            options={categoryOptions}
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-          />
+      overview={!selectedCourse && (deadlineOverview || categoryOptions.length > 2) ? (
+        <div className="grid gap-5 max-md:gap-4">
+          {deadlineOverview}
+          {categoryOptions.length > 2 ? (
+            <div className="flex max-w-full items-center overflow-x-auto [scrollbar-width:none]">
+              <SegmentedControl
+                label="Catégories de cours"
+                options={categoryOptions}
+                value={categoryFilter}
+                onChange={setCategoryFilter}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
       bare={Boolean(selectedCourse)}
@@ -1537,165 +1597,34 @@ export default function MoodlePage() {
         ) : (
           /* ── COURSES LIST & DASHBOARD VIEW ── */
           <Fragment>
-            {/* Bento Highlights: Deadlines Widget (identical to dashboard) + Quick Access */}
-            <div data-tour="moodle-overview" className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Deadlines Card (Spans 2 columns on tablet/desktop) */}
-              <article style={revealStyle(0)} className={`${CARD_CLASSES} grades-reveal md:col-span-2 flex flex-col gap-4 p-5 max-md:p-4 shadow-sm`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="size-7 rounded-lg bg-brand/10 flex items-center justify-center text-brand">
-                      <Icon icon="carbon:delivery-parcel" className="size-4" aria-hidden="true" />
-                    </div>
-                    <h2 className="m-0 text-[16px] font-bold text-text leading-snug">
-                      Échéances et devoirs à venir
-                    </h2>
-                  </div>
-                  <span className="font-body text-[12px] font-semibold px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary border border-border/50">
-                    {deadlines.length ? `${deadlines.length} devoir${deadlines.length > 1 ? 's' : ''}` : 'À jour'}
-                  </span>
+            {/* Recent courses: one tap back to a course opened lately. */}
+            {recentCourses.length ? (
+              <section className="grid gap-3" aria-labelledby="moodle-recent-title">
+                <div className="flex items-center gap-[5px] text-brand">
+                  <Icon icon="carbon:recently-viewed" className="w-[17px] h-[17px] shrink-0" aria-hidden="true" />
+                  <h2 id="moodle-recent-title" className="m-0 font-body text-base font-medium leading-[1.06]">Ouverts récemment</h2>
                 </div>
-
-                {deadlines.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {deadlines.slice(0, 4).map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start justify-between gap-2.5 p-3 rounded-[16px] bg-bg-subtle/70 hover:bg-bg-subtle border border-border transition-colors group"
-                      >
-                        <div className="min-w-0 flex flex-col gap-0.5 flex-1">
-                          {item.type === 'assign' ? (
-                            <button
-                              type="button"
-                              onClick={() => void openAssignmentModal({
-                                cmid: item.cmid || item.id,
-                                name: item.title,
-                                courseName: item.courseName,
-                              })}
-                              className="font-body text-[13px] font-semibold text-text truncate hover:text-brand transition-colors text-left cursor-pointer"
-                              title={`Déposer ou consulter ${item.title}`}
-                            >
-                              {item.title}
-                            </button>
-                          ) : (
-                            <span className="font-body text-[13px] font-semibold text-text truncate group-hover:text-brand transition-colors" title={item.title}>
-                              {item.title}
-                            </span>
-                          )}
-                          <span className="font-body text-[11.5px] text-text-muted truncate">
-                            {item.courseName}
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-body">
-                            <span
-                              className={`size-1.5 rounded-full ${
-                                item.overdue ? 'bg-error' : 'bg-brand'
-                              }`}
-                            />
-                            <span className={item.overdue ? 'text-error dark:text-error font-semibold' : 'text-text-muted font-medium'}>
-                              {formatRelativeDueDate(item.dueAt)}
-                            </span>
-                            {!item.submitted && (item.overdue || formatRelativeDueDate(item.dueAt).startsWith('Aujourd') || formatRelativeDueDate(item.dueAt).startsWith('Demain')) && (
-                              <span className="px-1.5 py-0.2 rounded-md bg-accent-bg text-accent-text dark:text-accent-text font-bold text-[10px] uppercase tracking-wide">
-                                Urgent
-                              </span>
-                            )}
-                            {item.submitted && (
-                              <span className="text-success-text dark:text-success-text font-semibold flex items-center gap-0.5 ml-1">
-                                <Icon icon="carbon:checkmark-filled" className="size-3" />
-                                <span>Rendu</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {item.type === 'assign' && (
-                            <button
-                              type="button"
-                              onClick={() => void openAssignmentModal({
-                                cmid: item.cmid || item.id,
-                                name: item.title,
-                                courseName: item.courseName,
-                              })}
-                              className="size-7 rounded-full flex items-center justify-center text-brand hover:bg-brand/10 transition-colors shrink-0"
-                              title="Déposer / Consulter le devoir dans Tafac"
-                            >
-                              <Icon icon="carbon:upload" className="size-3.5" />
-                            </button>
-                          )}
-                          {item.href && (
-                            <a
-                              href={item.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="size-7 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-widget-bg transition-colors shrink-0"
-                              title="Ouvrir le devoir sur Moodle"
-                            >
-                              <Icon icon="carbon:arrow-up-right" className="size-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-4 text-center flex flex-col items-center justify-center gap-1 text-text-muted">
-                    <Icon icon="carbon:checkmark-outline" className="size-6 text-brand" />
-                    <p className="m-0 font-body text-[13px]">Aucun devoir urgent à rendre pour le moment.</p>
-                  </div>
-                )}
-              </article>
-
-              {/* Quick Summary / Recent courses Card */}
-              <article style={revealStyle(0)} className={`${CARD_CLASSES} grades-reveal flex flex-col gap-3 p-5 max-md:p-4 shadow-sm`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="size-7 rounded-lg bg-brand/10 flex items-center justify-center text-brand">
-                      <Icon icon="carbon:time" className="size-4" aria-hidden="true" />
-                    </div>
-                    <h2 className="m-0 text-[16px] font-bold text-text leading-snug">
-                      Cours récents
-                    </h2>
-                  </div>
-                  <span className="font-body text-[12px] text-text-muted">
-                    {courses.length} inscrits
-                  </span>
+                <div className="flex flex-wrap gap-2">
+                  {recentCourses.slice(0, 4).map((course) => (
+                    <button
+                      key={course.id}
+                      type="button"
+                      onClick={() => void loadCourseContents(course)}
+                      className="inline-flex max-w-full items-center gap-2 rounded-full border border-white bg-widget-bg px-3.5 py-2 font-body text-[14px] font-semibold text-text shadow-[0_1px_3px_rgba(0,0,0,0.06)] cursor-pointer transition-colors hover:bg-row-hover dark:border-border"
+                    >
+                      <Icon icon="carbon:notebook" className="size-4 shrink-0 text-text-muted" aria-hidden="true" />
+                      <span className="truncate">{course.shortname || course.fullname}</span>
+                    </button>
+                  ))}
                 </div>
-
-                {recentCourses.length > 0 ? (
-                  <ul className="m-0 p-0 list-none flex flex-col gap-1.5">
-                    {recentCourses.slice(0, 3).map((course) => (
-                      <li key={course.id}>
-                        <button
-                          type="button"
-                          onClick={() => void loadCourseContents(course)}
-                          className="w-full flex items-center justify-between gap-2 p-2 rounded-xl text-left bg-transparent hover:bg-bg-subtle transition-colors cursor-pointer group"
-                        >
-                          <div className="min-w-0 flex flex-col">
-                            <span className="font-body text-[13px] font-semibold text-text group-hover:text-brand transition-colors truncate">
-                              {course.fullname}
-                            </span>
-                            <span className="font-body text-[11px] text-text-muted">
-                              {course.shortname || 'Cours'}
-                            </span>
-                          </div>
-                          <Icon icon="carbon:chevron-right" className="size-3.5 text-text-muted group-hover:text-text shrink-0" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="py-4 text-center text-text-muted flex flex-col items-center justify-center gap-1">
-                    <Icon icon="carbon:notebook" className="size-6 opacity-40 text-brand" />
-                    <p className="m-0 font-body text-[12.5px]">Ouvre un cours pour le retrouver rapidement ici.</p>
-                  </div>
-                )}
-              </article>
-            </div>
+              </section>
+            ) : null}
 
             {/* Courses Section with Search Bar, Layout Toggle and SectionTitle */}
             <section data-tour="moodle-courses" className="flex flex-col gap-4" aria-labelledby="moodle-courses-title">
               <SectionTitle
                 id="moodle-courses-title"
+                icon="carbon:notebook"
                 count={courses.length}
                 aside={(
                   <div className="flex items-center gap-2 w-full sm:w-auto">

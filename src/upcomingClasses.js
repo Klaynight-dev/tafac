@@ -16,7 +16,9 @@ export function getClassHue(title) {
   try {
     const stored = JSON.parse(localStorage.getItem(CLASS_COLORS_KEY) || '{}')
     if (stored[title] != null) return stored[title]
-    const hue = Math.floor(Math.random() * 360)
+    // From the title, not at random: a course keeps its colour on every device.
+    let hue = 0
+    for (const char of String(title ?? '')) hue = (hue * 31 + char.codePointAt(0)) % 360
     stored[title] = hue
     localStorage.setItem(CLASS_COLORS_KEY, JSON.stringify(stored))
     return hue

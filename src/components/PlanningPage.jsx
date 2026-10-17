@@ -4,7 +4,7 @@ import universityConfig from '@university'
 import { ENT_AUTH_PREFIX, getAdeTeachers } from '../entApi'
 import { APP_NAME } from '../seo'
 import { buildResourceIdsFromSelection, fetchUpcomingEvents, formatDateOnly } from '../upcomingClasses'
-import { AppPage, INLINE_BUTTON, PRIMARY_BUTTON, PageButton } from './AppPage'
+import { AppPage, INLINE_BUTTON, PRIMARY_BUTTON, PageButton, StatCard, StatRow } from './AppPage'
 import { GradesNotice } from './GradesNotice'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
 import {
@@ -25,6 +25,7 @@ import TeacherCompareModal from './planning/TeacherCompareModal'
 import CourseDetailModal from './planning/CourseDetailModal'
 import FreeRoomsModal from './planning/FreeRoomsModal'
 import PageGuidedTour from './PageGuidedTour'
+import WidgetNextClass from './WidgetNextClass'
 
 const PLANNING_SERVICE_URL = universityConfig.planning?.serviceUrl ?? null
 const ADE_HREF = PLANNING_SERVICE_URL
@@ -90,7 +91,8 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     } catch {
       // Best effort: nothing to do when it fails.
     }
-    return 'week'
+    // A phone is too narrow for five columns: one day at a time.
+    return window.matchMedia?.('(max-width: 639.98px)').matches ? 'day' : 'week'
   })
 
   // Date states
@@ -540,8 +542,45 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
 
   // The band: the view and the period, then what's worth a word (the day
   // shown instead of today, the teacher being compared).
+  // At a glance, like the home page: the next course (its own widget), then
+  // today's courses and the week shown, from the loaded timetable.
+  const glance = useMemo(() => {
+    const weekStart = monday.getTime()
+    const weekEnd = addDays(monday, 7).getTime()
+    const todayKey = formatDateOnly(new Date())
+    const minutes = (event) => Math.max(0, (new Date(event.end) - new Date(event.start)) / 60000)
+    const week = state.events.filter((event) => {
+      const start = new Date(event.start).getTime()
+      return start >= weekStart && start < weekEnd
+    })
+    const today = state.events
+      .filter((event) => formatDateOnly(new Date(event.start)) === todayKey)
+      .sort((left, right) => new Date(left.end) - new Date(right.end))
+    const weekMinutes = Math.round(week.reduce((sum, event) => sum + minutes(event), 0))
+    return {
+      weekCount: week.length,
+      weekHours: `${Math.floor(weekMinutes / 60)}h${weekMinutes % 60 ? String(weekMinutes % 60).padStart(2, '0') : ''}`,
+      todayCount: today.length,
+      todayEnd: today.length ? new Date(today[today.length - 1].end).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : null,
+    }
+  }, [monday, state.events])
+
   const overview = resourceIds.length ? (
     <div className="grid gap-4 max-md:gap-3">
+      {viewMode !== 'month' && state.status === 'ok' ? (
+        <StatRow>
+          <WidgetNextClass visible selection={selection} sessionUser={sessionUser} />
+          {glance.todayCount ? (
+            <StatCard label="Aujourd’hui" icon="carbon:calendar" value={glance.todayCount} unit="cours" detail={`Fin de journée à ${glance.todayEnd}`} />
+          ) : null}
+          <StatCard
+            label={isCurrentWeek ? 'Cette semaine' : `Semaine du ${monday.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`}
+            icon="carbon:time"
+            value={glance.weekCount ? glance.weekHours : '0h'}
+            detail={glance.weekCount ? `${glance.weekCount} cours` : 'Pas de cours'}
+          />
+        </StatRow>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <div data-tour="planning-views" className="max-w-full overflow-x-auto [scrollbar-width:none]">
           <SegmentedControl label="Vue du planning" options={viewOptions} value={viewMode} onChange={handleChangeView} />
