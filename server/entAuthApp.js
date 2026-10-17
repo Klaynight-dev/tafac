@@ -1396,6 +1396,17 @@ function isMoodleShibbolethPostTarget(targetUrl) {
     && /\/Shibboleth\.sso\//i.test(new URL(targetUrl).pathname)
 }
 
+// Moodle's own sign-in page: the session is gone (its /login/ path, or its
+// login form).
+function isMoodleLoginPage(html, pageUrl) {
+  try {
+    if (/\/login\/index\.php/i.test(new URL(pageUrl).pathname)) return true
+  } catch {
+    // Not a URL: judge by the page alone.
+  }
+  return /<form[^>]+id=["']login["']/i.test(String(html ?? ''))
+}
+
 function buildMoodleWayfRequest(pageUrl) {
   const actionUrl = extractFormAction(pageUrl.html, pageUrl.url)
   return {

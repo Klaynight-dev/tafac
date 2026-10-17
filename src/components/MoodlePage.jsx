@@ -219,7 +219,9 @@ export default function MoodlePage() {
     setViewLayout(mode)
     try {
       localStorage.setItem(MOODLE_VIEW_STORAGE_KEY, mode)
-    } catch {}
+    } catch {
+      // Best effort: nothing to do when it fails.
+    }
   }, [])
 
   const loadCourses = useCallback(async () => {
@@ -414,7 +416,9 @@ export default function MoodlePage() {
       const next = [course.id, ...prev.filter((id) => id !== course.id)].slice(0, 5)
       try {
         localStorage.setItem(MOODLE_RECENT_COURSES_KEY, JSON.stringify(next))
-      } catch {}
+      } catch {
+        // Best effort: nothing to do when it fails.
+      }
       return next
     })
 
@@ -488,7 +492,9 @@ export default function MoodlePage() {
       const next = typeof val === 'boolean' ? val : !prev
       try {
         localStorage.setItem(MOODLE_SHOW_EMPTY_SECTIONS_KEY, String(next))
-      } catch {}
+      } catch {
+        // Best effort: nothing to do when it fails.
+      }
       return next
     })
   }, [])

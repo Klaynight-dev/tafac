@@ -68,7 +68,9 @@ export default function PageGuidedTour({
       if (!done && enabled) {
         setActive(true)
       }
-    } catch {}
+    } catch {
+      // Best effort: nothing to do when it fails.
+    }
   }, [storageKey, enabled])
 
   // Support manual trigger (replay button)
@@ -110,7 +112,9 @@ export default function PageGuidedTour({
     if (storageKey) {
       try {
         localStorage.setItem(storageKey, 'done')
-      } catch {}
+      } catch {
+        // Best effort: nothing to do when it fails.
+      }
     }
     setAnimatingOut(true)
     setTimeout(() => {

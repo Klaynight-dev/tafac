@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { getAdeTeachers } from '../../entApi'
-import { extractTeachersFromEvents, findCommonFreeSlots, formatTime, generateRescheduleMessage } from '../../planningUtils'
+import { extractTeachersFromEvents, findCommonFreeSlots, generateRescheduleMessage } from '../../planningUtils'
 import { CARD_CLASSES, SECONDARY_BUTTON } from '../../scodocPageUtils'
 
 export default function TeacherCompareModal({

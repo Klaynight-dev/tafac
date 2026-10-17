@@ -9,7 +9,6 @@ import {
   SHIMMER_CLASSES,
   calendarDayDiff,
   formatClockTime,
-  openInNewTab,
   parseDate,
   readStoredHref,
   storeHref,

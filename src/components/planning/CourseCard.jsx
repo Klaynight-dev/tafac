@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { Icon } from '@iconify/react'
 import { getClassHue } from '../../upcomingClasses'
 import { formatTime } from '../../planningUtils'
@@ -41,10 +40,7 @@ export default function CourseCard({
 }) {
   if (!event) return null
 
-  const hue = useMemo(() => {
-    if (isTeacher) return 260
-    return getClassHue(event.title)
-  }, [event.title, isTeacher])
+  const hue = isTeacher ? 260 : getClassHue(event.title)
 
   const accentColor = `hsl(${hue}, 60%, 45%)`
   const classGradient = `linear-gradient(180deg, hsla(${hue}, 60%, 72%, 0.22) 0%, transparent 55%)`
@@ -55,11 +51,9 @@ export default function CourseCard({
   const ongoing = startTime <= now && endTime && endTime > now
   const finished = endTime && endTime <= now
 
-  const durationMinutes = useMemo(() => {
-    if (!event.start || !event.end) return 60
-    const diff = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000
-    return Math.max(15, Math.round(diff))
-  }, [event.start, event.end])
+  const durationMinutes = event.start && event.end
+    ? Math.max(15, Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000))
+    : 60
 
   const isShortClass = durationMinutes <= 75
 

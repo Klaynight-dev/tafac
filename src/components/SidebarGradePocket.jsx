@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import SidebarStatPocket from './SidebarStatPocket'
 import { navigateTo } from '../appRoute'
-import { GRADES_LAUNCH_HREF, getLatestGrade, openGradesService } from '../entApi'
+import { GRADES_LAUNCH_HREF, getLatestGrade } from '../entApi'
 import {
   DEMO_LATEST_GRADE,
   GRADES_FEATURE_DISABLED,

@@ -1,7 +1,7 @@
 // CROUS restaurants and menus API for Tafac.
 // Provides campus cafeteria and restaurant menu consultation with offline caching.
 
-import { getOfflineCache, setOfflineCache } from './offlineStorage'
+import { setOfflineCache } from './offlineStorage'
 
 export const CROUS_RESTAURANTS = [
   {
@@ -50,7 +50,9 @@ export function getStoredCrousRestaurant(establishment = null) {
     if (saved && CROUS_RESTAURANTS.some((r) => r.id === saved)) {
       return saved
     }
-  } catch {}
+  } catch {
+    // Best effort: nothing to do when it fails.
+  }
 
   // Match by establishment
   if (establishment) {
@@ -66,7 +68,9 @@ export function getStoredCrousRestaurant(establishment = null) {
 export function setStoredCrousRestaurant(id) {
   try {
     localStorage.setItem(CROUS_STORAGE_KEY, id)
-  } catch {}
+  } catch {
+    // Best effort: nothing to do when it fails.
+  }
 }
 
 const WEEKDAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']

@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import CourseCard from './CourseCard'
-import { getClassHue } from '../../upcomingClasses'
 import {
   DAY_START_HOUR,
   DAY_END_HOUR,
   computeEventLayout,
   formatDateOnly,
-  formatTime,
   getCurrentTimePosition,
   getGridPosition,
   groupByDay,

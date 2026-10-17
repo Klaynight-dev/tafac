@@ -79,7 +79,9 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     try {
       const saved = localStorage.getItem(VIEW_STORAGE_KEY)
       if (['week', 'day', 'list', 'month'].includes(saved)) return saved
-    } catch {}
+    } catch {
+      // Best effort: nothing to do when it fails.
+    }
     return 'week'
   })
 
@@ -112,7 +114,9 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
     setViewMode(newView)
     try {
       localStorage.setItem(VIEW_STORAGE_KEY, newView)
-    } catch {}
+    } catch {
+      // Best effort: nothing to do when it fails.
+    }
   }
 
   // Set document title
@@ -234,7 +238,9 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         if (match?.id) {
           resolved = match
         }
-      } catch {}
+      } catch {
+        // Best effort: nothing to do when it fails.
+      }
     }
 
     setSelectedTeacher(resolved)
@@ -481,10 +487,6 @@ export default function PlanningPage({ selection = null, sessionUser = null, onO
         events={state.events}
         monday={monday}
         now={now}
-        onSelectTeacher={(t) => {
-          handleSelectTeacher(t)
-          setIsCompareModalOpen(true)
-        }}
         onEventClick={(ev) => setSelectedEventForDetail(ev)}
       />
     )

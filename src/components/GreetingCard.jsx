@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Icon } from '@iconify/react'
 import { getBriefingSources, publishBriefingSource, subscribeBriefingSources } from '../briefingSources'
 import { buildDailyBriefing } from '../dailyBriefing'

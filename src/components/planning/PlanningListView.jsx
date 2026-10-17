@@ -6,7 +6,6 @@ export default function PlanningListView({
   events = [],
   monday,
   now = new Date(),
-  onSelectTeacher,
   onEventClick,
 }) {
   const days = groupByDay(events, monday, true).filter((d) => d.events.length > 0)

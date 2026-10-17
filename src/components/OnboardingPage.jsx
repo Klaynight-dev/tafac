@@ -317,11 +317,6 @@ function OnboardingPage({
             <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
               {STEP_ORDER.map((stepKey, index) => {
                 const isCurrent = stepKey === currentStep
-                const isCompleted = (
-                  (stepKey === 'year' && selectedYear)
-                  || (stepKey === 'td' && selectedTd)
-                )
-
                 return (
                   <div
                     key={stepKey}
