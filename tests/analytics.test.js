@@ -175,3 +175,93 @@ test('formation slug is short and only accepted as a slug', () => {
   const dropped = sanitizeAnalyticsEvent({ event: 'dashboard_viewed', properties: { formation: 'BUT MMI 2 — TP3' } }, { hasSession: true })
   assert.deepEqual(dropped.properties, {})
 })
+
+test('page_viewed only names the grades page and an enum source', () => {
+  const opts = { hasSession: true }
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'grades', source: 'launch_card', semester: '2026-S3' } }, opts)?.properties,
+    { page: 'grades', source: 'launch_card' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'grades', source: 'https://tafac.fr/' } }, opts), null)
+  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: '/grades?ue=UE3.1', source: 'nav' } }, opts), null)
+  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'grades', source: 'nav' } }, { hasSession: false }), null)
+})
+
+test('grades_loaded keeps buckets and categories, never numbers', () => {
+  const opts = { hasSession: true }
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'grades_loaded', properties: { status: 'error', duration_bucket: '<3s', error_kind: 'timeout', duration_ms: 2412, error: 'ScoDoc down' } }, opts)?.properties,
+    { status: 'error', duration_bucket: '<3s', error_kind: 'timeout' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'grades_loaded', properties: { status: 'unpublished', duration_bucket: '<500ms', error_kind: 'network' } }, opts)?.properties,
+    { status: 'unpublished', duration_bucket: '<500ms' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'grades_loaded', properties: { status: 'ok', duration_bucket: 1200, average: 12.5 } }, opts)?.properties,
+    { status: 'ok' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'grades_loaded', properties: { status: 'loading' } }, opts), null)
+})
+
+test('grades_action carries an action, and `from` only for a grade detail', () => {
+  const opts = { hasSession: true }
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'grades_action', properties: { action: 'grade_detail_opened', from: 'ue_view', evaluation_id: 4512, module: 'R3.01' } }, opts)?.properties,
+    { action: 'grade_detail_opened', from: 'ue_view' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'grades_action', properties: { action: 'semester_changed', from: 'latest', semester_id: '845' } }, opts)?.properties,
+    { action: 'semester_changed' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'grades_action', properties: { action: 'ue_view_opened', ue: 'UE3.1' } }, opts)?.properties,
+    { action: 'ue_view_opened' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'grades_action', properties: { action: 'UE3.1' } }, opts), null)
+})
+
+test('simulator_step keeps reveal outcomes on reveal_shown and `reached` on closed only', () => {
+  const opts = { hasSession: true }
+  const reveal = {
+    edited_bucket: '2-3',
+    added_grades: true,
+    ue_direction: 'up',
+    ue_validated: true,
+    crossed_pass_mark: true,
+  }
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'simulator_step', properties: { step: 'reveal_shown', ...reveal, reached: 'reveal', delta: 1.5, average: 10.4, ue: 'UE3.1' } }, opts)?.properties,
+    { step: 'reveal_shown', ...reveal },
+  )
+  // Numbers where buckets are expected are dropped, not rounded.
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'simulator_step', properties: { step: 'reveal_shown', edited_bucket: 2, ue_direction: '+1.5', ue_validated: 'yes' } }, opts)?.properties,
+    { step: 'reveal_shown' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'simulator_step', properties: { step: 'closed', reached: 'edit', ...reveal } }, opts)?.properties,
+    { step: 'closed', reached: 'edit' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'simulator_step', properties: { step: 'ue_picked', reached: 'dial', ue_validated: false } }, opts)?.properties,
+    { step: 'ue_picked' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'simulator_step', properties: { step: 'typed' } }, opts), null)
+})
+
+test('launch_card only carries its action', () => {
+  const opts = { hasSession: true }
+  for (const action of ['shown', 'cta', 'dismissed', 'tab_marker']) {
+    assert.deepEqual(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action } }, opts)?.properties, { action })
+  }
+  assert.equal(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action: 'clicked' } }, opts), null)
+})
+
+test('grades events take the session demo flag from the server, never the client', () => {
+  const client = createFakeClient()
+  const analytics = createAnalytics({ projectKey: 'test', client })
+  analytics.ingest({ events: [{ event: 'page_viewed', properties: { page: 'grades', source: 'nav', demo: false } }] }, { id: 'demo-session', demo: true })
+  analytics.ingest({ events: [{ event: 'grades_action', properties: { action: 'pdf_downloaded', demo: true } }] }, { id: 'real-session', demo: false })
+  assert.deepEqual(client.captured.map(({ properties }) => properties.demo), [true, false])
+})

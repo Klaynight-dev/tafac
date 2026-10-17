@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Icon } from '@iconify/react'
 import { pickInkOn } from '../colorContrast'
 import { formatUeCode } from '../gradesSubjects'
+import { describeRevealForAnalytics } from '../gradesAnalytics'
 import { addCustomEvaluations } from '../gradeSimulation'
 import { readSemesterUes } from '../semesterUes'
 import { useUeColor } from '../useUeColor'
@@ -239,8 +240,9 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
 // (GradeSimulatorUe), then what they would do (GradeSimulatorReveal). The
 // grade detail sheet's shell (GradeDetailModal):
 // centred card on wide screens, bottom sheet on phones, focus kept inside, Escape and the
-// backdrop close it.
-function GradeSimulatorModal({ report = null, releve = null, config = null, semester = null, subjectIcon = () => null, onClose }) {
+// backdrop close it. `onStep(step, details)`: the steps taken in between
+// opening and closing, for the anonymous analytics (GradesPage's).
+function GradeSimulatorModal({ report = null, releve = null, config = null, semester = null, subjectIcon = () => null, onStep = () => {}, onClose }) {
   const dialogRef = useRef(null)
   const titleId = useId()
   const semesterLabel = semester?.number != null ? `Semestre ${semester.number}` : null
@@ -314,6 +316,7 @@ function GradeSimulatorModal({ report = null, releve = null, config = null, seme
     flyFromRef.current = segment?.getBoundingClientRect() ?? null
     setLockedHeight(dialogRef.current?.getBoundingClientRect().height ?? null)
     setPicked(activeUe)
+    onStep('ue_picked')
   }
 
   // The "poof": the badge starts where the dial's segment was, at its size,
@@ -351,6 +354,14 @@ function GradeSimulatorModal({ report = null, releve = null, config = null, seme
     heightFromRef.current = dialogRef.current?.getBoundingClientRect().height ?? null
     returnRef.current = { from }
     setReveal(null)
+    onStep('back_to_edit')
+  }
+  // What the reveal shows, as the analytics may know it: which way the UE
+  // went, how many grades were changed (bucketed), whether some were added
+  // by hand (with a grade typed in). Never a grade nor the UE.
+  const reportReveal = (outcome) => {
+    const addedGradeCount = Object.values(customs).flat().filter((custom) => overrides[custom.id] != null).length
+    onStep('reveal_shown', describeRevealForAnalytics(outcome, { editCount, addedGradeCount }))
   }
 
   useLayoutEffect(() => {
@@ -495,6 +506,7 @@ function GradeSimulatorModal({ report = null, releve = null, config = null, seme
             overrides={overrides}
             flyFrom={reveal.flyFrom}
             onEdit={hideReveal}
+            onShown={reportReveal}
             onClose={onClose}
           />
         ) : null}

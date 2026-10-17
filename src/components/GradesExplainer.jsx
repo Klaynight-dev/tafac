@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '@iconify/react'
+import { trackGradesAction } from '../analytics'
 import { formatScore, formatUeCode } from '../gradesSubjects'
 import { NewBadge, ScorePill, ScoreText } from './SubjectsList'
 import UeBadge from './UeBadge'
@@ -678,7 +679,10 @@ function GradesExplainer({ ues = [] }) {
         type="button"
         className="ml-auto inline-flex shrink-0 items-center gap-[5px] rounded-full border border-border bg-transparent py-[6px] pr-[11px] pl-[8px] text-text-muted transition-colors duration-150 hover:bg-bg-subtle hover:text-text max-md:relative max-md:min-h-8 max-md:after:absolute max-md:after:inset-x-0 max-md:after:-inset-y-[7px]"
         aria-haspopup="dialog"
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          trackGradesAction('explainer_opened')
+          setIsOpen(true)
+        }}
       >
         <Icon icon="carbon:help" className="size-[15px]" aria-hidden="true" />
         {/* Shorter on phones, so the section title stays on one line; its

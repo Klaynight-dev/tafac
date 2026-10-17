@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
+import { track, trackGradesAction, useGradesPageReport } from '../analytics'
 import { downloadGradesReportPdf } from '../entApi'
+import { advanceSimulatorReach, describeGradesLoad, toGradesPageSource } from '../gradesAnalytics'
 import { buildGradesReport, canDownloadReportPdf, summarizeAverage } from '../gradesReport'
 import { hasSimulatableEvaluation } from '../gradeSimulation'
 import { findNewEvaluationIds, formatReportUpdate, listGradedEvaluationIds } from '../gradesSubjects'
@@ -64,6 +66,7 @@ function ReportPdfButton({ semesterId, semester, releveType }) {
     setState('loading')
     try {
       await downloadGradesReportPdf(semesterId, releveType, buildReportFileName(semester, semesterId))
+      trackGradesAction('pdf_downloaded')
       setState('idle')
     } catch {
       setState('error')
@@ -129,7 +132,7 @@ function OpenGradeDetail({ request, onHandled }) {
   const detail = useGradeDetail()
   useEffect(() => {
     if (!request || !detail) return
-    detail.open({ moduleCode: request.moduleCode, evaluationId: request.evaluationId, isNew: request.isNew })
+    detail.open({ moduleCode: request.moduleCode, evaluationId: request.evaluationId, isNew: request.isNew, from: request.from })
     onHandled()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request, detail])
@@ -142,11 +145,27 @@ function OpenGradeDetail({ request, onHandled }) {
 // gradesReport.js.
 // `initialGradeRequest`: a grade to open on arrival (the dashboard's
 // "Dernière note"), handed back with onInitialGradeRequestHandled once taken.
-function GradesPage({ user = null, initialGradeRequest = null, onInitialGradeRequestHandled = () => {} }) {
+// `arrivalSource`: how the student got here, for the anonymous analytics
+// (src/gradesAnalytics.js); the page mounts once per arrival.
+function GradesPage({ user = null, arrivalSource = 'other', initialGradeRequest = null, onInitialGradeRequestHandled = () => {} }) {
   const { base, semesters, activeId, activeSemester, selectSemester, entry, releve, config, department, departmentMessage } = useScodocReleve()
   const status = base.status === 'error' ? base : entry
   const empty = useMemo(() => (status.status === 'ok' ? readEmptyReason(releve, config) : null), [status.status, releve, config])
   const report = useMemo(() => (status.status === 'ok' && releve ? buildGradesReport(releve, { config }) : null), [status.status, releve, config])
+  // Anonymous analytics: page_viewed, then how the semester it opens on
+  // loaded (categories only, never what the relevé holds).
+  useGradesPageReport(toGradesPageSource(arrivalSource), describeGradesLoad({
+    status: status.status,
+    errorKind: status.errorKind,
+    unavailable: status.unavailable,
+    reportStatus: report?.status,
+    emptyKind: empty?.kind,
+  }))
+  // The semester menu (and its wheel): only an actual change counts.
+  const changeSemester = (id) => {
+    if (id !== activeId) trackGradesAction('semester_changed')
+    selectSemester(id)
+  }
   // New grades: the semester's graded evaluations not read yet. The
   // baseline is read once per semester shown, so a background refresh
   // doesn't move the badges. A semester's first visit only records what's
@@ -178,13 +197,14 @@ function GradesPage({ user = null, initialGradeRequest = null, onInitialGradeReq
   // A grade to show in its detail sheet (a "Dernières notes" card here, the
   // dashboard's "Dernière note"): opened by OpenGradeDetail inside the
   // sheet's provider. Opening a new grade there reads it.
+  // `from`: 'latest' or 'dashboard', for the anonymous analytics.
   const [detailRequest, setDetailRequest] = useState(null)
-  const openGradeDetail = ({ evaluationId, moduleCode }) => {
+  const openGradeDetail = ({ evaluationId, moduleCode, from }) => {
     const isNew = newEvaluationIds.has(String(evaluationId))
     if (isNew) markEvaluationsRead([String(evaluationId)])
-    setDetailRequest({ evaluationId, moduleCode, isNew })
+    setDetailRequest({ evaluationId, moduleCode, isNew, from })
   }
-  const openGrade = (grade) => openGradeDetail({ evaluationId: grade.id, moduleCode: grade.moduleCode })
+  const openGrade = (grade) => openGradeDetail({ evaluationId: grade.id, moduleCode: grade.moduleCode, from: 'latest' })
   // A grade from the dashboard: it's the newest semester's, so show that
   // one, then open it once its relevé is there.
   useEffect(() => {
@@ -195,7 +215,7 @@ function GradesPage({ user = null, initialGradeRequest = null, onInitialGradeReq
       return
     }
     if (!report) return
-    openGradeDetail(initialGradeRequest)
+    openGradeDetail({ ...initialGradeRequest, from: 'dashboard' })
     onInitialGradeRequestHandled()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGradeRequest, report, activeId, semesters])
@@ -225,6 +245,25 @@ function GradesPage({ user = null, initialGradeRequest = null, onInitialGradeReq
     && canDownloadReportPdf(config, department)
   // Something a simulated grade would move, on a semester the page shows.
   const canSimulate = status.status === 'ok' && !empty && hasSimulatableEvaluation(report)
+  // Anonymous analytics of the simulator (simulator_step): `opened` and
+  // `closed` follow the sheet itself, however it closes (its buttons,
+  // Escape, Back), `closed` with the furthest step reached; the sheet
+  // reports the steps in between (onStep).
+  const isSimulatorShown = simulator.isOpen && canSimulate
+  const simulatorReachedRef = useRef(null)
+  useEffect(() => {
+    if (isSimulatorShown) {
+      simulatorReachedRef.current = advanceSimulatorReach(null, 'opened')
+      track('simulator_step', { step: 'opened' })
+    } else if (simulatorReachedRef.current) {
+      track('simulator_step', { step: 'closed', reached: simulatorReachedRef.current })
+      simulatorReachedRef.current = null
+    }
+  }, [isSimulatorShown])
+  const reportSimulatorStep = useCallback((step, details = null) => {
+    simulatorReachedRef.current = advanceSimulatorReach(simulatorReachedRef.current, step)
+    track('simulator_step', { step, ...details })
+  }, [])
 
   let body
   if (status.status === 'error') {
@@ -324,7 +363,7 @@ function GradesPage({ user = null, initialGradeRequest = null, onInitialGradeReq
             Simuler and the PDF at its end, so nothing wraps. */}
         <div className={`flex flex-wrap items-baseline gap-x-3 gap-y-2 max-md:flex-nowrap max-md:items-center max-md:gap-x-2 ${ueFocused ? 'sr-only' : ''}`}>
           <h1 id="grades-page-title" className="m-0 leading-[1.15] text-2xl font-bold max-md:mr-auto max-md:flex max-md:min-h-10 max-md:min-w-0 max-md:items-center max-md:text-[26px] max-md:tracking-[-0.01em]">Mes notes</h1>
-          {!ueFocused ? <SemesterSelect semesters={semesters} value={activeId} onChange={selectSemester} /> : null}
+          {!ueFocused ? <SemesterSelect semesters={semesters} value={activeId} onChange={changeSemester} /> : null}
           {(canSimulate || canExportPdf) && !ueFocused ? (
             <div className="ml-auto flex items-center gap-2 self-center max-md:ml-0 max-md:shrink-0">
               {canSimulate ? <SimulateButton onClick={simulator.open} /> : null}
@@ -348,8 +387,8 @@ function GradesPage({ user = null, initialGradeRequest = null, onInitialGradeReq
         </p>
       ) : null}
       {/* Empty for now: its content is still to be designed. */}
-      {simulator.isOpen && canSimulate ? (
-        <GradeSimulatorModal report={report} releve={releve} config={config} semester={activeSemester} subjectIcon={subjectIcon} onClose={simulator.close} />
+      {isSimulatorShown ? (
+        <GradeSimulatorModal report={report} releve={releve} config={config} semester={activeSemester} subjectIcon={subjectIcon} onStep={reportSimulatorStep} onClose={simulator.close} />
       ) : null}
     </section>
   )

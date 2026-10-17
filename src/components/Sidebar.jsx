@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import UniversityLockup from './UniversityLockup'
 import ChangelogPill from './ChangelogPill'
+import { track } from '../analytics'
 import { useChangelog } from '../changelogStore'
 import UpdateNotice from './UpdateNotice'
 import { buildNavItems, openNavItemLink } from '../navItems'
@@ -136,7 +137,9 @@ function Sidebar({
     }
 
     if (item.page) {
-      onNavigatePage?.(item.page)
+      // Anonymous analytics: the item's « Nouveau » marker was showing.
+      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker' })
+      onNavigatePage?.(item.page, 'nav')
       return
     }
 
@@ -149,7 +152,7 @@ function Sidebar({
     }
 
     document.getElementById(item.targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [activePage, onNavigatePage])
+  }, [activePage, onNavigatePage, unseenIds])
 
   const initials = (userName || '?').trim().charAt(0).toUpperCase()
 

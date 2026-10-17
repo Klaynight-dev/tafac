@@ -901,7 +901,7 @@ const GRADES_PORTAL_OPTIONS = {
 }
 
 // `onOpenGradesPage`: the app's own grades page, passed only while the
-// student has it. With it, the grade service's app opens that page instead of
+// student has it (called with 'tile', its page_viewed source). With it, the grade service's app opens that page instead of
 // ScoDoc from every tile; a modified or middle click and « Ouvrir dans un
 // nouvel onglet » still open ScoDoc, its link stays on the tile for that.
 function AvailableApplications({
@@ -1778,7 +1778,7 @@ function AvailableApplications({
 
     if (inApp) {
       event.preventDefault()
-      onOpenGradesPage()
+      onOpenGradesPage('tile')
       return
     }
 

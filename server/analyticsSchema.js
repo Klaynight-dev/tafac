@@ -17,6 +17,14 @@ export const ANALYTICS_MAX_EVENTS_PER_BATCH = 20
 const WIDGET_IDS = ['greeting', 'nextClass', 'latestGrade', 'mail', 'deadlines']
 export const DURATION_BUCKETS = ['<500ms', '<1s', '<3s', '<10s', '10s+']
 const ERROR_KINDS = ['http_4xx', 'http_5xx', 'network', 'timeout', 'other']
+// How the student arrived on « Mes notes » (see src/gradesAnalytics.js).
+const GRADES_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'launch_card', 'history', 'other']
+const GRADES_ACTIONS = ['semester_changed', 'ue_view_opened', 'grade_detail_opened', 'pdf_downloaded', 'explainer_opened', 'department_message_expanded']
+const SIMULATOR_STEPS = ['opened', 'ue_picked', 'reveal_shown', 'back_to_edit', 'closed']
+// The simulator's outcome, sent with reveal_shown only. Never a grade, an
+// average or a delta: how many grades were changed (bucketed), which way
+// the UE went and whether it ends up validated.
+const SIMULATOR_REVEAL_PROPERTIES = ['edited_bucket', 'added_grades', 'ue_direction', 'ue_validated', 'crossed_pass_mark']
 
 const oneOf = (...values) => (value) => (values.includes(value) ? value : undefined)
 const boolean = (value) => (typeof value === 'boolean' ? value : undefined)
@@ -111,6 +119,68 @@ export const ANALYTICS_EVENTS = {
     },
     required: ['has_settings'],
     allowWithoutSession: true,
+  },
+  // « Mes notes »: one per arrival on the page (not per re-render).
+  page_viewed: {
+    properties: {
+      page: oneOf('grades'),
+      source: oneOf(...GRADES_PAGE_SOURCES),
+    },
+    required: ['page', 'source'],
+  },
+  // The semester « Mes notes » opens on, once per arrival. `unsupported`: a
+  // relevé that isn't a BUT one, or no ScoDoc relevé at all.
+  grades_loaded: {
+    properties: {
+      status: oneOf('ok', 'empty', 'unpublished', 'unsupported', 'error'),
+      duration_bucket: oneOf(...DURATION_BUCKETS),
+      error_kind: oneOf(...ERROR_KINDS),
+    },
+    required: ['status'],
+    refine: (props) => {
+      if (props.status !== 'error') delete props.error_kind
+      return props
+    },
+  },
+  grades_action: {
+    properties: {
+      action: oneOf(...GRADES_ACTIONS),
+      // Where a grade's detail sheet was opened from.
+      from: oneOf('latest', 'ue_view', 'subjects', 'dashboard'),
+    },
+    required: ['action'],
+    refine: (props) => {
+      if (props.action !== 'grade_detail_opened') delete props.from
+      return props
+    },
+  },
+  simulator_step: {
+    properties: {
+      step: oneOf(...SIMULATOR_STEPS),
+      edited_bucket: oneOf('1', '2-3', '4+'),
+      added_grades: boolean,
+      ue_direction: oneOf('up', 'down', 'same', 'new'),
+      ue_validated: boolean,
+      crossed_pass_mark: boolean,
+      // With `closed`: the furthest step reached.
+      reached: oneOf('dial', 'edit', 'reveal'),
+    },
+    required: ['step'],
+    refine: (props) => {
+      if (props.step !== 'reveal_shown') {
+        for (const name of SIMULATOR_REVEAL_PROPERTIES) delete props[name]
+      }
+      if (props.step !== 'closed') delete props.reached
+      return props
+    },
+  },
+  // The « Mes notes » launch announcement: the dashboard card (shown, its
+  // button, its close button) and the nav item's « Nouveau » marker clicked.
+  launch_card: {
+    properties: {
+      action: oneOf('shown', 'cta', 'dismissed', 'tab_marker'),
+    },
+    required: ['action'],
   },
 }
 
