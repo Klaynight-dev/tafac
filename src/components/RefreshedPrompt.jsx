@@ -1,16 +1,7 @@
 import { useCallback, useState } from 'react'
 import mobileUpdateImg from '../assets/mobile-pwa-update.png'
 import { APP_NAME } from '../seo'
-
-function LoadingDots() {
-  return (
-    <span className="inline-flex items-center justify-center gap-[6px] text-current" role="status" aria-live="polite" aria-label="Chargement">
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-    </span>
-  )
-}
+import LoadingDots from './LoadingDots'
 
 export default function RefreshedPrompt({
   visible,

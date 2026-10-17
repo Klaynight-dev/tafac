@@ -4,11 +4,14 @@ import { CHANGELOG } from '../src/changelog.js'
 import {
   CHANGELOG_SEEN_KEY,
   formatEntryDate,
+  forgetSeen,
   getApplicableEntries,
+  getPillIds,
   groupEntriesByDate,
   isEntryApplicable,
   isFeatureOn,
   markAllSeen,
+  markEntrySeen,
   parseSeenValue,
   readSeenValue,
   resolveChangelogVisit,
@@ -189,9 +192,48 @@ test('the seed entries follow each university’s features', () => {
   const rennes = { id: 'univ-rennes', features: { ade: true, planning: true, moodle: true, grades: true, mail: true, moodleDeadlines: true, schoolCertificate: true } }
   const exemple = { id: 'univ-exemple', features: { ade: true, planning: true, moodle: false, grades: 'disabled', mail: false, moodleDeadlines: false } }
 
-  assert.equal(ids(rennes).length, CHANGELOG.length)
+  assert.equal(ids(rennes).length, CHANGELOG.length - 1, 'all but « Mes notes », which needs its audience')
+  assert.ok(!ids(rennes).includes('mes-notes'))
+  assert.equal(getApplicableEntries(CHANGELOG, rennes, ['grades-page']).length, CHANGELOG.length)
+  assert.ok(!ids(exemple).includes('mes-notes'))
   assert.ok(!ids(exemple).includes('certificat-de-scolarite'))
   assert.ok(!ids(exemple).includes('raccourcis-messagerie-moodle'))
   assert.ok(!ids(exemple).includes('accueil-compact-telephone'))
   assert.ok(ids(exemple).includes('applications'))
+})
+
+test('an entry with an audience only reaches students who have all of it', () => {
+  const GRADES = { ...GLOBAL, id: 'notes', universities: ['univ-rennes'], audience: ['grades-page'] }
+  assert.equal(isEntryApplicable(GRADES, RENNES), false, 'audience unknown yet: hidden')
+  assert.equal(isEntryApplicable(GRADES, RENNES, ['grades-page']), true)
+  assert.equal(isEntryApplicable(GRADES, EXEMPLE, ['grades-page']), false, 'still per university')
+  assert.deepEqual(getApplicableEntries([GLOBAL, GRADES], RENNES).map((entry) => entry.id), [GLOBAL.id])
+})
+
+test('forgetSeen makes one entry unseen again, the others stay seen', () => {
+  const entries = [{ id: 'a', date: '2026-10-01' }, { id: 'b', date: '2026-10-02' }]
+  assert.equal(forgetSeen({ id: 'a', allEntries: entries, rawSeen: null }), null)
+  assert.deepEqual(JSON.parse(forgetSeen({ id: 'a', allEntries: entries, rawSeen: '{"ids":["a","b"]}' })), { ids: ['b'] })
+})
+
+test('markEntrySeen adds one entry to what was seen, the others stay unseen', () => {
+  const entries = [{ id: 'a', date: '2026-10-01' }, { id: 'b', date: '2026-10-02' }, { id: 'c', date: '2026-10-03' }]
+  assert.equal(markEntrySeen({ id: 'a', allEntries: entries, rawSeen: null }), null, 'nothing usable stored: no write')
+  assert.deepEqual(JSON.parse(markEntrySeen({ id: 'b', allEntries: entries, rawSeen: '{"ids":["a"]}' })), { ids: ['a', 'b'] })
+  assert.deepEqual(JSON.parse(markEntrySeen({ id: 'a', allEntries: entries, rawSeen: '{"ids":["a"]}' })), { ids: ['a'] }, 'already seen: unchanged')
+  const seenOnce = markEntrySeen({ id: 'c', allEntries: entries, rawSeen: '{"ids":["a"]}' })
+  assert.deepEqual(resolveChangelogVisit({ entries, rawSeen: seenOnce }).unseenIds, ['b'])
+})
+
+test('the pill leaves spotlight entries to their own card', () => {
+  const LAUNCH = { id: 'launch', date: '2026-10-16', title: 'Lancement', body: '…', spotlight: true }
+  const entries = [LAUNCH, NEW_GLOBAL, GLOBAL]
+  assert.deepEqual(getPillIds(entries, ['launch', 'new-global']), ['new-global'])
+  assert.deepEqual(getPillIds(entries, ['launch']), [], 'only the spotlight one unseen: no pill')
+  assert.deepEqual(getPillIds(entries, []), [])
+  assert.deepEqual(getPillIds([GLOBAL], ['global']), ['global'])
+})
+
+test('« Mes notes » is the changelog’s spotlight entry', () => {
+  assert.deepEqual(CHANGELOG.filter((entry) => entry.spotlight).map((entry) => entry.id), ['mes-notes'])
 })

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon, iconLoaded, loadIcons } from '@iconify/react'
 import { navigateTo, scrollAppToTop, useAppRoute } from '../appRoute'
 import { prefetchGradesPage } from '../entApi'
+import { useChangelog } from '../changelogStore'
 import { getMobileTabItems, openNavItemLink } from '../navItems'
 import { useSlidingIndicator } from '../useSlidingIndicator'
 import { SlidingIndicator } from './SlidingIndicator'
@@ -26,14 +27,15 @@ function getTabSizeClasses(count) {
 // shown wherever the desktop sidebar isn't. Home first, then the same
 // shortcuts as the sidebar (grades, planning, mail, Moodle); a greyed-out tab
 // explains itself in a bubble instead of a hover tooltip.
-function MobileTabBar({ establishment }) {
+function MobileTabBar({ establishment, gradesSupported = true }) {
   const route = useAppRoute()
-  const shortcuts = getMobileTabItems(establishment)
+  const shortcuts = getMobileTabItems(establishment, { gradesSupported })
   const items = [HOME_TAB, ...shortcuts].map((item) => ({ ...item, selected: Boolean(item.route) && item.route === route }))
   const tabSizeClasses = getTabSizeClasses(items.length)
   const iconNames = items.map((item) => item.icon)
   const iconKey = iconNames.join(',')
   const [noticeItem, setNoticeItem] = useState(null)
+  const { unseenIds } = useChangelog()
   // Icons come from the Iconify API on first use: the bar stays hidden until
   // all of them are in, so it never shows blank tabs (and stays hidden if
   // they can't load at all).
@@ -106,13 +108,20 @@ function MobileTabBar({ establishment }) {
         <SlidingIndicator box={lensBox} className="mobile-tab-bar-lens rounded-full" />
         {items.map((item) => {
           const className = `mobile-tab-bar-item relative flex h-[54px] ${tabSizeClasses} flex-col items-center justify-center gap-[3px] rounded-full border-0 text-text no-underline cursor-pointer transition-[background-color,transform] duration-150 ease-out active:scale-[0.94] ${item.selected ? 'mobile-tab-bar-item--selected' : 'bg-transparent'} ${item.disabled ? 'opacity-45' : ''}`
+          // Just launched (as in the sidebar): a blue dot on the icon, no
+          // room for the word.
+          const isNew = Boolean(item.announcedBy) && unseenIds.includes(item.announcedBy)
           const content = (
             <>
               {/* `ssr`: draw on the first render. The bar only mounts once these icons
                   are loaded, so there's nothing to wait for. */}
-              <Icon icon={item.icon} ssr className="h-[22px] w-[22px]" aria-hidden="true" />
+              <span className="relative flex">
+                <Icon icon={item.icon} ssr className="h-[22px] w-[22px]" aria-hidden="true" />
+                {isNew ? <span className="mobile-tab-bar-new-dot changelog-new-dot nav-new-pulse absolute -right-[3px] -top-[2px] h-[9px] w-[9px] rounded-full" aria-hidden="true" /> : null}
+              </span>
               {/* Font on the label: index.css gives buttons `font: inherit` outside Tailwind's layers. */}
               <span className="font-body text-[11px] font-semibold leading-none whitespace-nowrap">{item.shortLabel ?? item.label}</span>
+              {isNew ? <span className="sr-only">, nouveau</span> : null}
             </>
           )
 

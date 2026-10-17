@@ -2,6 +2,7 @@
 // browser build via the @university alias).
 import logo from './assets/logo.svg'
 import {
+  appIcons,
   id,
   branding,
   casOrigin,
@@ -15,6 +16,8 @@ import {
 
 export default {
   id,
+  // Icon set of the subjects in "Mes notes", the tiles' one (shared.js).
+  appIconStyle: appIcons.style,
 
   university,
 

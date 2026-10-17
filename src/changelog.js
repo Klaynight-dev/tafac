@@ -10,12 +10,17 @@
 //     icon: 'carbon:calendar',   // optional, any Iconify name (carbon: or ph: like the rest)
 //     universities: ['univ-rennes'],  // optional: only these universityConfig.id
 //     features: ['mail', 'moodle'],   // optional: only where all these universityConfig.features are on
+//     audience: ['grades-page'],      // optional: only students who have all of these (see below)
+//     spotlight: true,                // optional: announced by its own dashboard card, not the pill (see below)
 //   },
 //
 // An entry with neither `universities` nor `features` is shown everywhere.
 // With both, it has to pass both. A feature counts as on when it's `true` (or
 // an object without `enabled: false`, like `weather`), so `grades: 'disabled'`
-// counts as off. Where an entry doesn't apply, it's invisible: no pill, not in
+// counts as off. `audience` narrows it to students, for what only some of a
+// university's students get; App.jsx says what this student has
+// (setChangelogAudience): 'grades-page' for a BUT student of a school with
+// « Mes notes ». Where an entry doesn't apply, it's invisible: no pill, not in
 // the list. Copy rules: ’ apostrophes, a narrow no-break space (`\u202f`)
 // before : ! ? » and after «, and no app name (each university brands its own).
 //
@@ -23,8 +28,24 @@
 // the list. A device's first visit marks everything already here as seen, so
 // only entries added afterwards light the pill up (src/changelogState.js).
 // Same-day entries keep the order they have here.
+//
+// A `spotlight` entry is a launch: instead of lighting the pill, it gets its
+// own card on the dashboard (GradesLaunchCard, for « Mes notes ») and a
+// « Nouveau » mark on its tab, until the card is closed or the page visited.
+// It still shows in the list, as new if the list opens first.
 
 export const CHANGELOG = [
+  {
+    id: 'mes-notes',
+    date: '2026-10-16',
+    title: 'Tes notes, enfin dans l’appli',
+    body: 'Moyenne, UE validées, crédits ECTS\u202f: ton relevé ScoDoc tient sur une page, semestre par semestre. Touche une note pour voir combien elle pèse dans chaque UE. Et avec «\u202fSimuler\u202f», teste tes prochaines notes sans rien toucher aux vraies.',
+    icon: 'carbon:chart-pie',
+    universities: ['univ-rennes'],
+    features: ['grades'],
+    audience: ['grades-page'],
+    spotlight: true,
+  },
   {
     id: 'resume-du-jour',
     date: '2026-10-12',

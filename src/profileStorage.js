@@ -212,9 +212,9 @@ export function persistShowAppDescriptions(show, userId = null) {
   }
 }
 
-// Dashboard background photo (Mon compte): on unless this user switched it off.
+// Dashboard background photo (Mon compte): off unless this user switched it on.
 export function getStoredShowWallpaper(userId = null) {
-  return readScopedStorageValue(WALLPAPER_KEY, userId) !== false
+  return readScopedStorageValue(WALLPAPER_KEY, userId) === true
 }
 
 export function persistShowWallpaper(show, userId = null) {

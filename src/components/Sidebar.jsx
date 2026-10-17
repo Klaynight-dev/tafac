@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import UniversityLockup from './UniversityLockup'
 import ChangelogPill from './ChangelogPill'
+import { useChangelog } from '../changelogStore'
 import UpdateNotice from './UpdateNotice'
 import { scrollAppToTop, useAppRoute } from '../appRoute'
 import { prefetchGradesPage } from '../entApi'
@@ -117,10 +118,12 @@ function Sidebar({
   onUpdateClick,
   showChangelogPill = false,
   establishment = null,
+  gradesSupported = true,
 }) {
   const route = useAppRoute()
-  const navItems = buildNavItems(establishment)
+  const navItems = buildNavItems(establishment, { gradesSupported })
   const [navRef, activeBox] = useSlidingIndicator(route)
+  const { unseenIds } = useChangelog()
 
   const handleNavigate = useCallback((item) => {
     if (item.disabled) {
@@ -161,6 +164,7 @@ function Sidebar({
             />
             {navItems.map((item) => {
               const isActive = Boolean(item.route) && item.route === route
+              const isNew = Boolean(item.announcedBy) && unseenIds.includes(item.announcedBy)
               return (
                 <button
                   key={item.id}
@@ -186,6 +190,25 @@ function Sidebar({
                     aria-hidden="true"
                   />
                   <span>{item.label}</span>
+                  {/* Just launched (its « Nouveautés » entry unseen): gone once
+                      the page is visited or its dashboard card closed. */}
+                  {isNew ? (
+                    <>
+                      <span className="nav-new-badge ml-auto inline-flex h-5 shrink-0 items-center gap-[5px] rounded-full px-2 font-body text-[11px] font-semibold leading-none" aria-hidden="true">
+                        <span className="changelog-new-dot nav-new-pulse h-[6px] w-[6px] rounded-full" />
+                        Nouveau
+                      </span>
+                      <span className="sr-only">, nouveau</span>
+                    </>
+                  ) : null}
+                  {/* No in-app page yet: this one opens the service's own site. */}
+                  {item.href && !item.disabled ? (
+                    <Icon
+                      icon="carbon:arrow-up-right"
+                      className="ml-auto mr-[-2px] w-3 h-3 shrink-0 text-text-muted"
+                      aria-label="Ouvre un autre site"
+                    />
+                  ) : null}
                   {item.disabled ? (
                     <span
                       role="tooltip"

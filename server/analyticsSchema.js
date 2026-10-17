@@ -66,6 +66,8 @@ export const ANALYTICS_EVENTS = {
     properties: {
       app: slug(64),
       source: oneOf('grid', 'favorites', 'sidebar', 'tabbar'),
+      // The grade service's app opened « Mes notes » instead of ScoDoc.
+      in_app: boolean,
     },
     required: ['app', 'source'],
   },

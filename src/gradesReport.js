@@ -11,11 +11,25 @@
 
 export const GRADE_SCALE = 20
 
+// Histogram binning of the passerelle (see evaluationDistribution.js).
+export { bucketOfGrade } from './evaluationDistribution.js'
+
 const EVALUATION_TYPE_LABELS = {
   1: 'Rattrapage',
   2: 'Session 2',
   3: 'Bonus',
 }
+
+// "Rattrapage", "Session 2", "Bonus" for an evaluation_type, null for a
+// normal evaluation: the label its grade carries wherever it's shown.
+export function evaluationTypeLabel(type) {
+  return EVALUATION_TYPE_LABELS[Number(type ?? 0)] ?? null
+}
+
+// ScoDoc's evaluation_type values.
+const EVALUATION_NORMAL = 0
+const EVALUATION_RATTRAPAGE = 1
+const EVALUATION_SESSION2 = 2
 
 const SPECIAL_GRADE_LABELS = {
   '~': { kind: 'pending', label: 'En attente' },
@@ -134,7 +148,9 @@ function normalizeEvaluation(evaluation, index) {
     id: String(evaluation?.id ?? `evaluation-${index}`),
     description: String(evaluation?.description ?? '').trim() || 'Évaluation',
     date: readEvaluationDate(evaluation),
-    typeLabel: EVALUATION_TYPE_LABELS[type] ?? null,
+    // ScoDoc's evaluation_type: 0 normal, 1 rattrapage, 2 session 2, 3 bonus.
+    type,
+    typeLabel: evaluationTypeLabel(type),
     // Only normal evaluations with a UE weight move the averages.
     canSimulate: type === 0 && weights.length > 0,
     coef: parseGradeNumber(evaluation?.coef),
@@ -148,21 +164,50 @@ function normalizeEvaluation(evaluation, index) {
   }
 }
 
-// Coefficient-weighted mean of the graded "normal" evaluations: what the
-// module would weigh if every UE counted it the same way. Indicative only.
-export function computeIndicativeAverage(evaluations) {
+// What a grade counts for in ScoDoc's averages: its value, 0 for an
+// unjustified absence, nothing while pending or once excused.
+function countGrade(grade) {
+  if (grade?.kind === 'number') return grade.value
+  if (grade?.kind === 'absent') return 0
+  return null
+}
+
+function weightedMean(entries, type) {
   let weighted = 0
-  let coefSum = 0
-
-  for (const evaluation of evaluations) {
-    if (evaluation.typeLabel || evaluation.grade.kind !== 'number') continue
-    const coef = evaluation.coef ?? 1
-    if (coef <= 0) continue
-    weighted += evaluation.grade.value * coef
-    coefSum += coef
+  let weightSum = 0
+  for (const entry of entries) {
+    if (entry.type !== type || entry.value == null || !(entry.weight > 0)) continue
+    weighted += entry.value * entry.weight
+    weightSum += entry.weight
   }
+  return weightSum > 0 ? weighted / weightSum : null
+}
 
-  return coefSum > 0 ? weighted / coefSum : null
+// A module's result from its evaluations, `entries` as { type, value,
+// weight } (value: what the grade counts for, null when it doesn't), the way
+// ScoDoc does it (app/comp/moy_mod.py): the weighted mean of the normal
+// evaluations; then, if the module has session 2 evaluations, their mean
+// replaces it once there is one; otherwise the rattrapages' mean replaces it
+// when it's better (never a missing one). Bonus evaluations are left out.
+function resolveModuleAverage(entries) {
+  const normal = weightedMean(entries, EVALUATION_NORMAL)
+  if (entries.some((entry) => entry.type === EVALUATION_SESSION2)) {
+    return weightedMean(entries, EVALUATION_SESSION2) ?? normal
+  }
+  const rattrapage = weightedMean(entries, EVALUATION_RATTRAPAGE)
+  return normal != null && rattrapage != null && rattrapage > normal ? rattrapage : normal
+}
+
+// The module's average by coefficient, ScoDoc's rules above (an unjustified
+// absence counts 0, a rattrapage or a session 2 replaces): what the module
+// would weigh if every UE counted its evaluations the same way. Indicative
+// only: ScoDoc's official averages are per UE.
+export function computeIndicativeAverage(evaluations) {
+  return resolveModuleAverage((evaluations ?? []).map((evaluation) => ({
+    type: evaluation.type ?? EVALUATION_NORMAL,
+    value: countGrade(evaluation.grade),
+    weight: evaluation.coef ?? 1,
+  })))
 }
 
 function normalizeModules(section, kind, ueByCode) {
@@ -211,7 +256,46 @@ function nonZero(value) {
   return number != null && number !== 0 ? number : null
 }
 
-function normalizeUes(ues) {
+// The jury's code for each UE (semestre.decision_ue, once the jury has
+// ruled), by ScoDoc id and by acronym (the relevé's UE key).
+function readUeDecisions(semestre) {
+  const decisions = new Map()
+  for (const entry of Array.isArray(semestre?.decision_ue) ? semestre.decision_ue : []) {
+    const code = typeof entry?.code === 'string' ? entry.code.trim().toUpperCase() : ''
+    if (!code) continue
+    if (entry.ue_id != null) decisions.set(`id:${entry.ue_id}`, code)
+    if (entry.acronyme) decisions.set(`code:${entry.acronyme}`, code)
+  }
+  return decisions
+}
+
+const PASS_MARK = 10
+// ScoDoc's codes for a validated UE, its ECTS awarded (codes_cursus.py,
+// CODES_UE_VALIDES): ADM and CMP by right, ADJ, ADJR and ADSUP by the jury.
+const VALIDATING_UE_CODES = new Set(['ADM', 'CMP', 'ADJ', 'ADJR', 'ADSUP'])
+
+// Whether a UE of the report is validated, and how. `state`: 'validated',
+// 'below' (under 10, not validated) or 'pending' (no average yet).
+// `validatedBy`: 'average' (10/20 or more), 'capitalization' (validated in
+// an earlier semester), 'compensation' or 'jury' (under 10, yet validated:
+// the jury's CMP, or its ADJ/ADJR/ADSUP; without a code, its ECTS all
+// awarded, which in BUT means compensation), null when not validated.
+// Before the jury nothing is awarded, so only the average speaks.
+export function describeUeValidation(ue) {
+  const average = ue?.average?.value ?? null
+  if (ue?.capitalized) return { state: 'validated', validatedBy: 'capitalization' }
+  if (average != null && average >= PASS_MARK) return { state: 'validated', validatedBy: 'average' }
+
+  const decision = ue?.decision ?? null
+  const ects = ue?.ects
+  const awarded = decision
+    ? VALIDATING_UE_CODES.has(decision)
+    : ects?.total > 0 && ects.earned != null && ects.earned >= ects.total
+  if (awarded) return { state: 'validated', validatedBy: !decision || decision === 'CMP' ? 'compensation' : 'jury' }
+  return { state: average == null ? 'pending' : 'below', validatedBy: null }
+}
+
+function normalizeUes(ues, { decisions = new Map(), capitalized = {} } = {}) {
   return Object.entries(ues ?? {}).map(([code, ue]) => {
     const average = readStats(ue?.moyenne)
 
@@ -224,7 +308,10 @@ function normalizeUes(ues) {
       ects: readEcts(ue?.ECTS),
       bonus: nonZero(ue?.bonus),
       malus: nonZero(ue?.malus),
-      capitalized: Boolean(ue?.capitalise),
+      // ScoDoc lists a UE validated in an earlier semester under
+      // ues_capitalisees (its own `capitalise` is still a TODO there).
+      capitalized: Boolean(ue?.capitalise) || Boolean(capitalized?.[code]),
+      decision: decisions.get(`id:${ue?.id}`) ?? decisions.get(`code:${code}`) ?? null,
       raw: ue,
     }
   })
@@ -263,12 +350,7 @@ export function canDownloadReportPdf(config, department) {
 }
 
 function canShowAppreciations(config, department) {
-  if (!config || config.liste_dep_affichage_appreciations == null) {
-    return true
-  }
-
-  const entries = String(config.liste_dep_affichage_appreciations).split(',').map((entry) => entry.trim())
-  return department != null && entries.includes(department)
+  return isDepartmentListed(config?.liste_dep_affichage_appreciations, department)
 }
 
 export function buildGradesReport(releve, { config = null } = {}) {
@@ -287,7 +369,7 @@ export function buildGradesReport(releve, { config = null } = {}) {
   const department = getReleveDepartment(releve)
   const options = releve.options ?? {}
   const semestre = releve.semestre ?? {}
-  const ues = normalizeUes(releve.ues)
+  const ues = normalizeUes(releve.ues, { decisions: readUeDecisions(semestre), capitalized: releve.ues_capitalisees })
   const ueByCode = Object.fromEntries(ues.map((ue) => [ue.code, ue]))
   const resources = normalizeModules(releve.ressources, 'resource', ueByCode)
   const saes = normalizeModules(releve.saes, 'sae', ueByCode)
@@ -355,38 +437,50 @@ export function buildGradesReport(releve, { config = null } = {}) {
 // What one evaluation counts for in ScoDoc's averages: a number, 0 for an
 // unjustified absence, nothing for pending/excused.
 function readCountedGrade(rawValue) {
-  const grade = describeGrade(rawValue)
-  if (grade.kind === 'number') return grade.value
-  if (grade.kind === 'absent') return 0
-  return null
+  return countGrade(describeGrade(rawValue))
 }
 
-// A module's average inside one UE: its normal evaluations weighted by
-// coefficient × the evaluation's weight toward that UE (ScoDoc's BUT rule).
-function computeModuleUeAverage(evaluations, ueCode, overrides) {
-  let weighted = 0
-  let weightSum = 0
-
-  for (const evaluation of evaluations ?? []) {
-    if (Number(evaluation?.evaluation_type ?? 0) !== 0) continue
-    const ueWeight = parseGradeNumber(evaluation?.poids?.[ueCode])
-    if (!ueWeight) continue
+// A module's average in each UE it feeds (`ueCodes`: those where its
+// coefficient isn't 0), ScoDoc's BUT rule: its evaluations weighted by
+// coefficient × the evaluation's weight toward that UE, then
+// resolveModuleAverage's rattrapage and session 2. A session 2 only replaces
+// once it has an average in every one of those UEs, as in ScoDoc; a
+// rattrapage, UE by UE. `overrides` (evaluation id → grade on /20) replace
+// real or missing grades.
+function computeModuleUeAverages(evaluations, ueCodes, overrides) {
+  const entriesByUe = Object.fromEntries(ueCodes.map((ueCode) => [ueCode, (evaluations ?? []).map((evaluation) => {
     const id = String(evaluation?.id ?? '')
-    const value = id in overrides ? overrides[id] : readCountedGrade(evaluation?.note?.value)
-    if (value == null) continue
-    const weight = (parseGradeNumber(evaluation?.coef) ?? 1) * ueWeight
-    weighted += value * weight
-    weightSum += weight
-  }
+    return {
+      type: Number(evaluation?.evaluation_type ?? EVALUATION_NORMAL),
+      value: id in overrides ? overrides[id] : readCountedGrade(evaluation?.note?.value),
+      weight: (parseGradeNumber(evaluation?.coef) ?? 1) * (parseGradeNumber(evaluation?.poids?.[ueCode]) ?? 0),
+    }
+  })]))
 
-  return weightSum > 0 ? weighted / weightSum : null
+  const hasSession2 = (evaluations ?? []).some((evaluation) => Number(evaluation?.evaluation_type) === EVALUATION_SESSION2)
+  if (!hasSession2) return Object.fromEntries(ueCodes.map((ueCode) => [ueCode, resolveModuleAverage(entriesByUe[ueCode])]))
+  // With a session 2, rattrapages don't count: its mean in every UE, or the
+  // normal evaluations' everywhere.
+  const usesSession2 = ueCodes.every((ueCode) => weightedMean(entriesByUe[ueCode], EVALUATION_SESSION2) != null)
+  const type = usesSession2 ? EVALUATION_SESSION2 : EVALUATION_NORMAL
+  return Object.fromEntries(ueCodes.map((ueCode) => [ueCode, weightedMean(entriesByUe[ueCode], type)]))
 }
 
 // UE averages recomputed from the evaluations, with `overrides`
 // (evaluation id → grade on /20) replacing real or missing grades.
 export function computeUeAverages(releve, overrides = {}) {
-  const averages = {}
+  // Module → its average in each UE with a coefficient for it.
+  const moduleAverages = {}
+  for (const sectionKey of ['ressources', 'saes']) {
+    for (const [moduleCode, module] of Object.entries(releve?.[sectionKey] ?? {})) {
+      const ueCodes = Object.entries(releve?.ues ?? {})
+        .filter(([, ue]) => parseGradeNumber(ue?.[sectionKey]?.[moduleCode]?.coef))
+        .map(([ueCode]) => ueCode)
+      moduleAverages[`${sectionKey}:${moduleCode}`] = computeModuleUeAverages(module?.evaluations, ueCodes, overrides)
+    }
+  }
 
+  const averages = {}
   for (const [ueCode, ue] of Object.entries(releve?.ues ?? {})) {
     let weighted = 0
     let coefSum = 0
@@ -395,7 +489,7 @@ export function computeUeAverages(releve, overrides = {}) {
       for (const [moduleCode, link] of Object.entries(ue?.[sectionKey] ?? {})) {
         const moduleCoef = parseGradeNumber(link?.coef)
         if (!moduleCoef) continue
-        const moduleAverage = computeModuleUeAverage(releve?.[sectionKey]?.[moduleCode]?.evaluations, ueCode, overrides)
+        const moduleAverage = moduleAverages[`${sectionKey}:${moduleCode}`]?.[ueCode]
         if (moduleAverage == null) continue
         weighted += moduleAverage * moduleCoef
         coefSum += moduleCoef
@@ -449,6 +543,114 @@ export function projectAverages(releve, overrides) {
   }
 
   return { ues, general: { official: officialGeneral, projected: general } }
+}
+
+// "Moyenne Générale" card. ScoDoc's semester average when the relevé
+// carries it; when the department blocks it (or it isn't computed yet), the
+// UE averages weighted by their ECTS, like ScoDoc does. The promo average
+// only when the department shows it.
+export function computeGeneralAverage(releve) {
+  const official = parseGradeNumber(releve?.semestre?.notes?.value)
+  const average = official ?? projectAverages(releve, {}).general.projected
+  const promoAverage = readOption(releve?.options, 'show_moypromo')
+    ? parseGradeNumber(releve?.semestre?.notes?.moy)
+    : null
+
+  return { average, promoAverage, source: official != null ? 'semestre.notes' : 'ues-ects' }
+}
+
+// Whether the jury has ruled: a code on the semester's decision or, for a BUT
+// (where ScoDoc leaves the semester's empty), on its year's. Its averages are
+// then final.
+export function hasJuryDecision(releve) {
+  const semestre = releve?.semestre
+  return [semestre?.decision?.code, semestre?.decision_annee?.code]
+    .some((code) => typeof code === 'string' && code.trim() !== '')
+}
+
+// Whether any evaluation of the semester has a grade that counts (an
+// unjustified absence counts, as 0).
+export function hasCountedGrade(releve) {
+  return ['ressources', 'saes'].some((sectionKey) => Object.values(releve?.[sectionKey] ?? {})
+    .some((module) => (module?.evaluations ?? []).some((evaluation) => readCountedGrade(evaluation?.note?.value) != null)))
+}
+
+// Everything the "Moyenne Générale" card shows for one semester's relevé, or
+// null when there's no average to show: also without a single grade yet, even
+// if ScoDoc sends an average (capitalised UEs, bonus…), as it means nothing yet.
+export function summarizeAverage(releve) {
+  if (!hasCountedGrade(releve)) return null
+  const { average, promoAverage, source } = computeGeneralAverage(releve)
+  if (average == null) return null
+
+  return {
+    average,
+    promoAverage,
+    // The department hides ScoDoc's average: this one is rebuilt from the UEs.
+    estimated: source !== 'semestre.notes',
+    // After the jury: the average won't move any more.
+    final: hasJuryDecision(releve),
+    history: computeAverageHistory(releve, average),
+    semesterEnd: releve?.semestre?.date_fin ?? null,
+    source,
+  }
+}
+
+function readEvaluationDay(evaluation) {
+  const date = String(evaluation?.date_debut ?? evaluation?.date ?? '')
+  return /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : null
+}
+
+// { average, ects }: the UE averages weighted by ECTS, and the ECTS they cover.
+function weightUesByEcts(releve, ueAverages) {
+  let weighted = 0
+  let weightSum = 0
+  for (const [ueCode, ue] of Object.entries(releve?.ues ?? {})) {
+    const value = ueAverages[ueCode]
+    if (value == null) continue
+    const weight = parseGradeNumber(ue?.ECTS?.total) || 1
+    weighted += value * weight
+    weightSum += weight
+  }
+  return { average: weightSum > 0 ? weighted / weightSum : null, ects: weightSum }
+}
+
+// How the general average moved over the semester: one point per day that
+// brought a grade, recomputed from the evaluations graded by then (UE
+// averages from computeUeAverages, weighted by ECTS). It starts once the
+// average covers at least half the ECTS today's does: a first lone grade (an
+// absence counted 0…) would otherwise open on a meaningless cliff. The whole
+// curve is shifted so its last point is `currentAverage` (the card's value:
+// ScoDoc's bonus and rounding stay in). Fewer than two points: no curve.
+export function computeAverageHistory(releve, currentAverage = null) {
+  const days = new Set()
+  for (const sectionKey of ['ressources', 'saes']) {
+    for (const module of Object.values(releve?.[sectionKey] ?? {})) {
+      for (const evaluation of module?.evaluations ?? []) {
+        const day = readEvaluationDay(evaluation)
+        if (day && readCountedGrade(evaluation?.note?.value) != null) days.add(day)
+      }
+    }
+  }
+
+  const points = []
+  for (const day of [...days].sort()) {
+    const upToDay = { ...releve }
+    for (const sectionKey of ['ressources', 'saes']) {
+      upToDay[sectionKey] = Object.fromEntries(Object.entries(releve?.[sectionKey] ?? {}).map(([code, module]) => [
+        code,
+        { ...module, evaluations: (module?.evaluations ?? []).filter((evaluation) => (readEvaluationDay(evaluation) ?? '') <= day) },
+      ]))
+    }
+    const { average, ects } = weightUesByEcts(releve, computeUeAverages(upToDay))
+    if (average != null) points.push({ date: day, average, ects })
+  }
+
+  const finalEcts = points[points.length - 1]?.ects ?? 0
+  const covered = points.filter((point) => point.ects >= finalEcts / 2)
+  if (covered.length < 2) return []
+  const offset = currentAverage != null ? currentAverage - covered[covered.length - 1].average : 0
+  return covered.map((point) => ({ date: point.date, average: clampGrade(point.average + offset) }))
 }
 
 // "New since last visit": evaluations whose grade signature (id + value)
@@ -573,7 +775,7 @@ export function buildAbsenceReport(payload, releve, config) {
     }
   }
 
-  entries.sort((left, right) => right.date.localeCompare(left.date) || right.start.localeCompare(left.start))
+  entries.sort((left, right) => right.date.localeCompare(left.date) || right.startHours - left.startHours)
 
   let totalLabels = {
     justified: formatDuration(totals.justified),

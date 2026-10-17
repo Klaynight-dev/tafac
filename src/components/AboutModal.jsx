@@ -2,21 +2,86 @@ import { useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import { useAnalyticsAvailable } from '../analytics'
+import { MUTED_FILL_CLASSES, PRESSABLE_ROW_CLASSES } from '../settingsStyles'
+import useRepoContributors from '../useRepoContributors'
 import PrivacyModal from './PrivacyModal'
-import AuthorsModal from './AuthorsModal'
+import SettingsGroup, { RowText } from './SettingsGroup'
 
 /* global __BUILD_HASH__ */
 
 const about = universityConfig.branding.about ?? {}
 
+// One person, a Réglages row: their GitHub avatar, a name, a line under it,
+// opening their GitHub profile.
+function PersonRow({ login, name, detail }) {
+  return (
+    <a
+      href={`https://github.com/${login}`}
+      className={`${PRESSABLE_ROW_CLASSES} no-underline`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <RowText
+        media={(
+          <img
+            src={`https://github.com/${login}.png?size=64`}
+            alt=""
+            width="32"
+            height="32"
+            loading="lazy"
+            className={`h-8 w-8 shrink-0 rounded-full object-cover ${MUTED_FILL_CLASSES}`}
+          />
+        )}
+        label={name}
+        description={detail}
+      />
+      <Icon icon="carbon:arrow-up-right" className="h-4 w-4 shrink-0 text-text-50" aria-hidden="true" />
+    </a>
+  )
+}
+
+// « Équipe » and « Contributeurs », in the Réglages style and apart from the
+// À propos text (their own cards, under it). The team is the university's
+// list; the contributors come from the repo on GitHub, everyone who has
+// committed to it but the team, so a new contributor shows up by
+// themselves. Each part hides when empty.
+export function AboutTeam() {
+  const team = about.team ?? []
+  const contributors = useRepoContributors(about.repoUrl, team.map((member) => member.login))
+  if (!team.length && !contributors.length) return null
+  return (
+    <div className="flex flex-col gap-[18px]">
+      {team.length ? (
+        <SettingsGroup title="Équipe">
+          {team.map((member) => (
+            <PersonRow key={member.login} login={member.login} name={member.name} detail={`@${member.login} sur GitHub`} />
+          ))}
+        </SettingsGroup>
+      ) : null}
+      {contributors.length ? (
+        <SettingsGroup title="Contributeurs" footer="Tous ceux qui ont contribué au code. Merci à eux !">
+          {contributors.map((contributor) => (
+            <PersonRow
+              key={contributor.login}
+              login={contributor.login}
+              name={contributor.login}
+              detail={`${contributor.contributions} contribution${contributor.contributions > 1 ? 's' : ''}`}
+            />
+          ))}
+        </SettingsGroup>
+      ) : null}
+    </div>
+  )
+}
+
 // Body of the "À propos" modal, also embedded in Réglages. There,
 // `onPrivacyClick` jumps to the Confidentialité section instead of opening
 // the privacy modal on top.
-export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null, onPrivacyClick = null }) {
+// `children`: shown at the end, before the build line (the modal's team).
+export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null, onPrivacyClick = null, children = null }) {
   const shouldShowDemoLink = typeof onDemoLinkClick === 'function' && demoLinkLabel.trim()
   const isAnalyticsAvailable = useAnalyticsAvailable()
   const [isPrivacyOpen, setPrivacyOpen] = useState(false)
-  const [isAuthorsOpen, setAuthorsOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-3 font-body text-[15px] leading-[1.45]">
@@ -37,7 +102,6 @@ export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null, onPri
         </p>
       ) : null}
       <PrivacyModal open={isPrivacyOpen} onClose={() => setPrivacyOpen(false)} />
-      <AuthorsModal open={isAuthorsOpen} onClose={() => setAuthorsOpen(false)} authors={about.authors} />
       {about.repoUrl ? (
         <p className="m-0">
           Code source disponible sur{' '}
@@ -53,28 +117,19 @@ export function AboutContent({ demoLinkLabel = '', onDemoLinkClick = null, onPri
       ) : null}
       {about.authorLine ? (
         <p className="m-0 text-text-muted text-[13px]">
-          {about.authors?.length ? (
-            <button
-              type="button"
-              className="p-0 border-0 bg-transparent text-text-muted font-inherit text-[13px] underline underline-offset-2 transition-colors duration-[120ms] hover:text-text cursor-pointer"
-              onClick={() => setAuthorsOpen(true)}
-            >
-              {about.authorLine}
-            </button>
-          ) : about.authorUrl ? (
+          {about.authorUrl ? (
             <a
               href={about.authorUrl}
-              className="text-text-muted underline underline-offset-2 transition-colors duration-[120ms] hover:text-text"
+              className="text-text-muted underline underline-offset-2"
               target="_blank"
               rel="noopener noreferrer"
             >
               {about.authorLine}
             </a>
-          ) : (
-            about.authorLine
-          )}
+          ) : about.authorLine}
         </p>
       ) : null}
+      {children}
       <p className="m-0 text-text-muted text-[12px] font-mono">
         {import.meta.env.DEV ? 'dev' : `build ${typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'dev'}`}
       </p>
@@ -117,7 +172,7 @@ function AboutModal({
       role="presentation"
     >
       <section
-        className="w-[min(440px,100%)] rounded-[22px] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] animate-modal-card-in"
+        className="w-[min(440px,100%)] max-h-[calc(100dvh-40px)] overflow-y-auto overscroll-contain rounded-[22px] border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] animate-modal-card-in max-sm:max-h-[calc(100dvh-28px)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-modal-title"
@@ -138,7 +193,9 @@ function AboutModal({
             </button>
           </div>
 
-          <AboutContent demoLinkLabel={demoLinkLabel} onDemoLinkClick={onDemoLinkClick} />
+          <AboutContent demoLinkLabel={demoLinkLabel} onDemoLinkClick={onDemoLinkClick}>
+            <AboutTeam />
+          </AboutContent>
         </div>
       </section>
     </div>

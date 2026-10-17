@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import AvailableApplications from './AvailableApplications'
+import GradesLaunchCard from './GradesLaunchCard'
 import GreetingCard from './GreetingCard'
 import WidgetDeadlines from './WidgetDeadlines'
 import WidgetLatestGrade from './WidgetLatestGrade'
@@ -64,6 +65,9 @@ function WidgetContainer({
   onDismissGreeting,
   showAppDescriptions = false,
   favoritesPortalTarget = null,
+  gradesSupported = true,
+  onOpenGrade = null,
+  onOpenGradesPage = null,
 }) {
   const displayName = userName?.trim() || ' '
   const [, setWeatherState] = useState(INITIAL_WEATHER_STATE)
@@ -217,7 +221,8 @@ function WidgetContainer({
   const isLocationActionDisabled = isWeatherLoading
   const isShown = (widgetId) => isWidgetAvailable(widgetId, establishment) && !hiddenWidgets.includes(widgetId)
   const showNextClass = debugNextClass || isShown('nextClass')
-  const showGradeWidgets = isShown('latestGrade')
+  // The grade card reads BUT relevés only.
+  const showGradeWidgets = gradesSupported && isShown('latestGrade')
   const showAbsencesWidget = isShown('absences')
   const showMailWidget = isShown('mail')
   const showDeadlinesWidget = isShown('deadlines')
@@ -244,6 +249,9 @@ function WidgetContainer({
 
   return (
     <section className="w-full grid gap-10 pt-4 px-6 pb-6 4xl:pt-5 max-md:px-3 max-md:pt-3 max-md:pb-5 max-md:gap-8" aria-label="Widgets">
+      {/* The page's top on a band edge to edge (.page-top-band, as on "Mes
+          notes"): the greeting and the widgets, set apart from the apps. */}
+      <div className="page-top-band -mx-6 -mt-4 px-6 pt-4 pb-7 4xl:-mt-5 4xl:pt-5 max-md:-mx-3 max-md:-mt-3 max-md:px-3 max-md:pt-3 max-md:pb-5">
       <div className="widget-row flex flex-wrap gap-3 items-stretch max-md:gap-2 overflow-visible p-2 -m-2">
         {showGreeting ? (
           <GreetingCard
@@ -285,7 +293,7 @@ function WidgetContainer({
           >
             {/* Bloc « Moyenne Générale » masqué pour l'instant — réimporter
                 WidgetAverageGrade et le rendre ici pour le réactiver. */}
-            {showGradeWidgets ? <WidgetLatestGrade visible={areWidgetsVisible} /> : null}
+            {showGradeWidgets ? <WidgetLatestGrade visible={areWidgetsVisible} user={sessionUser} onOpenGrade={onOpenGrade} /> : null}
             {showAbsencesWidget ? <WidgetAbsences visible={areWidgetsVisible} /> : null}
             {pairListWidgets ? (
               <WidgetListStrip labels={listCards.map(({ label }) => label)} visible={areWidgetsVisible}>
@@ -305,14 +313,21 @@ function WidgetContainer({
           </div>
         ) : null}
       </div>
+      </div>
 
-      <div id="sidebar-section-applications">
-        <AvailableApplications
-          establishment={establishment}
-          canUseServerLaunch={canUseServerLaunch}
-          favoritesPortalTarget={favoritesPortalTarget}
-          showDescriptions={showAppDescriptions}
-        />
+      <div>
+        {/* « Mes notes » just launched: a compact card under the widgets,
+            out of the band, until it's seen (renders nothing otherwise). */}
+        <GradesLaunchCard onOpen={onOpenGradesPage} />
+        <div id="sidebar-section-applications">
+          <AvailableApplications
+            establishment={establishment}
+            canUseServerLaunch={canUseServerLaunch}
+            favoritesPortalTarget={favoritesPortalTarget}
+            showDescriptions={showAppDescriptions}
+            onOpenGradesPage={onOpenGradesPage}
+          />
+        </div>
       </div>
 
       {isLocationPickerOpen ? (

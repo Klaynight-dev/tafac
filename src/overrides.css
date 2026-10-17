@@ -38,6 +38,8 @@
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
   backdrop-filter: blur(24px) saturate(1.5);
   box-shadow: 0 12px 40px -16px rgb(52 18 0 / 0.22);
+  /* Eases between frosted and solid when a page drops the wallpaper. */
+  transition: background-color 280ms ease-out, border-color 280ms ease-out, box-shadow 280ms ease-out;
 }
 
 :where([data-theme="dark"]) .sidebar-panel {
@@ -59,10 +61,14 @@
   box-shadow: 0 1px 3px rgb(52 18 0 / 0.06), 0 10px 28px -14px rgb(52 18 0 / 0.16);
 }
 
+/* Close to the page colour: a warm hairline and a deeper shadow keep it
+   standing apart from the page. */
 .dashboard-no-wallpaper .sidebar-panel {
   background-color: #f5f3ec;
+  border-color: rgb(52 18 0 / 0.08);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+  box-shadow: 0 1px 3px rgb(52 18 0 / 0.06), 0 16px 40px -14px rgb(52 18 0 / 0.24);
 }
 
 /* The header logo is whitened for the photo; on the plain page it would vanish. */
@@ -79,6 +85,8 @@
 
 :where([data-theme="dark"]) .dashboard-no-wallpaper .sidebar-panel {
   background-color: #161616;
+  border-color: rgb(255 255 255 / 0.1);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 16px 40px -14px rgb(0 0 0 / 0.7);
 }
 
 :where([data-theme="dark"]) .dashboard-no-wallpaper .header-university-logo {
@@ -399,6 +407,21 @@
   animation: dashboard-reveal-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Page switch from the sidebar / tab bar. The page itself only rises: an
+   opacity below 1 on it would cut the widgets' backdrop blur off from the
+   wallpaper until the end. The fade comes from a veil in the page colour
+   laid over the column, which clears instead. Coming back from display:none
+   restarts the rise. */
+.page-enter {
+  animation: page-enter-in 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.page-switch-veil {
+  background-color: var(--color-bg);
+  opacity: 0;
+  animation: page-switch-veil-out 320ms ease-out backwards;
+}
+
 .account-modal-layout-panel {
   animation: account-modal-layout-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -432,6 +455,20 @@
   line-height: 1.02;
   letter-spacing: -0.02em;
   white-space: nowrap;
+}
+
+/* Full ADE names ("1A2 J", longer ones) when the short "TD B" form would
+   repeat; the longest wrap inside the ring. */
+.onboarding-td-card__label--long {
+  font-size: 28px;
+}
+
+.onboarding-td-card__label--xlong {
+  max-width: 130px;
+  font-size: 20px;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
 }
 
 .onboarding-td-card__orbit-text {
@@ -477,6 +514,15 @@
 
   .onboarding-td-card__label {
     font-size: 36px;
+  }
+
+  .onboarding-td-card__label--long {
+    font-size: 24px;
+  }
+
+  .onboarding-td-card__label--xlong {
+    max-width: 100px;
+    font-size: 17px;
   }
 
   .onboarding-td-card__orbit-text {
@@ -542,6 +588,18 @@
   }
 
   to {
+    opacity: 1;
+  }
+}
+
+@keyframes page-enter-in {
+  from {
+    transform: translateY(6px);
+  }
+}
+
+@keyframes page-switch-veil-out {
+  from {
     opacity: 1;
   }
 }
@@ -626,6 +684,9 @@
   .onboarding-completion-panel,
   .onboarding-completion-panel--leaving,
   .dashboard-reveal-shell,
+  .page-enter,
+  .page-switch-veil,
+  .sidebar-panel,
   .account-modal-layout-panel,
   .onboarding-step-panel,
   .onboarding-step-panel--back,
@@ -721,6 +782,871 @@
   transform: none;
 }
 
+/* ── ECTS ring ("Crédits ECTS" card) ──
+   Colours from the Figma card; the arc fills in once on mount. */
+
+.ects-ring-track {
+  stroke: #d9d9d9;
+}
+
+.ects-ring-arc {
+  stroke: #611a00;
+  animation: ects-ring-fill 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+:where([data-theme="dark"]) .ects-ring-track {
+  stroke: rgb(255 255 255 / 0.12);
+}
+
+:where([data-theme="dark"]) .ects-ring-arc {
+  stroke: var(--color-text);
+}
+
+@keyframes ects-ring-fill {
+  from {
+    stroke-dashoffset: var(--ects-ring-length);
+  }
+}
+
+/* Behind the ring, faint: the credits as piles of coins drawn as the UE
+   coin (UeSubjectsList's CoinIcon), the UE's colour with a thin outline;
+   credits still to earn are dashed outlines. They drop onto their piles
+   once on mount. A secondary layer: the ring stays the reading. */
+
+.ects-piles {
+  opacity: 0.2;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 4%, #000 55%);
+  mask-image: linear-gradient(to bottom, transparent 4%, #000 55%);
+}
+
+:where([data-theme="dark"]) .ects-piles {
+  opacity: 0.26;
+}
+
+.ects-coin-line {
+  stroke: color-mix(in srgb, var(--color-text) 45%, transparent);
+  stroke-width: 0.8;
+}
+
+.ects-coin--due .ects-coin-line {
+  stroke-dasharray: 2 2;
+}
+
+.ects-coin-shine {
+  stroke: rgb(255 255 255 / 0.45);
+  stroke-width: 0.8;
+}
+
+.ects-coin {
+  animation: ects-coin-drop 520ms cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+}
+
+@keyframes ects-coin-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-26px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ects-ring-arc,
+  .ects-coin {
+    animation: none;
+  }
+}
+
+/* ── UE ring ("UE validées" card) ──
+   One segment per UE in ScoDoc's colour (--ue-color): filled once validated,
+   grey with an outline below 10, filled but faded without an average yet.
+   Segments grow in one after the other. */
+
+.ue-ring-segment {
+  stroke-width: 2;
+  stroke-linejoin: round;
+  cursor: default;
+  outline: none;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transition: opacity 150ms ease-out;
+  animation: ue-ring-segment-in 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.ue-ring-segment--validated {
+  fill: var(--ue-color);
+  stroke: var(--ue-color);
+}
+
+.ue-ring-segment--below {
+  fill: #ececec;
+  stroke: var(--ue-color);
+}
+
+:where([data-theme="dark"]) .ue-ring-segment--below {
+  fill: rgb(255 255 255 / 0.08);
+}
+
+/* No grade yet: the UE's colour, faded (fill-opacity, so the hover dimming
+   on `opacity` still applies on top). */
+.ue-ring-segment--pending {
+  fill: var(--ue-color);
+  fill-opacity: 0.25;
+  stroke: none;
+}
+
+/* Hovering or focusing a segment dims the others. */
+.ue-ring:has(.ue-ring-segment--active) .ue-ring-segment:not(.ue-ring-segment--active) {
+  opacity: 0.4;
+}
+
+@keyframes ue-ring-segment-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ue-ring-segment {
+    animation: none;
+  }
+}
+
+/* ── UE dial (the "Simuler" sheet) ──
+   The UE ring, large and cut by the sheet's bottom edge: the arrows turn it
+   to bring a UE to the top. Its segments are UE ribbons (UeBadge). */
+.ue-dial-turn {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  transform: rotate(var(--dial-rotation, 0deg));
+  transition: transform 800ms var(--dial-spring);
+  animation: ue-dial-spin-in 1000ms var(--dial-spring) backwards;
+}
+
+/* Under the hand: it follows the pointer, no easing. */
+.ue-dial.is-dragging .ue-dial-turn {
+  transition: none;
+}
+
+/* As the sheet opens, the dial swings in from a quarter turn back and
+   springs past its place before settling (a damped spring, as linear());
+   it settles the same way after an arrow or a drag. */
+.ue-dial,
+.ue-picked,
+.ue-reveal,
+.grades-launch {
+  --dial-spring: linear(0.000, 0.034, 0.124, 0.249, 0.394, 0.544, 0.688, 0.817, 0.928, 1.016, 1.083, 1.128, 1.153, 1.163, 1.159, 1.146, 1.127, 1.103, 1.079, 1.055, 1.034, 1.015, 1.000, 0.988, 0.980, 0.976, 0.974, 0.974, 0.976, 0.979, 0.982, 0.986, 0.990, 0.994, 0.997, 1.000, 1.002, 1.003, 1.004, 1.004, 1);
+  --fly-spring: linear(0.000, 0.027, 0.096, 0.189, 0.294, 0.401, 0.505, 0.600, 0.685, 0.759, 0.822, 0.873, 0.915, 0.947, 0.972, 0.990, 1.003, 1.011, 1.016, 1.019, 1.020, 1.019, 1.018, 1.016, 1.014, 1.012, 1.010, 1.008, 1.006, 1.005, 1.004, 1.003, 1.002, 1.001, 1.001, 1.000, 1.000, 1.000, 1.000, 1.000, 1);
+}
+
+@keyframes ue-dial-spin-in {
+  from {
+    transform: rotate(calc(var(--dial-rotation, 0deg) - 90deg));
+  }
+  to {
+    transform: rotate(var(--dial-rotation, 0deg));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ue-dial-turn {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Once a UE is picked: the dial fades out from where it stands, and its
+   segment, now the UE's badge, flies from the dial into the corner with a
+   gentler spring (start: --fly-x/-y/-s, set from the segment's box). */
+.ue-dial-leave {
+  transform-origin: 50% 100%;
+  animation: ue-dial-leave 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Mounted anew where it leaves from: no swinging in again. */
+.ue-dial-leave .ue-dial-turn {
+  animation: none;
+}
+
+@keyframes ue-dial-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+.ue-picked-fly {
+  transform-origin: 50% 50%;
+  animation: ue-picked-fly 760ms var(--fly-spring) backwards;
+}
+
+@keyframes ue-picked-fly {
+  from {
+    transform: translate(var(--fly-x, 0), var(--fly-y, 0)) scale(var(--fly-s, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ue-dial-leave {
+    animation-duration: 1ms;
+  }
+
+  .ue-picked-fly {
+    animation: none;
+  }
+}
+
+/* ── The simulator's reveal (GradeSimulatorReveal) ──
+   The gauge's ribbon, knob and number move frame by frame from JS; these
+   are the beats around them, keyed on the step's phase (data-phase: intro,
+   move, settled) and its tone (data-tone: up or down, see
+   describeUeOutcome). Whatever waits for the verdict keeps its room from
+   the start, invisible, so nothing below it moves. */
+.ue-reveal-track {
+  color: var(--color-text);
+  opacity: 0.08;
+  animation: ue-reveal-fade 420ms ease-out backwards;
+}
+
+/* The pass mark: lights up (and pops) once the ribbon reaches it. */
+.ue-reveal-pass {
+  color: var(--color-text-50);
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: color 200ms ease;
+}
+
+.ue-reveal-pass.is-lit {
+  color: var(--color-text);
+  animation: ue-reveal-bump 560ms var(--dial-spring);
+}
+
+.ue-reveal-ends {
+  fill: var(--color-text-50);
+}
+
+/* The average as it was, marked as the ribbon leaves it. */
+.ue-reveal-was {
+  color: var(--color-text-50);
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.ue-reveal:not([data-phase="intro"]) .ue-reveal-was {
+  opacity: 1;
+}
+
+/* Going down, what the UE gives up: faint, under the ribbon as it draws
+   back. */
+.ue-reveal-lost {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.ue-reveal:not([data-phase="intro"]) .ue-reveal-lost {
+  opacity: 0.26;
+}
+
+/* The number, its caption and the knob, once the sweep starts
+   (INTRO_START). */
+.ue-reveal-readout,
+.ue-reveal-knob {
+  animation: ue-reveal-fade 240ms ease-out 260ms backwards;
+}
+
+/* The number: muted while it's the average as it is. */
+.ue-reveal-number {
+  color: var(--color-text-50);
+  transform-origin: 50% 70%;
+  transition: color 300ms ease;
+}
+
+.ue-reveal:not([data-phase="intro"]) .ue-reveal-number {
+  color: var(--color-text);
+}
+
+.ue-reveal[data-phase="settled"]:is([data-tone="crossed"], [data-tone="up"], [data-tone="closer"]) .ue-reveal-number {
+  animation: ue-reveal-bump 620ms var(--dial-spring);
+}
+
+.ue-reveal-caption {
+  animation: ue-reveal-rise 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Settled: a ring ripples out of the knob, and going up a gleam runs
+   along the ribbon. */
+.ue-reveal-ripple {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ue-reveal:not([data-tone="same"])[data-phase="settled"] .ue-reveal-ripple {
+  animation: ue-reveal-ripple 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ue-reveal-gleam {
+  opacity: 0;
+  stroke-dasharray: 0.14 2;
+  stroke-dashoffset: 0.14;
+}
+
+.ue-reveal[data-phase="settled"] .ue-reveal-gleam {
+  animation: ue-reveal-gleam 1100ms cubic-bezier(0.45, 0, 0.3, 1) 160ms;
+}
+
+/* The verdict: the words and the semester card rise in, one after the
+   other (--delay). */
+.ue-reveal-later {
+  opacity: 0;
+}
+
+.ue-reveal[data-phase="settled"] .ue-reveal-later {
+  opacity: 1;
+  animation: ue-reveal-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--delay, 0ms) backwards;
+}
+
+.ue-reveal-footer {
+  animation: ue-reveal-rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) 420ms backwards;
+}
+
+@keyframes ue-reveal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ue-reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes ue-reveal-bump {
+  from {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes ue-reveal-ripple {
+  from {
+    opacity: 0.75;
+    transform: scale(0.8);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
+@keyframes ue-reveal-gleam {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 0.14;
+  }
+
+  15%,
+  80% {
+    opacity: 0.6;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -1;
+  }
+}
+
+/* Reduced motion: the final state, faded in, nothing else. */
+@media (prefers-reduced-motion: reduce) {
+  .ue-reveal {
+    animation: ue-reveal-fade 320ms ease-out backwards;
+  }
+
+  .ue-reveal-footer {
+    animation-name: ue-reveal-fade;
+  }
+
+  .ue-reveal :is(.ue-reveal-track, .ue-reveal-readout, .ue-reveal-knob, .ue-reveal-caption, .ue-reveal-pass, .ue-reveal-number, .ue-reveal-later) {
+    animation: none !important;
+  }
+
+  .ue-reveal :is(.ue-reveal-ripple, .ue-reveal-gleam) {
+    display: none;
+  }
+}
+
+/* The simulator's grade fields: one holding a grade typed in, and its
+   evaluation card, take the brand tint, so what's made up stands apart
+   from what's real. */
+.simulation-input {
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.simulation-input:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
+.simulation-input--set {
+  border-color: color-mix(in srgb, var(--color-brand) 32%, transparent);
+  background-color: color-mix(in srgb, var(--color-brand) 9%, var(--color-widget-bg));
+}
+
+.subject-evaluation--simulated {
+  border-color: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  background-color: color-mix(in srgb, var(--color-brand) 4%, var(--color-widget-bg));
+}
+
+/* Mes notes' "Simuler" button: a cream brown, warmer than the page's
+   beige, so it reads as the way into something to play with. */
+.simulate-button {
+  border-color: #dcc5a6;
+  background-color: #ead8bf;
+  color: #4a2a12;
+}
+
+.simulate-button:hover {
+  background-color: #e3cdae;
+}
+
+:where([data-theme="dark"]) .simulate-button {
+  border-color: #5c4630;
+  background-color: #4a3825;
+  color: #f1e2cc;
+}
+
+:where([data-theme="dark"]) .simulate-button:hover {
+  background-color: #56422c;
+}
+
+/* ── "Dernières notes" UE wash ──
+   The colours of the UEs a grade counts for, across the top of its card and
+   fading out before the text. Behind the content (the card is `isolate`). */
+
+.latest-grade-wash {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 70%;
+  opacity: 0.16;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+}
+
+:where([data-theme="dark"]) .latest-grade-wash {
+  opacity: 0.24;
+}
+
+/* ── "Matières" rows (Mes notes) ──
+   A row hovers with a light tint and keeps a deeper one while open, the tint
+   covering the row and its evaluations as one block. The panel opens by
+   animating its grid row from 0fr to 1fr (no height to measure); closed, it
+   is `visibility: hidden`, so its content leaves the tab order and the
+   accessibility tree once the collapse has played. */
+
+.subject-row {
+  transition: background-color 150ms ease;
+}
+
+.subject-row-toggle {
+  transition: background-color 150ms ease;
+}
+
+.subject-row:not(.subject-row--open) .subject-row-toggle:hover {
+  background-color: color-mix(in srgb, var(--color-brand-subtle) 50%, transparent);
+}
+
+/* UE card ("Par UE"): the header opens and closes it; its chevron is the
+   keyboard's way in. */
+.ue-card-chevron {
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.ue-card-header:hover .ue-card-chevron {
+  background-color: color-mix(in srgb, var(--color-brand-subtle) 70%, transparent);
+  color: var(--color-text);
+}
+
+.ue-card-chevron:focus-visible,
+.ue-card-news:focus-visible,
+.latest-grade-card:focus-visible,
+.ue-full-close:focus-visible,
+.ue-also-link:focus-visible {
+  outline: 2px solid var(--color-text-30);
+  outline-offset: 0;
+}
+
+.ue-card-news,
+.ue-full-close,
+.ue-also-link {
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.ue-card-news:hover,
+.ue-full-close:hover,
+.ue-also-link:hover {
+  background-color: color-mix(in srgb, var(--color-brand-subtle) 70%, transparent);
+  color: var(--color-text);
+}
+
+/* UE tile → full-page view: a view transition. The card's box grows
+   while its content cross-fades unscaled (clipped, not stretched); ribbon,
+   title and average glide on their own. The rest of the page cross-fades. */
+.ue-vt-card {
+  view-transition-class: ue-morph ue-card;
+}
+
+.ue-vt {
+  view-transition-class: ue-morph;
+}
+
+/* The ribbon's box reaches out over its drop shadow (down and to the left)
+   and is pulled back by as much, so the layout doesn't move but its morph
+   snapshot holds the whole shadow instead of cutting it square. */
+.ue-ribbon-box {
+  margin: -8px -8px -48px -40px;
+  padding: 8px 8px 48px 40px;
+  pointer-events: none;
+}
+
+::view-transition-group(*.ue-morph) {
+  animation-duration: 460ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* The moving card is drawn by the group itself: a solid surface and the
+   card's shadow (the snapshots of two different sizes would otherwise leave
+   it half see-through mid-way, and their clip cut the shadow off). The
+   snapshots are clipped to the card's corners, not the shadow. */
+::view-transition-group(*.ue-card) {
+  border-radius: 24px;
+  background: var(--color-widget-bg);
+  box-shadow: 0 0 0 1px rgb(52 18 0 / 0.04), 0 1px 3px rgb(52 18 0 / 0.06), 0 10px 28px -14px rgb(52 18 0 / 0.16);
+}
+
+[data-theme="dark"]::view-transition-group(*.ue-card) {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 3px rgb(0 0 0 / 0.3), 0 10px 28px -14px rgb(0 0 0 / 0.6);
+}
+
+::view-transition-image-pair(*.ue-card) {
+  overflow: clip;
+  border-radius: 24px;
+}
+
+::view-transition-old(*.ue-card),
+::view-transition-new(*.ue-card) {
+  height: 100%;
+  object-fit: none;
+  object-position: top left;
+}
+
+/* What the card showed goes quickly and what it shows arrives once it has
+   room, so the two layouts never sit on top of each other. */
+::view-transition-old(*.ue-card) {
+  animation-duration: 140ms;
+}
+
+::view-transition-new(*.ue-card) {
+  animation-duration: 280ms;
+  animation-delay: 160ms;
+  animation-fill-mode: both;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+}
+
+.subject-row-toggle:focus-visible {
+  outline: 2px solid var(--color-text-30);
+  outline-offset: -2px;
+}
+
+.subject-row--open {
+  background-color: color-mix(in srgb, var(--color-brand-subtle) 65%, transparent);
+}
+
+.subject-row-chevron {
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.subject-row--open .subject-row-chevron {
+  transform: rotate(180deg);
+}
+
+.subject-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 280ms cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 280ms;
+}
+
+.subject-row--open .subject-panel {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 280ms cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+}
+
+.subject-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The icon tile's UE wash: the grade cards' colours, a touch stronger on a
+   small tile so the hue still reads. */
+.subject-tile-wash {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+:where([data-theme="dark"]) .subject-tile-wash {
+  opacity: 0.26;
+}
+
+/* The student's dot on the promo bar, ringed in the card's colour so it
+   stands off the spread behind it. */
+.subject-promo-dot {
+  box-shadow: 0 0 0 2px var(--color-widget-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject-row,
+  .subject-row-toggle,
+  .subject-row-chevron,
+  .subject-panel,
+  .subject-row--open .subject-panel {
+    transition: none;
+  }
+}
+
+/* ── UE under 10 (Mes notes, "Par UE") ──
+   The warning next to the UE average: the app's amber (the session warning
+   banner's, the due-soon deadlines' in dark mode). */
+
+.ue-below-warning {
+  color: #b76e00;
+}
+
+.ue-below-warning:hover,
+.ue-below-warning:focus-visible {
+  color: #8f5600;
+}
+
+:where([data-theme="dark"]) .ue-below-warning {
+  color: #fbbf24;
+}
+
+/* The jury's code for a UE it didn't validate (AJ, RAT…): red, a pill. */
+.ue-jury-decision {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.ue-jury-decision:hover,
+.ue-jury-decision:focus-visible {
+  background-color: color-mix(in srgb, var(--color-error) 18%, var(--color-error-bg));
+}
+
+:where([data-theme="dark"]) .ue-below-warning:hover,
+:where([data-theme="dark"]) .ue-below-warning:focus-visible {
+  color: #fcd34d;
+}
+
+/* ── Grades explainer (Mes notes › « Comment ça marche ? ») ──
+   The schemas' resting styles are their final state: each animation only
+   says where a piece comes from (`from` keyframes, `both` fill), so with
+   reduced motion they simply show finished. `--d` staggers the pieces. */
+
+.gx-stage {
+  background: #f3f1eb;
+}
+
+:where([data-theme="dark"]) .gx-stage {
+  background: #141414;
+}
+
+/* The schemas' cards, on the stage's tint; a hairline in dark mode where
+   the widget grey is close to the stage. */
+.gx-card {
+  border: 1px solid #ffffff;
+}
+
+:where([data-theme="dark"]) .gx-card {
+  border-color: var(--color-border);
+}
+
+/* Phosphor-like coin, as next to a UE's ECTS on the tiles. */
+.gx-coin {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: inset 0 -1.5px 0 rgb(0 0 0 / 0.28);
+}
+
+.gx-success {
+  color: var(--color-success-text);
+}
+
+/* Wide dialogs show the schemas a size up; phones keep them 1:1. */
+@media (min-width: 600px) {
+  .gx-figure {
+    zoom: 1.12;
+  }
+}
+
+.gx-step {
+  animation: gx-fade 220ms ease-out both;
+}
+
+.gx-rise {
+  animation: gx-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0ms) both;
+}
+
+.gx-fade {
+  animation: gx-fade 360ms ease-out var(--d, 0ms) both;
+}
+
+.gx-drop {
+  display: inline-block;
+  animation: gx-drop 560ms cubic-bezier(0.34, 1.4, 0.64, 1) var(--d, 0ms) both;
+}
+
+.gx-pop {
+  animation: gx-pop 420ms cubic-bezier(0.34, 1.4, 0.64, 1) var(--d, 0ms) both;
+}
+
+/* Lines drawn from the subject to the UE (pathLength="1"). */
+.gx-draw {
+  stroke-dasharray: 1;
+  animation: gx-draw 720ms cubic-bezier(0.45, 0, 0.2, 1) var(--d, 0ms) both;
+}
+
+/* Beads running along the lines, toward the UE: the grades feeding it. */
+.gx-flow {
+  stroke: var(--color-widget-bg);
+  stroke-opacity: 0.9;
+  stroke-dasharray: 0.001 0.1;
+  animation:
+    gx-fade 400ms ease-out var(--d, 0ms) both,
+    gx-flow 1.8s linear var(--d, 0ms) infinite;
+}
+
+.gx-fill-x {
+  transform-origin: left center;
+  animation: gx-fill-x var(--dur, 900ms) cubic-bezier(0.3, 0.7, 0.2, 1) var(--d, 0ms) both;
+}
+
+/* « Sur cette page »: the mock-up's numbered spots light up one after the
+   other (2 s each, `--i`), with the matching line of the list. */
+.gx-spot-number,
+.gx-tip-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gx-spot-number {
+  position: absolute;
+  top: -11px;
+  right: -13px;
+  box-shadow: 0 0 0 2px var(--color-widget-bg);
+}
+
+.gx-tip-number {
+  margin-top: 2px;
+}
+
+.gx-spot::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--color-text);
+  opacity: 0;
+  pointer-events: none;
+  animation: gx-spot 8s ease-in-out calc(var(--i) * 2s + 600ms) infinite;
+}
+
+.gx-tip {
+  animation: gx-tip 8s ease-in-out calc(var(--i) * 2s + 600ms) infinite;
+}
+
+.gx-dot:focus-visible {
+  outline-offset: 0;
+}
+
+@keyframes gx-rise {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes gx-fade {
+  from { opacity: 0; }
+}
+
+@keyframes gx-drop {
+  from { opacity: 0; transform: translateY(-16px) rotate(-8deg) scale(0.9); }
+}
+
+@keyframes gx-pop {
+  from { opacity: 0; transform: scale(0.4); }
+}
+
+@keyframes gx-draw {
+  from { stroke-dashoffset: 1; }
+}
+
+@keyframes gx-flow {
+  from { stroke-dashoffset: 0.1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes gx-fill-x {
+  from { transform: scaleX(0); }
+}
+
+@keyframes gx-spot {
+  0%, 22%, 100% { opacity: 0; transform: scale(1.25); }
+  4%, 18% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes gx-tip {
+  0%, 22%, 100% { background: transparent; }
+  4%, 18% { background: var(--color-brand-subtle); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gx-root,
+  .gx-root * {
+    animation: none !important;
+  }
+
+  .gx-root *::before {
+    animation: none !important;
+  }
+
+  .gx-flow,
+  .gx-replay {
+    display: none;
+  }
+}
+
 /* ── Context menu transform-origin from CSS variables ── */
 
 .favorites-context-menu {
@@ -758,7 +1684,8 @@
   --widget-delay: 140ms;
 }
 
-/* ── Grade widget hover state ── */
+/* ── Grade widget hover state ──
+   Only the cards that open something; the average card isn't a link. */
 
 .latest-grade-widget:hover,
 .absences-widget:hover,
@@ -1012,12 +1939,6 @@
   color: #fbbf24;
 }
 
-/* ── Average grade wave dark mode ── */
-
-:where([data-theme="dark"]) .average-grade-waves {
-  opacity: 0.35;
-}
-
 /* ── Header refreshed tag depth ── */
 
 .header-refreshed-tag {
@@ -1130,6 +2051,255 @@
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.14),
       0 6px 18px -8px rgb(0 0 0 / 0.6);
+  }
+}
+
+/* ── "New" on a nav item (Sidebar, MobileTabBar) ──
+   While its launch entry is unseen (navItems' `announcedBy`): a « Nouveau »
+   pill in the sidebar, a dot on the tab's icon, both in the « Nouveautés »
+   blue. The dot breathes out a few times, then stays still. */
+
+.nav-new-badge {
+  background-color: rgb(26 115 232 / 0.1);
+  color: #1559b8;
+}
+
+:where([data-theme="dark"]) .nav-new-badge {
+  background-color: rgb(91 157 255 / 0.16);
+  color: #9cc2ff;
+}
+
+/* Cut out of the tab bar's glass, so it reads on the icon's stroke. */
+.mobile-tab-bar-new-dot {
+  box-shadow: 0 0 0 2px rgb(252 251 248 / 0.95);
+}
+
+:where([data-theme="dark"]) .mobile-tab-bar-new-dot {
+  box-shadow: 0 0 0 2px rgb(40 40 40 / 0.95);
+}
+
+.nav-new-pulse {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nav-new-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: nav-new-pulse 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) 0.6s 6 backwards;
+  }
+}
+
+@keyframes nav-new-pulse {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+
+  70%,
+  to {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
+/* ── « Mes notes » launch card (src/components/GradesLaunchCard.jsx) ──
+   A compact widget card under the dashboard's widgets while the launch is
+   unseen. Its stage is a light sky blue (the « Nouveautés » blue, washed
+   out) under the simulator's dial and springs (--dial-spring,
+   --fly-spring above), the dial's top half standing on the stage's floor,
+   so it looks like what it opens.
+   The beats, from mount:
+     0      the card rises in
+     120ms  the dial swings in from a quarter turn back, its ribbons
+            fanning out of the centre one after the other
+     160ms  the words rise in, then the button (--delay)
+     760ms  the page's icon pops up in the dial's hollow, a ring ripples out
+     1150ms a shimmer sweeps over the ribbons as the dial springs one UE on
+     1900ms the button's arrow nudges twice
+   Reduced motion: the final frame, as is (the dial already turned). */
+
+.grades-launch {
+  animation: grades-launch-in 640ms var(--fly-spring) backwards;
+}
+
+.grades-launch-stage {
+  background:
+    radial-gradient(120% 95% at 50% 100%, #f3f8ff 0%, #e2edfc 55%, #d2e3f9 100%);
+  box-shadow: inset 0 0 0 1px rgb(26 115 232 / 0.1);
+}
+
+:where([data-theme="dark"]) .grades-launch-stage {
+  background:
+    radial-gradient(120% 95% at 50% 100%, #2b3d58 0%, #213149 55%, #1a273a 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+.grades-launch-turn {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  transform: rotate(var(--dial-rotation, 0deg));
+  animation: ue-dial-spin-in 1100ms var(--dial-spring) 120ms backwards;
+}
+
+.grades-launch-step {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  transform: rotate(var(--dial-step, 0deg));
+  animation: grades-launch-step 1000ms var(--dial-spring) 1200ms backwards;
+}
+
+.grades-launch-ribbon {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: grades-launch-ribbon-in 720ms var(--fly-spring) calc(140ms + var(--i, 0) * 70ms) backwards;
+}
+
+/* The hollow: the page's icon on the card's own surface. */
+.grades-launch-hub {
+  background-color: #ffffff;
+  color: var(--color-text);
+  box-shadow: 0 1px 2px rgb(21 54 99 / 0.2), 0 6px 14px -6px rgb(21 54 99 / 0.45);
+  animation: grades-launch-pop 620ms var(--dial-spring) 760ms backwards;
+}
+
+:where([data-theme="dark"]) .grades-launch-hub {
+  background-color: #1c1c1c;
+  color: var(--color-text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 14px -6px rgb(0 0 0 / 0.7);
+}
+
+.grades-launch-ripple {
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: ue-reveal-ripple 1000ms cubic-bezier(0.2, 0.8, 0.2, 1) 860ms;
+}
+
+.grades-launch-shimmer {
+  opacity: 0;
+  stroke-dasharray: 0.22 2;
+  stroke-dashoffset: 0.22;
+  animation: grades-launch-shimmer 1200ms cubic-bezier(0.45, 0, 0.3, 1) 1150ms;
+}
+
+.grades-launch-rise {
+  animation: ue-reveal-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--delay, 0ms) backwards;
+}
+
+.grades-launch-cta-arrow {
+  animation: grades-launch-nudge 900ms ease-in-out 1900ms;
+}
+
+/* Between the widgets' band and the apps (the dashboard's grid gap
+   above it, a little tighter); closing, the card fades back, then its room
+   folds up so the apps slide into place rather than jump. */
+.grades-launch-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin: -12px 0 28px;
+  transition: grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1) 180ms, margin 300ms cubic-bezier(0.4, 0, 0.2, 1) 180ms;
+}
+
+.grades-launch-slot.is-leaving {
+  grid-template-rows: 0fr;
+  margin: 0;
+}
+
+.grades-launch-slot.is-leaving > div {
+  overflow: hidden;
+}
+
+.grades-launch-slot.is-leaving .grades-launch {
+  animation: grades-launch-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@media (width < 768px) {
+  .grades-launch-slot {
+    margin: -12px 0 20px;
+  }
+}
+
+@keyframes grades-launch-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@keyframes grades-launch-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes grades-launch-step {
+  from {
+    transform: none;
+  }
+}
+
+/* A wide band of light, along the ribbons from left to right. */
+@keyframes grades-launch-shimmer {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 0.22;
+  }
+
+  15%,
+  80% {
+    opacity: 0.55;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -1;
+  }
+}
+
+@keyframes grades-launch-ribbon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+/* `transform` only: the centring is Tailwind's `translate`, left alone. */
+@keyframes grades-launch-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+@keyframes grades-launch-nudge {
+  0%,
+  50%,
+  100% {
+    transform: none;
+  }
+
+  25%,
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grades-launch,
+  .grades-launch :is(.grades-launch-turn, .grades-launch-step, .grades-launch-ribbon, .grades-launch-hub, .grades-launch-rise, .grades-launch-cta-arrow) {
+    animation: none;
+  }
+
+  .grades-launch :is(.grades-launch-ripple, .grades-launch-shimmer) {
+    display: none;
+  }
+
+  .grades-launch-slot {
+    transition: none;
   }
 }
 
@@ -1288,7 +2458,6 @@
   }
 
   .favorites-strip-item,
-  .badge-icon-spinning,
   .badge-placeholder,
   .text-placeholder-shimmer,
   .favorites-context-menu,
@@ -1310,6 +2479,18 @@
   animation: lent-button-bounce 1s ease-in-out infinite;
 }
 
+/* Reduced motion: the dots still say "loading", by fading only. */
+@keyframes lent-button-fade {
+  0%, 80%, 100% { opacity: 0.4; }
+  40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lent-button-dot {
+    animation-name: lent-button-fade;
+  }
+}
+
 @keyframes wave {
   0% { transform: rotate(0deg); }
   15% { transform: rotate(14deg); }
@@ -1318,11 +2499,6 @@
   60% { transform: rotate(-4deg); }
   75% { transform: rotate(10deg); }
   100% { transform: rotate(0deg); }
-}
-
-@keyframes favorites-strip-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 @keyframes favorites-strip-shimmer {
@@ -1574,5 +2750,585 @@ html[data-tour-active] [data-tour="favorite-star"] {
 @keyframes scodoc-refreshing-in {
   from {
     opacity: 0;
+  }
+}
+
+/* ── "Compte aussi dans" (Mes notes, a UE's view) ──
+   Each link carries its UE as a little ribbon: the UE's colour with a lit
+   top edge and a shadow tinted with its dark shade (--ue-shade, as on
+   UeBadge); the arrow nudges on hover. */
+
+.ue-also-tag {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(0 0 0 / 0.12),
+    -1px 2px 4px -1px color-mix(in srgb, var(--ue-shade) 55%, transparent);
+}
+
+.ue-also-arrow {
+  transition: transform 150ms ease;
+}
+
+.ue-also-link:hover .ue-also-arrow,
+.ue-also-link:focus-visible .ue-also-arrow {
+  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ue-also-link:hover .ue-also-arrow,
+  .ue-also-link:focus-visible .ue-also-arrow {
+    transform: none;
+  }
+}
+
+/* ── Page top band (dashboard, Mes notes) ──
+   The top of a page (the dashboard's greeting and widgets, the grades'
+   title, cards and notices) on a faint warm band set apart from the rest by
+   a hairline; the white cards lift off it. Only without the wallpaper: over
+   the photo it would hide it.
+   The band runs to both edges of the window, under the floating sidebar:
+   its colour is also a huge box-shadow spread, clipped to its own height
+   (+1px for the hairline). A shadow never makes the page scroll sideways,
+   as a wider box would. Solid colours (the tint mixed into the page's), so
+   the spread matches the box.
+   The hairline is its own 1px layer just under the band, widened the same
+   way and clipped to its height: as a second shadow of the band it would
+   sit under the band's own spread and never show. */
+
+/* The colours sit on the page's root (not the band) so the phone top bar
+   can take the band's tint too ("Mes notes · phone"). */
+.dashboard-no-wallpaper {
+  --page-top-band: color-mix(in srgb, var(--color-brand) 5%, var(--color-bg));
+  --page-top-line: color-mix(in srgb, var(--color-brand) 14%, var(--color-bg));
+}
+
+.dashboard-no-wallpaper .page-top-band {
+  position: relative;
+  background: var(--page-top-band);
+  box-shadow: 0 0 0 100vmax var(--page-top-band);
+  clip-path: inset(0 -100vmax -1px);
+}
+
+.dashboard-no-wallpaper .page-top-band::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: var(--page-top-line);
+  box-shadow: 0 0 0 100vmax var(--page-top-line);
+  clip-path: inset(0 -100vmax);
+  pointer-events: none;
+}
+
+:where([data-theme="dark"]) .dashboard-no-wallpaper {
+  --page-top-band: color-mix(in srgb, #ffffff 4%, var(--color-bg));
+  --page-top-line: color-mix(in srgb, #ffffff 11%, var(--color-bg));
+}
+
+/* ── Semester switch (Mes notes) ──
+   The new semester's content fades in, rising a few pixels: enough to see
+   it changed, notably when stepping through semesters with the wheel. No
+   transform left once done (it would trap the UE view's fixed layers). */
+
+.semester-fade {
+  animation: semester-fade 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+@keyframes semester-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .semester-fade {
+    animation-name: semester-fade-plain;
+  }
+
+  @keyframes semester-fade-plain {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* ── "Dernières notes" → the grade (Mes notes) ──
+   A card's background brightens under the pointer (no lift); the
+   evaluation it opens flashes once in the UE's view so the eye finds it:
+   its card takes a tint and a ring of the ink colour, then lets them go
+   (inside the card: an outer glow would be cut by the panel, which clips
+   to open and close). */
+
+.latest-grade-card {
+  transition: background-color 160ms ease;
+}
+
+@media (hover: hover) {
+  .latest-grade-card:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+.subject-evaluation.is-flashing {
+  animation: evaluation-flash 1.8s ease-out both;
+}
+
+@keyframes evaluation-flash {
+  0%, 35% {
+    background-color: color-mix(in srgb, var(--color-brand) 9%, var(--color-widget-bg));
+    border-color: color-mix(in srgb, var(--color-brand) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .latest-grade-card {
+    transition: none;
+  }
+}
+
+/* ── Grades notices (Mes notes) ──
+   Jury decision and department message under the cards: they rise in
+   gently. Mounted already visible (widget-card-visible), so the widget
+   cards' own transition never plays for them. */
+
+.grades-notice {
+  animation: grades-notice-in 420ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes grades-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* The jury decision's card washed in its coin's colour, strongest by the
+   coin, like the "Dernières notes" cards' UE wash. */
+.grades-notice-tint {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.14;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, #000 0%, rgb(0 0 0 / 0.3) 100%);
+  mask-image: linear-gradient(to right, #000 0%, rgb(0 0 0 / 0.3) 100%);
+}
+
+:where([data-theme="dark"]) .grades-notice-tint {
+  opacity: 0.22;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grades-notice {
+    animation: none;
+  }
+}
+
+/* ── Grade detail sheet (Mes notes) ──
+   An evaluation row opens its grade on a sheet (GradeDetailModal): the
+   grade, where it sits in the promo (spread and histogram, GradeHistogram)
+   and what it counts for in each UE. Centred card on wide screens, bottom
+   sheet on phones. Its parts rise in one after the other, the histogram's
+   bars grow from the baseline, the student's dot slides to its place; all
+   still under reduced motion. */
+
+/* Each evaluation is a card on the open subject's tinted panel, as the
+   home page's service cards are when hovered (.app-card): the widget
+   colour, a hairline, a soft shadow; cards a little apart. Under the
+   pointer the card lifts a touch, pressed it settles. */
+.subject-evaluation {
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background-color: var(--color-widget-bg);
+  box-shadow: 0 6px 18px -8px var(--color-shadow);
+  transition:
+    scale 120ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+@media (hover: hover) {
+  .subject-evaluation:has(> .subject-evaluation-button:hover) {
+    border-color: var(--color-border-input);
+    box-shadow: 0 10px 24px -10px var(--color-shadow);
+  }
+
+  .subject-evaluation-button:hover .subject-evaluation-chevron {
+    color: var(--color-text-muted);
+    translate: 2px 0;
+  }
+}
+
+.subject-evaluation:has(> .subject-evaluation-button:active) {
+  scale: 0.99;
+}
+
+.subject-evaluation-button:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
+.subject-evaluation-chevron {
+  transition: color 150ms ease, translate 150ms ease;
+}
+
+.gd-dialog {
+  animation: weather-modal-card-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 639.98px) {
+  .gd-dialog {
+    animation: gd-sheet-in 360ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes gd-sheet-in {
+  from { transform: translateY(100%); }
+}
+
+/* The sheet's corners clip its content (see GradeDetailModal); the sheet
+   keeps its border and shadow outside. */
+.gd-clip {
+  clip-path: inset(0 round 25px);
+}
+
+@media (max-width: 639.98px) {
+  .gd-clip {
+    clip-path: inset(0 round 25px 25px 0 0);
+  }
+}
+
+/* The sticky header's progressive blur: five backdrop blurs doubling in
+   strength, each masked to a shorter band from the top, so content passing
+   under goes from sharp (below the header) to strongly blurred (at the
+   sheet's edge); a tint from the sheet's colour keeps the header's text
+   readable. Shown only once content is under it (.is-stuck), so the UE
+   wash reads untouched at rest. Without backdrop-filter, the tint alone,
+   denser. */
+.gd-header-blur {
+  position: absolute;
+  inset: 0 0 -28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.gd-header.is-stuck .gd-header-blur {
+  opacity: 1;
+}
+
+.gd-header-blur > span,
+.gd-header-blur::after {
+  position: absolute;
+  inset: 0;
+}
+
+.gd-header-blur::after {
+  content: "";
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-bg) 78%, transparent) 0%,
+    color-mix(in srgb, var(--color-bg) 50%, transparent) 55%,
+    transparent 100%
+  );
+}
+
+.gd-header-blur > span:nth-child(1) {
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+}
+
+.gd-header-blur > span:nth-child(2) {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 56%, transparent 86%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 56%, transparent 86%);
+}
+
+.gd-header-blur > span:nth-child(3) {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 70%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 70%);
+}
+
+.gd-header-blur > span:nth-child(4) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 24%, transparent 54%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 24%, transparent 54%);
+}
+
+.gd-header-blur > span:nth-child(5) {
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 10%, transparent 38%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 10%, transparent 38%);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .gd-header-blur::after {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-bg) 96%, transparent) 0%,
+      color-mix(in srgb, var(--color-bg) 86%, transparent) 60%,
+      transparent 100%
+    );
+  }
+}
+
+/* The small grade in the header: its column opens from nothing once the
+   big one has scrolled away, so at rest the subject keeps the room. */
+.gd-header-grade-slot {
+  display: grid;
+  grid-template-columns: 0fr;
+  margin-right: -12px;
+  opacity: 0;
+  transition: grid-template-columns 280ms cubic-bezier(0.16, 1, 0.3, 1), margin 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease;
+}
+
+.gd-header-grade-slot > span {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gd-header.is-hero-gone .gd-header-grade-slot {
+  grid-template-columns: 1fr;
+  margin-right: 0;
+  opacity: 1;
+}
+
+/* A taller UE wash than the cards': it sits behind the header and the grade. */
+.gd-wash {
+  height: 260px;
+}
+
+.gd-rise {
+  animation: gd-rise 460ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes gd-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Cards a shade off the sheet in dark mode, where white borders vanish. */
+:where([data-theme="dark"]) .gd-card {
+  background-color: var(--color-bg-surface);
+}
+
+/* The promo's spread on the 0–20 rule, and the student's dot gliding in
+   from 0 to its grade. */
+.gd-scale-band {
+  background-color: color-mix(in srgb, var(--color-text) 24%, transparent);
+}
+
+.gd-scale-you {
+  left: var(--x);
+  animation: gd-slide 720ms cubic-bezier(0.16, 1, 0.3, 1) 220ms backwards;
+}
+
+@keyframes gd-slide {
+  from {
+    left: 0%;
+    opacity: 0;
+  }
+}
+
+.gd-scale-dot {
+  box-shadow: 0 0 0 3px var(--color-widget-bg);
+}
+
+:where([data-theme="dark"]) .gd-scale-dot {
+  box-shadow: 0 0 0 3px var(--color-bg-surface);
+}
+
+/* The weights ring: the "UE validées" ring's segments, each filled from
+   its start as far as the grade's share of that UE (a dash along the
+   segment's middle, clipped to it), the rest a faded track; UEs it doesn't
+   count for fainter still. Segments grow in as on the ring, then the
+   fills run. */
+.gd-share-segment {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transition: opacity 150ms ease-out;
+  animation: ue-ring-segment-in 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(140ms + var(--i) * 70ms);
+}
+
+.gd-share-track {
+  fill: var(--ue-color);
+  fill-opacity: 0.2;
+}
+
+.gd-share-segment.is-unweighted .gd-share-track {
+  fill-opacity: 0.08;
+}
+
+:where([data-theme="dark"]) .gd-share-track {
+  fill-opacity: 0.26;
+}
+
+:where([data-theme="dark"]) .gd-share-segment.is-unweighted .gd-share-track {
+  fill-opacity: 0.12;
+}
+
+.gd-share-fill {
+  fill: none;
+  stroke: var(--ue-color);
+  stroke-width: 28;
+  stroke-dasharray: var(--share) 1;
+  animation: gd-share-fill 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(420ms + var(--i) * 90ms);
+}
+
+@keyframes gd-share-fill {
+  from { stroke-dasharray: 0 1; }
+}
+
+.gd-share-ring.has-active .gd-share-segment:not(.is-active) {
+  opacity: 0.4;
+}
+
+.gd-share-ring-box:focus-visible {
+  outline: 2px solid var(--color-text-30);
+  outline-offset: 4px;
+}
+
+.gd-share-row {
+  transition: background-color 150ms ease;
+}
+
+.gd-share-row.is-active {
+  background-color: color-mix(in srgb, var(--color-brand) 6%, transparent);
+}
+
+/* Histogram: one quiet tone for the promo, the ink colour for the
+   student's bar; a 2px gap between bars, a hairline baseline. */
+.gh-bar {
+  background-color: color-mix(in srgb, var(--color-text) 24%, transparent);
+  transform-origin: bottom;
+  transition: background-color 120ms ease;
+  animation: gh-grow 560ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(160ms + var(--i) * 16ms);
+}
+
+:where([data-theme="dark"]) .gh-bar {
+  background-color: color-mix(in srgb, var(--color-text) 26%, transparent);
+}
+
+.gh-col.is-active .gh-bar {
+  background-color: color-mix(in srgb, var(--color-text) 38%, transparent);
+}
+
+.gh-bar.gh-bar--you,
+.gh-col.is-active .gh-bar.gh-bar--you {
+  background-color: var(--color-brand);
+}
+
+@keyframes gh-grow {
+  from { transform: scaleY(0); }
+}
+
+.gh-count {
+  animation: gh-fade 300ms ease-out backwards;
+  animation-delay: calc(420ms + var(--i) * 16ms);
+}
+
+.gh-axis-you {
+  animation: gh-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 640ms backwards;
+}
+
+@keyframes gh-fade {
+  from { opacity: 0; }
+}
+
+@keyframes gh-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.7);
+  }
+}
+
+.gh-baseline {
+  background-color: var(--color-border-input);
+}
+
+.gh-plot:focus-visible {
+  outline: 2px solid var(--color-text-30);
+  outline-offset: 4px;
+}
+
+/* The bar's readout: the page's ink as its ground, like ScoDoc's black
+   tooltip, warmer. */
+.gh-tooltip {
+  transform: translateX(-50%);
+  background-color: var(--color-brand);
+  color: var(--color-bg);
+  box-shadow: 0 8px 24px -10px var(--color-shadow);
+}
+
+.gh-skeleton-bar {
+  background-color: color-mix(in srgb, var(--color-text) 8%, transparent);
+  animation: gh-breathe 1.4s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * 40ms);
+}
+
+@keyframes gh-breathe {
+  to { background-color: color-mix(in srgb, var(--color-text) 14%, transparent); }
+}
+
+@media (hover: hover) {
+  .gh-retry:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-dialog,
+  .gd-rise,
+  .gd-scale-you,
+  .gd-share-segment,
+  .gd-share-fill,
+  .gh-bar,
+  .gh-count,
+  .gh-axis-you,
+  .gh-skeleton-bar {
+    animation: none;
+  }
+
+  .subject-evaluation,
+  .subject-evaluation-chevron,
+  .gh-bar,
+  .gd-header-blur,
+  .gd-header-grade-slot,
+  .gd-share-segment,
+  .gd-share-row {
+    transition: none;
+  }
+
+  .subject-evaluation:has(> .subject-evaluation-button:active) {
+    scale: none;
+  }
+}
+
+/* ── Mes notes · phone ──
+   Below md (640px, the Tailwind breakpoint): the band's tint also runs up
+   behind the top bar (logo, account buttons), so the coloured top starts at
+   the top of the screen rather than under the logo. Everything in the page
+   column above the shown page's band takes its colour (the top bar, an
+   update notice…); the hidden page kept mounted doesn't count, and a page
+   without its band (a UE open full page) leaves the bar plain. */
+
+@media (width < 640px) {
+  .dashboard-no-wallpaper .app-column > :has(~ :not([hidden]) .page-top-band) {
+    background: var(--page-top-band);
   }
 }

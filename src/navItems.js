@@ -27,11 +27,13 @@ export const MAIL_HREF = universityConfig.features?.mail ? `${ENT_AUTH_PREFIX}/m
 // "Mes notes" follows the tri-state grades feature: the in-app grades page
 // when live, a greyed-out item with the unavailability notice when
 // 'disabled', nothing otherwise.
+// `announcedBy`: the « Nouveautés » entry that launched the page; the item
+// says « Nouveau » while this device hasn't seen it (changelogStore).
 function buildGradesNavItem() {
   const base = { id: 'grades', label: 'Mes notes', icon: 'carbon:chart-pie' }
 
   if (GRADES_FEATURE_ENABLED) {
-    return { ...base, route: 'grades' }
+    return { ...base, route: 'grades', announcedBy: 'mes-notes' }
   }
 
   if (GRADES_FEATURE_DISABLED) {
@@ -78,8 +80,10 @@ export function isMoodlePageAvailable() {
   return Boolean(universityConfig.features?.moodle)
 }
 
-export function buildNavItems(establishment) {
-  const gradesNavItem = hasGradeWidgets(establishment) ? buildGradesNavItem() : null
+// `gradesSupported: false`: a student whose relevé Tafac can't read (not a
+// BUT): no "Mes notes".
+export function buildNavItems(establishment, { gradesSupported = true } = {}) {
+  const gradesNavItem = gradesSupported && hasGradeWidgets(establishment) ? buildGradesNavItem() : null
 
   return [
     {
@@ -132,6 +136,6 @@ export function openNavItemLink(item, source) {
 
 // The shortcuts the mobile tab bar carries (every nav item but "Toutes les
 // applications", which is the dashboard itself). Empty means no tab bar.
-export function getMobileTabItems(establishment) {
-  return buildNavItems(establishment).filter((item) => item.id !== 'applications')
+export function getMobileTabItems(establishment, options) {
+  return buildNavItems(establishment, options).filter((item) => item.id !== 'applications')
 }

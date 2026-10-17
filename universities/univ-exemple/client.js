@@ -1,6 +1,7 @@
 // Client-safe config for Université Exemple (demo university).
 import logo from './assets/logo.png'
 import {
+  appIcons,
   id,
   branding,
   casOrigin,
@@ -14,6 +15,8 @@ import {
 
 export default {
   id,
+  // Icon set of the subjects in "Mes notes", the tiles' one (shared.js).
+  appIconStyle: appIcons.style,
 
   university,
 

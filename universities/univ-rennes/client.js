@@ -8,6 +8,7 @@ import heroLannionLeguer from './assets/hero/lannion-leguer.webp'
 import heroRennesBeaulieu1 from './assets/hero/rennes-beaulieu-1.webp'
 import heroRennesBeaulieu2 from './assets/hero/rennes-beaulieu-2.webp'
 import {
+  appIcons,
   id,
   branding,
   casOrigin,
@@ -23,6 +24,8 @@ import {
 
 export default {
   id,
+  // Icon set of the subjects in "Mes notes", the tiles' one (shared.js).
+  appIconStyle: appIcons.style,
 
   university,
 

@@ -1,0 +1,57 @@
+// The grade service's app in the app lists (« Notes IUT Lannion »: the
+// ScoDoc passerelle) and whether a tile of it opens « Mes notes » instead.
+// Pure, see tests/gradesPortalApp.test.js; AvailableApplications passes the
+// config in.
+//
+// The app is recognised by its link only, never by its title: the portal
+// names it as it likes (« Notes », « Notes IUT Lannion », « ScoDoc »…) and
+// other apps have « notes » in theirs. A link counts when it is on the grade
+// service's origin, whatever the path (doAuth.php, the passerelle's pages),
+// or when it is one of the wrappers that lead there: the launch relay
+// (`/__ent_auth/launch?url=…`) and a CAS login (`/login?service=…`).
+
+function parseUrl(value, base) {
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    return new URL(value, base)
+  } catch {
+    return null
+  }
+}
+
+// The origin of `serviceUrl` (grades.serviceUrl in the config), or null.
+export function getGradesOrigin(serviceUrl) {
+  return parseUrl(serviceUrl)?.origin ?? null
+}
+
+// `base`: what relative links resolve against (the page's own URL).
+// `launchPath`: the launch relay's path; `casOrigin`: the CAS server's.
+export function isGradesPortalHref(href, { gradesOrigin, base, launchPath = '', casOrigin = '' } = {}) {
+  if (!gradesOrigin) return false
+  const url = parseUrl(href, base)
+  if (!url) return false
+  if (url.origin === gradesOrigin) return true
+
+  // One wrapper deep: a relay to a relay isn't something the portal makes.
+  const baseOrigin = parseUrl(base)?.origin
+  const isLaunchRelay = Boolean(launchPath) && url.origin === baseOrigin && url.pathname === launchPath
+  const isCasLogin = Boolean(casOrigin) && url.origin === parseUrl(casOrigin)?.origin && /\/login\/?$/.test(url.pathname)
+  const wrapped = isLaunchRelay ? url.searchParams.get('url') : isCasLogin ? url.searchParams.get('service') : null
+  return parseUrl(wrapped)?.origin === gradesOrigin
+}
+
+// A portal app's own `href` is often the ENT's link to it (/__ent_proxy/…):
+// where it really goes is its resolved launch link, so both are checked.
+export function isGradesPortalApp(application, { resolvedHref = '', ...options } = {}) {
+  if (!application) return false
+  return [application.href, resolvedHref].some((href) => isGradesPortalHref(href, options))
+}
+
+// The one rule for every tile (grid, search results, favourites, sidebar):
+// open « Mes notes » when the student has it, ScoDoc otherwise.
+// `hasGradesPage`: the page is in the student's navigation, i.e. their
+// establishment has it and their relevé isn't another formation's (unknown
+// counts, as for the nav item).
+export function opensGradesPageInApp(application, { hasGradesPage = false, ...options } = {}) {
+  return Boolean(hasGradesPage) && isGradesPortalApp(application, options)
+}

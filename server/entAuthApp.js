@@ -51,6 +51,7 @@ import {
   buildDemoAdeTreePayload,
   buildDemoAlertsPayload,
   buildDemoCalendarPayload,
+  buildDemoEvaluationDistribution,
   buildDemoGradesPayload,
   buildDemoLayoutData,
   buildDemoLayoutDocData,
@@ -74,6 +75,7 @@ import {
   normalizeDemoState,
   searchDemoAdeTree,
 } from '../src/demoAccount.js'
+import { findReleveEvaluation, normalizeDistributionAnswer } from '../src/evaluationDistribution.js'
 // options.analytics: { projectKey, host } — defaults to POSTHOG_PROJECT_KEY /
 // POSTHOG_HOST from the environment (analytics are off without a key).
 // options.session: { secret, previousSecrets, production } — defaults to
@@ -232,6 +234,9 @@ const runtimeGradesCache = new Map()
 // sessionId → Map(semesterId → { cachedAt, data }): relevés of the other
 // semesters, opened from the "Mes notes" page.
 const runtimeGradesSemesterCache = new Map()
+// sessionId → Map(`semesterId:evaluationId` → { cachedAt, data }): promo
+// grade histograms (counts only, no individual grade).
+const runtimeGradesDistributionCache = new Map()
 // sessionId → { cachedAt, data }: short-lived inbox snapshot.
 const runtimeMailCache = new Map()
 // sessionId → { createdAt, jar, origin, csrfToken }: webmail login context.
@@ -622,6 +627,7 @@ function dropRuntimeSession(sessionId) {
   runtimeSessions.delete(sessionId)
   runtimeGradesCache.delete(sessionId)
   runtimeGradesSemesterCache.delete(sessionId)
+  runtimeGradesDistributionCache.delete(sessionId)
   runtimeMailCache.delete(sessionId)
   runtimeMailContexts.delete(sessionId)
   runtimeMoodleDeadlinesCache.delete(sessionId)
@@ -685,6 +691,7 @@ function clearCachedGrades(sessionId) {
 
   runtimeGradesCache.delete(sessionId)
   runtimeGradesSemesterCache.delete(sessionId)
+  runtimeGradesDistributionCache.delete(sessionId)
 }
 
 function getCachedSemesterGrades(sessionId, semesterId) {
@@ -711,6 +718,28 @@ function setCachedSemesterGrades(sessionId, semesterId, data) {
 
   semesters.set(semesterId, { cachedAt: now, data })
   runtimeGradesSemesterCache.set(sessionId, semesters)
+}
+
+function getCachedDistribution(sessionId, key) {
+  const entry = runtimeGradesDistributionCache.get(sessionId)?.get(key)
+  return entry && Date.now() - entry.cachedAt <= GRADES_CACHE_TTL_MS ? entry.data : null
+}
+
+function setCachedDistribution(sessionId, key, data) {
+  if (!sessionId) {
+    return
+  }
+
+  const now = Date.now()
+  const distributions = runtimeGradesDistributionCache.get(sessionId) ?? new Map()
+  for (const [id, entry] of distributions.entries()) {
+    if (now - entry.cachedAt > GRADES_CACHE_TTL_MS) {
+      distributions.delete(id)
+    }
+  }
+
+  distributions.set(key, { cachedAt: now, data })
+  runtimeGradesDistributionCache.set(sessionId, distributions)
 }
 
 function getCachedMail(sessionId) {
@@ -2877,6 +2906,98 @@ app.get('/__ent_auth/grades/report.pdf', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="releve-${semesterId}.pdf"`)
     res.status(200).send(pdf)
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// The relevé of `semesterId` ('current': the newest one, from the
+// first-connection answer), from the caches when possible.
+async function getSemesterReleve(session, semesterId) {
+  if (semesterId === 'current') {
+    return (await getFirstConnectionGrades(session))?.['relevé'] ?? null
+  }
+
+  const firstConnection = getCachedGrades(session.id)?.['relevé']
+  if (firstConnection && String(firstConnection.formsemestre_id) === semesterId) {
+    return firstConnection
+  }
+
+  let gradesData = getCachedSemesterGrades(session.id, semesterId)
+  if (!gradesData) {
+    gradesData = await fetchGradesData(
+      session.jar,
+      `${encodeURIComponent('relevéEtudiant')}&semestre=${semesterId}`,
+      isGradesReportPayload,
+    )
+    setCachedSemesterGrades(session.id, semesterId, gradesData)
+  }
+  return gradesData['relevé'] ?? null
+}
+
+// 6e. Promo histogram of one evaluation, what the passerelle shows when a
+// grade is clicked (data.php?q=listeNotes&eval=…, normalized by
+// src/evaluationDistribution.js). Answers { status: 'ok', counts[21], total, bins }
+// or { status: 'unavailable', reason: 'disabled' | 'too-few' | 'hidden' }.
+// listeNotes takes any evaluation id of the ScoDoc instance: only those of
+// the student's own relevé are relayed.
+app.get('/__ent_auth/grades/evaluation-distribution', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(200).json({ authenticated: false, status: 'unavailable', reason: 'signed-out' })
+    }
+
+    const semesterId = req.query.semestre === 'current' ? 'current' : parseGradesSemesterId(req.query.semestre)
+    const evaluationId = parseGradesSemesterId(req.query.eval)
+    if (!semesterId || !evaluationId) {
+      return res.status(400).json({ error: 'Invalid semester or evaluation id.' })
+    }
+
+    if (isDemoSession(session)) {
+      const distribution = buildDemoEvaluationDistribution(semesterId, evaluationId)
+      setSessionCookie(res, session)
+      return distribution
+        ? res.status(200).json({ authenticated: true, ...distribution })
+        : res.status(404).json({ error: 'Unknown evaluation.' })
+    }
+
+    const cacheKey = `${semesterId}:${evaluationId}`
+    let distribution = getCachedDistribution(session.id, cacheKey)
+
+    if (!distribution) {
+      const releve = await getSemesterReleve(session, semesterId)
+      if (!findReleveEvaluation(releve, evaluationId)) {
+        return res.status(404).json({ error: 'Unknown evaluation.' })
+      }
+
+      if (getCachedGrades(session.id)?.config?.histogramme === false) {
+        // The passerelle's own switch, sent with the first-connection answer.
+        distribution = { status: 'unavailable', reason: 'disabled' }
+      } else if (!('publie' in releve) || releve.publie === false) {
+        // Unpublished relevé, or a department that hides its grades (the
+        // passerelle then strips the relevé down to its modules).
+        distribution = { status: 'unavailable', reason: 'hidden' }
+      } else {
+        distribution = normalizeDistributionAnswer(await fetchGradesData(
+          session.jar,
+          `listeNotes&eval=${evaluationId}`,
+          (data) => Array.isArray(data) || typeof data?.erreur === 'string',
+        ))
+        if (!distribution) {
+          throw new Error('ScoDoc returned an invalid grade distribution.')
+        }
+      }
+
+      setCachedDistribution(session.id, cacheKey, distribution)
+    }
+
+    setSessionCookie(res, session)
+    res.status(200).json({ authenticated: true, ...distribution })
   } catch (error) {
     res.status(500).json({
       error: error instanceof Error ? error.message : String(error),

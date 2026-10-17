@@ -7,6 +7,7 @@ import AppFooter from './components/AppFooter'
 import Sidebar from './components/Sidebar'
 import AccountModal from './components/AccountModal'
 import ChangelogPill from './components/ChangelogPill'
+import { markChangelogEntrySeen, replayChangelogEntry, setChangelogAudience } from './changelogStore'
 import ChangelogSheet from './components/ChangelogSheet'
 import GuidedTour from './components/GuidedTour'
 import LentButton from './components/LentButton'
@@ -43,18 +44,20 @@ import {
   persistTpSelection,
 } from './profileStorage'
 import WidgetContainer from './components/WidgetContainer'
+import GradesPage from './components/GradesPage'
+import LoadingDots from './components/LoadingDots'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
 import { getMobileTabItems, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from './navItems'
 import { navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
-import GradesPage from './components/GradesPage'
 import AbsencesPage from './components/AbsencesPage'
 import PlanningPage from './components/PlanningPage'
 import MailPage from './components/MailPage'
 import MoodlePage from './components/MoodlePage'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import { getAvailableWidgets } from './dashboardWidgets'
+import useGradesFormation from './useGradesFormation'
 import { clearStoredCustomBackground, getStoredCustomBackground, saveCustomBackground } from './customBackground'
 import {
   flushAnalytics,
@@ -113,16 +116,14 @@ const LOCAL_STORAGE_CACHE_KEYS = [
   'l-ent:ade-timetable-cache',
 ]
 
-// `keepSessionGrades`: at boot, keep this tab's grades copy (it makes a reload
-// instant); it still goes on logout and whenever the session is gone.
-function clearLegacySensitiveClientCaches({ keepSessionGrades = false } = {}) {
+function clearLegacySensitiveClientCaches() {
   try {
     localStorage.removeItem(LEGACY_SESSION_CACHE_KEY)
   } catch {
     // Ignore storage failures
   }
 
-  clearGradesCache({ keepSessionCache: keepSessionGrades })
+  clearGradesCache()
   clearAdeTimetableCache()
 }
 
@@ -1050,6 +1051,113 @@ function buildStoredTpSelection(program, year, td, tp, contextLabel) {
   }
 }
 
+// Some ADE accounts are attached to the TD node instead of the TP leaf (BUT
+// INFO-COM Lannion: "A1 J" holds "1A1 J" and "1A2 J"), and ADE only returns
+// events on those TP leaves. Pick the TP among the TD children with the ScoDoc
+// group, as the manual onboarding does for accounts without an ADE default.
+// When none matches, the TD's TPs come back as `tpChoice` and the onboarding
+// asks for the TP (year and TD already picked) rather than saving a TD-only
+// selection with an empty timetable. `forceChoice` (debug panel) asks even
+// when the TP is known.
+async function resolveDefaultSelectionTp(adeDefaultSelection, { tdAliases = [], tpAliases = [], forceChoice = false } = {}) {
+  const defaultSelection = await correctDefaultSelectionWithScodoc(adeDefaultSelection, tdAliases, tpAliases)
+  const keepDefault = { selection: defaultSelection }
+  if (!defaultSelection?.tdResourceId || (defaultSelection.tpResourceId && !forceChoice)) {
+    return keepDefault
+  }
+
+  try {
+    const tdTreeResponse = await getAdeTree(defaultSelection.tdResourceId)
+    const tpOptions = buildNextTpStepFromTree(tdTreeResponse?.tree).options
+    // No TP under it: the TD is the leaf, ADE has its events.
+    if (tpOptions.length === 0) {
+      return keepDefault
+    }
+
+    const tp = tpAliases?.length ? findTpOptionByLabel(tpOptions, tpAliases) : null
+    if (tp && !forceChoice) {
+      return {
+        selection: buildStoredTpSelection(
+          buildStoredSelectionOption(defaultSelection.programResourceId, defaultSelection.programLabel),
+          buildStoredSelectionOption(defaultSelection.yearResourceId, defaultSelection.yearLabel),
+          buildStoredSelectionOption(defaultSelection.tdResourceId, defaultSelection.tdLabel),
+          tp,
+          defaultSelection.contextLabel,
+        ),
+      }
+    }
+
+    const detectedTp = tp ?? tpOptions.find((option) => String(option.resourceId) === String(defaultSelection.tpResourceId)) ?? null
+    return { tpChoice: { baseSelection: defaultSelection, tpOptions, detectedTp } }
+  } catch {
+    // The ADE default stays usable without the TP; it can be picked in settings.
+    return keepDefault
+  }
+}
+
+// ADE's default can name the wrong group: Rennes ADE puts a 2A2 MMI student
+// on "2B2-StratUX MMI" while ScoDoc says TD 2A, TP 2A2. When ScoDoc names a TP
+// the default doesn't match, ScoDoc wins if its TD exists under the default's
+// year and its TP under that TD; otherwise ADE's default stays.
+async function correctDefaultSelectionWithScodoc(defaultSelection, tdAliases, tpAliases) {
+  const isDefaultTpScodocs = tpAliases.some((alias) => selectionLabelsMatch(defaultSelection?.tpLabel, alias))
+  if (!defaultSelection?.yearResourceId || !defaultSelection.tpResourceId || !tpAliases.length || !tdAliases.length || isDefaultTpScodocs) {
+    return defaultSelection
+  }
+
+  try {
+    const yearTreeResponse = await getAdeTree(defaultSelection.yearResourceId)
+    const td = findTpOptionByLabel(buildNextTpStepFromTree(yearTreeResponse?.tree).options, tdAliases)
+    if (!td?.resourceId) {
+      return defaultSelection
+    }
+
+    const tdTreeResponse = await getAdeTree(td.resourceId)
+    const tp = findTpOptionByLabel(buildNextTpStepFromTree(tdTreeResponse?.tree).options, tpAliases)
+    if (!tp?.resourceId) {
+      return defaultSelection
+    }
+
+    return buildStoredTpSelection(
+      buildStoredSelectionOption(defaultSelection.programResourceId, defaultSelection.programLabel),
+      buildStoredSelectionOption(defaultSelection.yearResourceId, defaultSelection.yearLabel),
+      td,
+      tp,
+      defaultSelection.contextLabel,
+    )
+  } catch {
+    return defaultSelection
+  }
+}
+
+// The onboarding at its TP step, with ADE's default year and TD already
+// picked. The year and TD lists are loaded too, so "back" works as usual.
+async function buildTpChoiceOnboardingState(treePayload, defaultSelection, { tpOptions, detectedTp }) {
+  let state = buildInitialTpOnboardingState(treePayload)
+  if (state.program?.resourceId && state.yearOptions.length === 0) {
+    const programTreeResponse = await getAdeTree(state.program.resourceId)
+    state = buildInitialTpOnboardingState(programTreeResponse?.tree)
+  }
+
+  const isOption = (option, resourceId) => String(option?.resourceId) === String(resourceId)
+  const year = state.yearOptions.find((option) => isOption(option, defaultSelection.yearResourceId))
+    ?? buildStoredSelectionOption(defaultSelection.yearResourceId, defaultSelection.yearLabel)
+  const yearStep = buildNextTpStepFromTree((await getAdeTree(year.resourceId))?.tree)
+  const td = yearStep.options.find((option) => isOption(option, defaultSelection.tdResourceId))
+    ?? buildStoredSelectionOption(defaultSelection.tdResourceId, defaultSelection.tdLabel)
+
+  return {
+    ...state,
+    contextLabel: state.contextLabel || defaultSelection.contextLabel || yearStep.contextLabel,
+    selectedYear: year,
+    tdOptions: yearStep.options,
+    selectedTd: td,
+    tpOptions,
+    detectedSelections: { year, td, tp: detectedTp },
+    errorMessage: '',
+  }
+}
+
 function getCurrentTpOnboardingStep(tpOnboardingState) {
   if (!tpOnboardingState.selectedYear) {
     return 'year'
@@ -1168,6 +1276,9 @@ function App() {
   const [isHydratingProfile, setIsHydratingProfile] = useState(false)
   const [hasHydratedProfile, setHasHydratedProfile] = useState(false)
   const [profileReloadNonce, setProfileReloadNonce] = useState(0)
+  // Set by the debug panel's "forcer le choix du TP", read once by the next
+  // profile hydration.
+  const debugForceTpChoiceRef = useRef(false)
   const [tpOnboardingState, setTpOnboardingState] = useState(createEmptyTpOnboardingState)
   const [tpTransitionDirection, setTpTransitionDirection] = useState('initial')
   const [completionScreenState, setCompletionScreenState] = useState({
@@ -1309,7 +1420,7 @@ function App() {
   }, [commitDebugState])
 
   useEffect(() => {
-    clearLegacySensitiveClientCaches({ keepSessionGrades: true })
+    clearLegacySensitiveClientCaches()
   }, [])
 
   const runDebugAction = useCallback(async (label, action) => {
@@ -1574,9 +1685,33 @@ function App() {
             // Grades are best-effort for onboarding auto-selection.
           }
         }
-        const defaultSelection = treePayload?.defaultSelection?.resourceId
-          ? treePayload.defaultSelection
+
+        // Debug panel, one shot: stop at the TP step even when it's detected.
+        const forceTpChoice = debugForceTpChoiceRef.current
+        debugForceTpChoiceRef.current = false
+
+        const resolvedDefault = treePayload?.defaultSelection?.resourceId
+          ? await resolveDefaultSelectionTp(treePayload.defaultSelection, {
+            tdAliases: scodocGroupSelection?.tdAliases ?? [],
+            tpAliases: scodocGroupSelection?.tpAliases ?? [],
+            forceChoice: forceTpChoice,
+          })
           : null
+
+        if (resolvedDefault?.tpChoice) {
+          const tpChoiceState = await buildTpChoiceOnboardingState(treePayload, resolvedDefault.tpChoice.baseSelection, resolvedDefault.tpChoice)
+          if (cancelled) {
+            return
+          }
+
+          persistEstablishment(detectedEstablishment, sessionState.user)
+          setEstablishment(detectedEstablishment)
+          setSelectedTp(null)
+          setTpOnboardingState(tpChoiceState)
+          return
+        }
+
+        const defaultSelection = resolvedDefault?.selection ?? null
 
         if (defaultSelection) {
           if (cancelled) {
@@ -1664,7 +1799,7 @@ function App() {
               nextTpOnboardingState.contextLabel || detectedTdStep.contextLabel,
             )
 
-            if (autoStoredSelection && (autoDetectedTp?.resourceId || detectedTdStep.options.length === 0)) {
+            if (autoStoredSelection && ((autoDetectedTp?.resourceId && !forceTpChoice) || detectedTdStep.options.length === 0)) {
               persistTpSelection(autoStoredSelection, sessionState.user)
               clearAdeTimetableCache()
               setSelectedTp(autoStoredSelection)
@@ -1999,23 +2134,50 @@ function App() {
       : resolveHeroImage(establishment, new Date(), heroOffset)
   ), [customBackground, establishment, heroOffset])
   const heroImageCount = useMemo(() => listHeroImages(establishment).length, [establishment])
-  const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment).length > 0, [establishment])
+  // BUT-only features ("Mes notes", the grade card) hide for a student whose
+  // relevé is another formation's; unknown keeps them (no flicker for BUT).
+  const gradesFormation = useGradesFormation({
+    enabled: Boolean(sessionState.authenticated && universityConfig.establishments?.byId?.[establishment]?.gradeWidgets),
+    user: sessionState.user,
+  })
+  const gradesSupported = gradesFormation !== 'other'
+  const hasMobileTabBar = useMemo(() => getMobileTabItems(establishment, { gradesSupported }).length > 0, [establishment, gradesSupported])
   const route = useAppRoute()
   // The sidebar and tab bar follow `route` right away (their highlight slides
   // over); the page content renders from the deferred value, in the
   // background, so mounting it doesn't freeze that animation.
   const deferredRoute = useDeferredValue(route)
-  const gradesPageAvailable = isGradesPageAvailable(establishment)
+  const scodocPagesAvailable = isGradesPageAvailable(establishment)
+  // « Mes notes » reads BUT relevés only; Absences works for any formation.
+  const gradesPageAvailable = scodocPagesAvailable && gradesSupported
   const planningPageAvailable = isPlanningPageAvailable()
   const mailPageAvailable = isMailPageAvailable()
   const moodlePageAvailable = isMoodlePageAvailable()
-  const isScodocRoute = deferredRoute === 'grades' || deferredRoute === 'absences'
-  const activeRoute = (isScodocRoute && gradesPageAvailable)
+  const activeRoute = (deferredRoute === 'grades' && gradesPageAvailable)
+    || (deferredRoute === 'absences' && scodocPagesAvailable)
     || (deferredRoute === 'planning' && planningPageAvailable)
     || (deferredRoute === 'mail' && mailPageAvailable)
     || (deferredRoute === 'moodle' && moodlePageAvailable)
     ? deferredRoute
     : 'dashboard'
+  const hasGradesPage = gradesPageAvailable
+  // « Nouveautés » about « Mes notes » only reach students who have it: a
+  // school with the page and a relevé confirmed BUT (not while unknown, so
+  // the pill doesn't come and go).
+  const hasConfirmedGradesPage = hasGradesPage && gradesFormation === 'BUT'
+  useEffect(() => {
+    setChangelogAudience(hasConfirmedGradesPage ? ['grades-page'] : [])
+  }, [hasConfirmedGradesPage])
+  const isGradesPage = activeRoute === 'grades'
+  // Being on « Mes notes » is having seen its launch, however the student
+  // got there (tab, card, "Dernière note", app list, a reload on the page):
+  // the dashboard card and the tab's « Nouveau » go. After the audience
+  // effect above, so an entry it brings in while on the page goes too.
+  useEffect(() => {
+    if (isGradesPage && hasConfirmedGradesPage) markChangelogEntrySeen('mes-notes')
+  }, [isGradesPage, hasConfirmedGradesPage])
+  // The grades page sits on the plain background, like with the wallpaper off.
+  const isWallpaperShown = showWallpaper && !isGradesPage
 
   // Rejects with a user-facing message (shown in Mon compte) on failure.
   const handleCustomBackgroundChange = useCallback(async (file) => {
@@ -2069,6 +2231,16 @@ function App() {
     observer.observe(column)
     heroObserverRef.current = observer
   }, [])
+
+  // The dashboard's "Dernière note": "Mes notes", opened on that grade.
+  const [pendingGradeRequest, setPendingGradeRequest] = useState(null)
+  const handleOpenLatestGrade = useCallback((grade) => {
+    setPendingGradeRequest({ evaluationId: grade.id, moduleCode: grade.resource })
+    navigateTo('grades')
+  }, [])
+  const clearPendingGradeRequest = useCallback(() => setPendingGradeRequest(null), [])
+  // The grade service's app in the app lists: "Mes notes" rather than ScoDoc.
+  const handleOpenGradesPage = useCallback(() => navigateTo('grades'), [])
 
   const handleWidgetVisibilityChange = useCallback((widgetId, visible) => {
     track('setting_changed', { setting: 'widget_visibility', value: visible ? 'on' : 'off', widget: widgetId })
@@ -2505,10 +2677,12 @@ function App() {
     setDebugOpen(true)
   }
 
-  const handleDebugRestartOnboarding = useCallback(() => {
+  const handleDebugRestartOnboarding = useCallback(({ forceTpChoice = false } = {}) => {
     if (!sessionState.authenticated || !sessionState.user) {
       return
     }
+
+    debugForceTpChoiceRef.current = forceTpChoice
 
     clearStoredTpSelection()
     clearAdeTimetableCache()
@@ -2716,13 +2890,7 @@ function App() {
     }
   }, [activeRoute])
 
-  const simpleLoadingDots = (
-    <span className="inline-flex items-center justify-center gap-[6px] text-text-muted" role="status" aria-live="polite" aria-label="Chargement">
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '0ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '140ms' }} />
-      <span className="lent-button-dot h-[5px] w-[5px] rounded-full bg-current" style={{ animationDelay: '280ms' }} />
-    </span>
-  )
+  const simpleLoadingDots = <LoadingDots className="text-text-muted" />
 
   return (
     <main className="relative min-h-screen flex flex-col bg-bg overflow-x-hidden">
@@ -2757,7 +2925,7 @@ function App() {
       ) : shouldShowCompletionScreen ? (
         <OnboardingCompletionPage userName={completionScreenState.userName} isLeaving={completionScreenState.leaving} />
       ) : sessionState.authenticated ? (
-        <div key={`dashboard-${dashboardRevealNonce}`} className={`${dashboardRevealNonce > 0 ? 'dashboard-reveal-shell ' : ''}${showWallpaper ? '' : 'dashboard-no-wallpaper '}flex flex-col min-h-screen 4xl:h-screen 4xl:min-h-0 4xl:overflow-hidden`}>
+        <div key={`dashboard-${dashboardRevealNonce}`} className={`${dashboardRevealNonce > 0 ? 'dashboard-reveal-shell ' : ''}${isWallpaperShown ? '' : 'dashboard-no-wallpaper '}flex flex-col min-h-screen 4xl:h-screen 4xl:min-h-0 4xl:overflow-hidden`}>
           <Sidebar
             authenticated={sessionState.authenticated}
             checking={sessionState.checking}
@@ -2774,10 +2942,11 @@ function App() {
             onUpdateClick={handleApplyUpdate}
             showChangelogPill={showChangelogPill}
             establishment={establishment}
+            gradesSupported={gradesSupported}
           />
-          <div ref={dashboardColumnRef} data-app-scroll-root className={`relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
+          <div ref={dashboardColumnRef} data-app-scroll-root className={`app-column relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
-            {showWallpaper ? (
+            {isWallpaperShown ? (
               <div
                 aria-hidden="true"
                 // Behind the ScoDoc pages the photo runs past the title down to the
@@ -2793,7 +2962,8 @@ function App() {
                 }}
               />
             ) : null}
-            <div className="4xl:hidden">
+            {/* On a phone, "Mes notes" starts with its own title: no top bar. */}
+            <div className={`${isGradesPage ? 'max-md:hidden ' : ''}4xl:hidden`}>
               <AppHeader
                 authenticated={sessionState.authenticated}
                 checking={sessionState.checking}
@@ -2823,7 +2993,7 @@ function App() {
             {activeRoute === 'dashboard' ? null : (
               <div key={activeRoute} ref={scodocPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
                 <PageErrorBoundary>
-                  {activeRoute === 'grades' ? <GradesPage storageScope={sessionState.user} /> : null}
+                  {activeRoute === 'grades' ? <GradesPage user={sessionState.user} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} /> : null}
                   {activeRoute === 'absences' ? <AbsencesPage /> : null}
                   {activeRoute === 'planning' ? (
                     <PlanningPage selection={selectedTp} sessionUser={sessionState.user} onOpenAccount={handleOpenAccountModal} />
@@ -2844,6 +3014,7 @@ function App() {
                 userName={sessionState.givenName ?? sessionState.user}
                 isSessionReady={!sessionState.checking}
                 establishment={establishment}
+                gradesSupported={gradesSupported}
                 sessionUser={sessionState.user}
                 selectedPlanningSelection={selectedTp}
                 nextClassLookaheadDays={appliedLookaheadDays}
@@ -2852,14 +3023,19 @@ function App() {
                 favoritesPortalTarget={isSidebarViewport ? favoritesSlotEl : null}
                 hiddenWidgets={hiddenWidgets}
                 onDismissGreeting={() => handleWidgetVisibilityChange('greeting', false)}
+                onOpenGrade={hasGradesPage ? handleOpenLatestGrade : null}
+                onOpenGradesPage={hasGradesPage ? handleOpenGradesPage : null}
                 showAppDescriptions={showAppDescriptions}
               />
             </div>
             <div className="4xl:mt-auto">
-              <AppFooter heroCredit={showWallpaper ? heroImage.credit : null} />
+              <AppFooter heroCredit={isWallpaperShown ? heroImage.credit : null} />
             </div>
           </div>
-          <MobileTabBar establishment={establishment} />
+          <MobileTabBar
+            establishment={establishment}
+            gradesSupported={gradesSupported}
+          />
         </div>
       ) : (
         <LoginPage
@@ -3089,10 +3265,34 @@ function App() {
               <button
                 type="button"
                 className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-not-allowed"
-                onClick={handleDebugRestartOnboarding}
+                onClick={() => handleDebugRestartOnboarding()}
                 disabled={!sessionState.authenticated || sessionState.checking}
               >
                 Refaire onboarding
+              </button>
+              {/* The TP step that students reach when their TP isn't found, even when it is. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-not-allowed"
+                onClick={() => handleDebugRestartOnboarding({ forceTpChoice: true })}
+                disabled={!sessionState.authenticated || sessionState.checking}
+              >
+                Onboarding : forcer le choix du TP
+              </button>
+              {/* Brings back the « Mes notes » launch as on release day (the
+                  dashboard card and the tab's « Nouveau »), only where it
+                  applies. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-wait"
+                onClick={() => void runDebugAction('Nouveautés : rejouer « Mes notes »', () => (
+                  replayChangelogEntry('mes-notes')
+                    ? { replayed: true }
+                    : { replayed: false, note: 'L’entrée ne s’applique pas ici : pas de page Mes notes, ou relevé non BUT (ou pas encore lu).' }
+                ))}
+                disabled={debugState.loading}
+              >
+                Nouveautés : rejouer « Mes notes »
               </button>
               <button
                 type="button"
