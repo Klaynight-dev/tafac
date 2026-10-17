@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { navigateTo } from '../appRoute'
-import { CROUS_MEAL_PRICE, fetchCrous, getStoredCrousRestaurant, pickMenuDay } from '../crousApi'
+import { CROUS_MEAL_PRICE, describeClosures, fetchCrous, getStoredCrousRestaurant, pickMenuDay } from '../crousApi'
 
 // « Menu du RU » card: the hot dishes of the student's RU today (or its next
 // day with a menu), the meal's price; the whole card opens the page.
@@ -36,7 +36,15 @@ export default function WidgetCrous({ visible = true, establishment = null }) {
   } else if (state.status === 'error' || !restaurant) {
     content = <p className="m-0 font-body text-[14px] font-medium text-text-muted">Choisis ton RU pour voir son menu.</p>
   } else if (!section) {
-    content = <p className="m-0 font-body text-[14px] font-medium text-text-muted">Pas de menu publié pour les jours qui viennent.</p>
+    const closure = describeClosures(state.data?.days ?? [])[0] ?? null
+    content = (
+      <>
+        <p className="m-0 font-body text-[15px] font-semibold leading-snug text-text">Menu pas encore publié</p>
+        <p className="m-0 line-clamp-2 font-body text-[13px] font-medium leading-snug text-text-muted">
+          {closure ?? 'Le CROUS ne l’a pas mis en ligne pour les prochains jours.'}
+        </p>
+      </>
+    )
   } else {
     content = (
       <>

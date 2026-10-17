@@ -5885,9 +5885,14 @@ app.get('/__ent_auth/crous', async (req, res) => {
     const restaurantId = typeof req.query.resto === 'string' && feed.restaurants.some((resto) => resto.id === req.query.resto)
       ? req.query.resto
       : null
+    // Many RUs publish no menu online: `hasMenu` says which have one from
+    // today on (French time), to point the student to them.
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris' }).format(new Date())
+    const hasUpcomingMenu = (id) => (feed.menus.get(id) ?? [])
+      .some((day) => day.date >= today && day.meals.some((meal) => meal.sections.length))
     res.setHeader('Cache-Control', 'private, max-age=600')
     res.status(200).json({
-      restaurants: feed.restaurants,
+      restaurants: feed.restaurants.map((resto) => ({ ...resto, hasMenu: hasUpcomingMenu(resto.id) })),
       restaurantId,
       days: restaurantId ? feed.menus.get(restaurantId) ?? [] : [],
       fetchedAt: new Date(feed.fetchedAt).toISOString(),

@@ -52,6 +52,11 @@ test('parseCrousMenus orders days and sections, drops empty dishes, keeps notice
   assert.deepEqual(menus.get('r440'), [])
 })
 
+test('parseMenuHtml drops the "menu non communiqué" placeholder', () => {
+  const [meal] = parseMenuHtml('<h2>midi</h2><h4>Plats Chaud</h4><ul><li>menu non communiqué</li></ul>')
+  assert.deepEqual(meal.sections, [])
+})
+
 test('parseMenuHtml reads several meals of a day', () => {
   const meals = parseMenuHtml('<h2>midi</h2><h4>Plat</h4><ul><li>Pâtes</li></ul><h2>soir</h2><h4>Plat</h4><ul><li>Soupe</li></ul>')
   assert.deepEqual(meals.map((meal) => [meal.name, meal.sections[0].items[0]]), [['midi', 'Pâtes'], ['soir', 'Soupe']])

@@ -5,6 +5,8 @@ import universityConfig from '@university'
 import { ENT_AUTH_PREFIX } from './entApi'
 import { getOfflineCache, setOfflineCache } from './offlineStorage'
 
+export { describeClosures, hasMenu, pickMenuDay, readOpeningHours, todayKey } from './crousMenu'
+
 const CROUS_CONFIG = universityConfig.crous ?? {}
 const CROUS_STORAGE_KEY = 'tafac:crous:restaurant'
 
@@ -45,22 +47,6 @@ export async function fetchCrous(restaurantId = null) {
     if (offline?.data) return { ...offline.data, offline: true }
     throw error
   }
-}
-
-// "2026-10-20" in local time.
-export function todayKey(now = new Date()) {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
-
-// The day to show first: today's menu, else the next one with a menu
-// (`isToday` false then, so the page can say so).
-export function pickMenuDay(days = [], now = new Date()) {
-  const today = todayKey(now)
-  const upcoming = days.filter((day) => day.date >= today)
-  const withMenu = upcoming.find((day) => day.meals.some((meal) => meal.sections.length))
-  const todays = upcoming.find((day) => day.date === today)
-  if (todays?.meals.some((meal) => meal.sections.length)) return { day: todays, isToday: true }
-  return { day: withMenu ?? todays ?? upcoming[0] ?? null, isToday: false }
 }
 
 // "Plats chauds" → its icon in the menu.

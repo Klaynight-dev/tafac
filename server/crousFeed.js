@@ -81,7 +81,10 @@ export function parseMenuHtml(html) {
     for (const block of rest.split(/<h4>/i).slice(1)) {
       const [titleHtml, body = ''] = block.split(/<\/h4>/i)
       const title = stripTags(titleHtml)
-      const items = [...body.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)].map((item) => stripTags(item[1])).filter(Boolean)
+      // "menu non communiqué" is the CROUS's placeholder, not a dish.
+      const items = [...body.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
+        .map((item) => stripTags(item[1]))
+        .filter((item) => item && !/^menu non communiqu/i.test(item))
       if (items.length) {
         const order = /^(\d+)\s*-\s*/.exec(title)
         sections.push({ order: order ? Number(order[1]) : 99, title: title.replace(/^\d+\s*-\s*/, '') || 'Menu', items })

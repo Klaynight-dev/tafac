@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { CROUS_MEAL_PRICE, fetchCrous, getStoredCrousRestaurant, pickMenuDay, sectionIcon, setStoredCrousRestaurant, todayKey } from '../crousApi'
+import { CROUS_MEAL_PRICE, describeClosures, fetchCrous, getStoredCrousRestaurant, hasMenu, pickMenuDay, readOpeningHours, sectionIcon, setStoredCrousRestaurant, todayKey } from '../crousApi'
 import { APP_NAME } from '../seo'
-import { AppPage, PAGE_CARD, PageButton, PageSection, StatCard, StatRow } from './AppPage'
+import { AppPage, INLINE_BUTTON, PAGE_CARD, PageButton, PageSection, StatCard, StatRow } from './AppPage'
 import Dropdown from './Dropdown'
 import { GradesNotice } from './GradesNotice'
 import LoadingDots from './LoadingDots'
@@ -23,10 +23,6 @@ function formatDay(date, { long = false } = {}) {
 
 function dayChipLabel(date) {
   return date === todayKey() ? 'Aujourd’hui' : formatDay(date)
-}
-
-function hasMenu(day) {
-  return Boolean(day?.meals.some((meal) => meal.sections.length))
 }
 
 function MenuSection({ section }) {
@@ -98,11 +94,23 @@ function CrousPage({ establishment = null }) {
   } else if (!restaurant) {
     body = <StatusMessage icon="carbon:restaurant" title="Choisis ton restaurant" detail="Sélectionne ton RU à côté du titre pour voir son menu." />
   } else if (!day) {
+    // The RU puts no menu online (many don't): say so, and point to the RUs
+    // that do, those of its town first.
+    const others = (data?.restaurants ?? [])
+      .filter((resto) => resto.hasMenu && resto.id !== restaurantId)
+      .sort((left, right) => Number(right.zone === restaurant.zone) - Number(left.zone === restaurant.zone))
+      .slice(0, 3)
     body = (
       <StatusMessage
-        icon="carbon:calendar"
-        title="Pas de menu publié"
-        detail={`${restaurant.title} n’a pas encore publié de menu pour les jours qui viennent.`}
+        icon="carbon:document-unknown"
+        title="Menu pas encore publié"
+        detail={`${restaurant.title} n’a pas mis son menu en ligne pour les prochains jours. Le CROUS le publie souvent la veille, parfois pas du tout.`}
+        action={others.length ? others.map((resto) => (
+          <button key={resto.id} type="button" onClick={() => handleRestaurantChange(resto.id)} className={INLINE_BUTTON}>
+            <Icon icon="carbon:restaurant" className="size-3.5" aria-hidden="true" />
+            Voir {resto.title}{resto.zone && resto.zone !== restaurant.zone ? ` · ${resto.zone}` : ''}
+          </button>
+        )) : null}
       />
     )
   } else if (!hasMenu(day)) {
@@ -127,20 +135,25 @@ function CrousPage({ establishment = null }) {
     )
   }
 
-  const dayOptions = days.filter((entry) => hasMenu(entry) || entry.date === todayKey()).slice(0, 7)
+  const dayOptions = days.filter((entry) => hasMenu(entry)).slice(0, 7)
+  const closures = useMemo(() => describeClosures(days), [days])
+  const openingHours = readOpeningHours(restaurant?.hours)
   const showsAnotherDay = hasMenu(day) && !selectedDate && !firstPick.isToday && day.date !== todayKey()
 
   const overview = restaurant ? (
     <div className="grid gap-4 max-md:gap-3">
       <StatRow>
         {CROUS_MEAL_PRICE ? <StatCard label="Repas étudiant" icon="carbon:wallet" value={CROUS_MEAL_PRICE} detail="Pour tous les étudiants" /> : null}
-        {restaurant.hours ? <StatCard label="Horaires" icon="carbon:time" value={restaurant.hours.split(',')[0].replace(/^\s*midi\s*:\s*/i, '')} detail={restaurant.hours.split(',').slice(1).join(',').trim() || null} className="[&_.font-display]:text-[26px]" /> : null}
+        {openingHours?.time ? <StatCard label="Horaires" icon="carbon:time" value={openingHours.time} detail={openingHours.detail} className="[&_.font-display]:text-[26px]" /> : null}
       </StatRow>
       {restaurant.closed ? (
         <GradesNotice icon="carbon:locked" label="Restaurant fermé" title="Restaurant fermé pour le moment">
           Le CROUS indique que ce restaurant est fermé : vérifie un autre RU proche.
         </GradesNotice>
       ) : null}
+      {closures.map((closure) => (
+        <GradesNotice key={closure} icon="carbon:locked" label="Fermeture annoncée" title={closure} />
+      ))}
       {showsAnotherDay ? (
         <GradesNotice icon="carbon:calendar" label="Jour affiché" title={`Pas de service aujourd’hui : voici le menu de ${formatDay(day.date, { long: true }).toLowerCase()}`} />
       ) : null}
