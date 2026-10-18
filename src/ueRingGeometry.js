@@ -45,18 +45,25 @@ export function buildSegmentPath(start, end, gap, outer = OUTER_RADIUS, inner = 
   return `M${x1},${y1}A${outer},${outer} 0 ${largeArc} 1 ${x2},${y2}L${x3},${y3}A${inner},${inner} 0 ${largeArc} 0 ${x4},${y4}Z`
 }
 
+// The path of one of the ring's `count` segments, `grow` thicker on each
+// side (the hovered UE), its gaps still parallel. A lone segment gets the
+// whole ring, no gap.
+export function buildRingSegmentPath(start, end, count, grow = 0) {
+  const outer = OUTER_RADIUS + grow
+  const inner = INNER_RADIUS - grow
+  return count === 1
+    ? buildSegmentPath(0, 2 * Math.PI - 0.0001, 0, outer, inner)
+    : buildSegmentPath(start, end, RING_GAP, outer, inner)
+}
+
 // `count` equal segments from 12 o'clock, clockwise: each one's angles and
-// path. A lone segment gets the whole ring, no gap.
+// path.
 export function buildRingSegments(count) {
   const step = (2 * Math.PI) / Math.max(count, 1)
   return Array.from({ length: count }, (_, index) => {
     const start = index * step
     const end = (index + 1) * step
-    return {
-      start,
-      end,
-      path: count === 1 ? buildSegmentPath(0, 2 * Math.PI - 0.0001, 0) : buildSegmentPath(start, end, RING_GAP),
-    }
+    return { start, end, path: buildRingSegmentPath(start, end, count) }
   })
 }
 

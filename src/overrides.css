@@ -954,11 +954,22 @@
    The UE ring, large and cut by the sheet's bottom edge: the arrows turn it
    to bring a UE to the top. Its segments are UE ribbons (UeBadge). */
 .ue-dial-turn {
-  transform-box: view-box;
-  transform-origin: 60px 60px;
   transform: rotate(var(--dial-rotation, 0deg));
   transition: transform 800ms var(--dial-spring);
   animation: ue-dial-spin-in 1000ms var(--dial-spring) backwards;
+  /* Its own layer, turned by the compositor: nothing repainted. */
+  will-change: transform;
+  isolation: isolate;
+}
+
+/* A shadow layer: offset as the dial stands, its ring blurred before it's
+   turned. --dx, --dy, --blur in the dial's 120-unit box. */
+.ue-dial-shadow {
+  transform: translate(calc(var(--dx) * 100% / 120), calc(var(--dy) * 100% / 120));
+}
+
+.ue-dial-shadow > .ue-dial-turn {
+  filter: blur(calc(var(--blur) * 100cqw / 120));
 }
 
 /* Under the hand: it follows the pointer, no easing. */

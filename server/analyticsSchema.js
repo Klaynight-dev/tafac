@@ -18,7 +18,7 @@ const WIDGET_IDS = ['greeting', 'nextClass', 'latestGrade', 'mail', 'deadlines']
 export const DURATION_BUCKETS = ['<500ms', '<1s', '<3s', '<10s', '10s+']
 const ERROR_KINDS = ['http_4xx', 'http_5xx', 'network', 'timeout', 'other']
 // How the student arrived on « Mes notes » (see src/gradesAnalytics.js).
-const GRADES_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'launch_card', 'history', 'other']
+const GRADES_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'sidebar_card', 'launch_card', 'history', 'other']
 const GRADES_ACTIONS = ['semester_changed', 'ue_view_opened', 'grade_detail_opened', 'pdf_downloaded', 'explainer_opened', 'department_message_expanded']
 // How the student arrived on the Planning page (see src/planningAnalytics.js).
 const PLANNING_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'history', 'other']
