@@ -9,7 +9,7 @@ function jsonResponse(payload, status = 200) {
   })
 }
 
-function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = false, law = false } = {}) {
+function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = false, law = false, noResources = false } = {}) {
   const requests = []
   let accessTokenRequestCount = 0
   let casFollowCount = 0
@@ -36,9 +36,11 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
             projectId: 1,
             accessToken: 'fixture-api-token',
             refreshToken: 'fixture-refresh-token',
-            resources: law
-              ? [{ id: 605, name: 'TP 04B' }]
-              : [{ id: 14961, name: 'BUT MMI 2' }],
+            resources: noResources
+              ? []
+              : law
+                ? [{ id: 605, name: 'TP 04B' }]
+                : [{ id: 14961, name: 'BUT MMI 2' }],
           },
         },
       })
@@ -303,4 +305,28 @@ test('maps a non-BUT path to generic level, TD and TP selections', async () => {
   })
   const levelFocus = levelTree.root.children[0].children[0].children[0].children[0]
   assert.deepEqual(levelFocus.children.map(({ id }) => id), ['604'])
+})
+
+test('lets a found group stand in for an account without one', async () => {
+  const { client } = createFixtureClient({ noResources: true })
+
+  const bare = await client.fetchPortalTree({}, { cacheScope: 'portal-fixture-none' })
+  assert.equal(bare.defaultSelection, null)
+  assert.equal(bare.currentResourceId, null)
+
+  const found = await client.fetchPortalTree({}, { fallbackResourceId: '14962', cacheScope: 'portal-fixture-none' })
+  assert.equal(found.defaultSelection.resourceId, '14962')
+  assert.equal(found.defaultSelection.yearLabel, 'MMI A2')
+  assert.equal(found.defaultSelection.tpLabel, '2B2-Dev MMI')
+  assert.deepEqual(found.selectionPathIds, ['100', '200', '300', '400', '14962'])
+
+  // Not in the tree: as without it.
+  const unknown = await client.fetchPortalTree({}, { fallbackResourceId: '999', cacheScope: 'portal-fixture-none' })
+  assert.equal(unknown.defaultSelection, null)
+})
+
+test('keeps the account’s own group over a fallback', async () => {
+  const { client } = createFixtureClient()
+  const tree = await client.fetchPortalTree({}, { fallbackResourceId: '14962', cacheScope: 'portal-fixture-own' })
+  assert.equal(tree.defaultSelection.resourceId, '14961')
 })
