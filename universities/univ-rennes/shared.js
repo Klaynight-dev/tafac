@@ -60,6 +60,9 @@ export const features = {
   moodleDeadlines: true,
   // « Certificat de scolarité » in Réglages › Compte, from MonDossierWeb.
   schoolCertificate: true,
+  // « Dernière note » at the bottom of the sidebar, opening « Mes notes » on
+  // that grade (needs `grades`). Off: the dashboard's card already shows it.
+  sidebarLatestGrade: false,
   weather: { enabled: true, defaultCity: 'Rennes' },
   serviceCategories: false,
   demo: true,

@@ -63,6 +63,7 @@ export const features = {
   grades: false,     // notes ScoDoc — true | false | 'disabled' (pastille visible, données démo)
   mail: false,       // widget « Mails récents » (lecture de la boîte de réception via le webmail)
   moodleDeadlines: false, // widget « Échéances Moodle » (devoirs/tests à rendre) — distinct de `moodle`
+  sidebarLatestGrade: false, // « Dernière note » en bas de la barre latérale, qui ouvre « Mes notes » sur cette note (requiert `grades`)
   weather: { enabled: true, defaultCity: 'Paris' },
   serviceCategories: false, // filtres par catégorie au-dessus de la grille d'applications (voir services.categories)
   demo: true,        // compte de démonstration (demo@tafac.fr)

@@ -2083,12 +2083,14 @@ function App() {
     showPage(page, source)
   }, [showPage])
 
-  // The dashboard's "Dernière note": "Mes notes", opened on that grade.
+  // The dashboard's "Dernière note" (or the sidebar's, `source`): "Mes
+  // notes", opened on that grade.
   const [pendingGradeRequest, setPendingGradeRequest] = useState(null)
-  const handleOpenLatestGrade = useCallback((grade) => {
+  const handleOpenLatestGrade = useCallback((grade, source = 'dashboard_card') => {
     setPendingGradeRequest({ evaluationId: grade.id, moduleCode: grade.resource })
-    handleNavigatePage('grades', 'dashboard_card')
+    handleNavigatePage('grades', source)
   }, [handleNavigatePage])
+  const handleOpenSidebarGrade = useCallback((grade) => handleOpenLatestGrade(grade, 'sidebar_card'), [handleOpenLatestGrade])
   const clearPendingGradeRequest = useCallback(() => setPendingGradeRequest(null), [])
   // The grade service's app in the app lists ('tile': "Mes notes" rather
   // than ScoDoc) and the launch card ('launch_card') say which they are.
@@ -2769,6 +2771,7 @@ function App() {
             gradesSupported={gradesSupported}
             activePage={isGradesPage ? 'grades' : 'dashboard'}
             onNavigatePage={handleNavigatePage}
+            onOpenLatestGrade={universityConfig.features?.sidebarLatestGrade === true && sessionState.authenticated && hasGradesPage ? handleOpenSidebarGrade : null}
           />
           <div ref={dashboardColumnRef} className={`app-column relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
