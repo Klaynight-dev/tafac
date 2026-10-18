@@ -15,6 +15,8 @@ import { APP_NAME } from '../seo'
 
 const universityLogo = universityConfig.branding.logo
 const universityLogoAlt = universityConfig.branding.logoAlt ?? universityConfig.university?.name ?? ''
+const passwordNote = universityConfig.branding.loginPasswordNote ?? null
+const repoUrl = universityConfig.branding.about?.repoUrl ?? null
 const loginLinks = universityConfig.links ?? {}
 // Width of the login page's left panel, matching its flex-basis.
 const PANEL_WIDTH = 'min(529px, 47vw)'
@@ -159,20 +161,26 @@ function LoginPage({
         <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[clamp(14px,calc(6vh_-_26px),25px)] px-[88px] pb-[clamp(56px,calc(30vh_-_150px),120px)] max-4xl:w-[min(640px,100%)] max-4xl:gap-[clamp(14px,calc(6vh_-_26px),24px)] max-4xl:px-10 max-4xl:pb-[clamp(24px,calc(30vh_-_170px),48px)] max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
           <header className="relative flex shrink-0 justify-center text-center">
             <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[clamp(66px,calc(30vh_-_153px),117px)] max-4xl:pt-[66px] max-md:pt-[62px]">
-              {/* The left panel (and its app logo) is hidden below 4xl, so
-                  show the logo above the university one there instead. */}
-              <img
-                className="hidden h-11 w-auto object-contain max-4xl:block"
-                src={lentLogo}
-                alt={APP_NAME}
-              />
-              <img
-                className="block h-[51px] w-[173px] object-contain dark:invert"
-                src={universityLogo}
-                alt={universityLogoAlt}
-                width="173"
-                height="51"
-              />
+              {/* The left panel (its app logo and tagline) is hidden below
+                  4xl: both here instead. */}
+              <div className="hidden flex-col items-center gap-3 max-4xl:flex">
+                <img className="h-11 w-auto object-contain" src={lentLogo} alt={APP_NAME} />
+                <p className="m-0 text-[15px] font-semibold leading-[1.2] text-text-muted font-body">Cours, notes et services de ton université</p>
+              </div>
+
+              {/* What Tafac works with, over the title: the university's logo
+                  under "Compatible avec" rather than as the form's header
+                  (Tafac isn't the university's). */}
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-[13px] font-medium leading-none text-text-muted font-body">Compatible avec</span>
+                <img
+                  className="block h-[51px] w-[173px] object-contain dark:invert max-md:h-11 max-md:w-[150px]"
+                  src={universityLogo}
+                  alt={universityLogoAlt}
+                  width="173"
+                  height="51"
+                />
+              </div>
 
               <div className="flex w-full flex-col items-center gap-[10px] text-text">
                 <h2 className="m-0 w-full text-[40px] leading-[0.9] max-md:text-[36px]">Connexion</h2>
@@ -260,6 +268,11 @@ function LoginPage({
             </div>
           ) : null}
 
+          {/* What happens to the password. */}
+          {passwordNote ? (
+            <p className="m-0 mx-auto max-w-[400px] text-center text-[13px] font-medium leading-[1.35] text-text-muted font-body">{passwordNote}</p>
+          ) : null}
+
           {otherUniversities.length > 0 ? (
             <div
               className="mt-auto flex flex-col items-center gap-4 pt-[clamp(12px,calc(10vh_-_50px),40px)] max-md:mt-0 max-md:pt-3 max-md:gap-3"
@@ -288,8 +301,11 @@ function LoginPage({
           ) : null}
         </div>
 
-        <footer className="absolute bottom-8 left-12 right-12 flex flex-wrap justify-end gap-[8px_18px] text-text-muted text-[13px] font-medium leading-[1.1] font-body max-3xl:left-8 max-3xl:right-8 max-3xl:bottom-6 max-md:left-5 max-md:right-5 max-md:bottom-5 max-md:justify-center" aria-label="Copyright">
+        <footer className="absolute bottom-8 left-12 right-12 flex flex-wrap justify-end gap-[8px_18px] text-text-muted text-[13px] font-medium leading-[1.1] font-body max-3xl:left-8 max-3xl:right-8 max-3xl:bottom-6 max-md:left-5 max-md:right-5 max-md:bottom-5 max-md:justify-center max-md:text-center" aria-label="Copyright">
           <span>{universityConfig.branding.loginFooterLine}</span>
+          {repoUrl ? (
+            <a className="text-text-muted underline underline-offset-2 hover:text-text" href={repoUrl} target="_blank" rel="noreferrer">Code source</a>
+          ) : null}
         </footer>
       </div>
     </section>

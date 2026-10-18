@@ -14,14 +14,21 @@ export const university = {
 export const branding = {
   appName: 'Tafac',
   defaultTitle: "Tafac | Cours, notes et services de ton université",
-  seoTitle: "Tafac - Cours, notes et services de ton université",
+  // Says what it is and that it isn't the university's (search results,
+  // link previews, the installed app).
+  seoTitle: "Tafac – client non officiel de l'ENT de l'Université de Rennes",
   seoDescription:
-    "Tafac réunit ta vie universitaire avec tes cours, notes et messagerie dans une seule application rapide et agréable à utiliser.",
+    "Emploi du temps, notes ScoDoc, mails et rendus Moodle sur une seule page. Projet étudiant libre, non affilié à l'Université de Rennes. Testé à l'IUT de Lannion.",
   pwaDescription:
-    "Tafac réunit ta vie universitaire avec tes cours, notes et messagerie dans une seule application rapide et agréable à utiliser.",
+    "Emploi du temps, notes ScoDoc, mails et rendus Moodle sur une seule page. Projet étudiant non affilié à l'Université de Rennes.",
+  // Former names, for search engines (the site's name in results).
+  alternateNames: ["l'ent"],
   logoAlt: 'Université de Rennes',
   sidebarLogoAlt: "Tafac - Université de Rennes",
-  loginFooterLine: "Client alternatif à l'ENT de l'Université de Rennes",
+  loginFooterLine: "Projet étudiant non officiel, non affilié à l'Université de Rennes",
+  // Under the login form: what happens to the password (server/entAuthApp.js
+  // keeps only the CAS session, never the password).
+  loginPasswordNote: "Ton mot de passe sert uniquement à te connecter au site de l'université et n'est jamais enregistré",
   about: {
     intro: "est un client alternatif aux services numériques de l'Université de Rennes.",
     disclaimer:

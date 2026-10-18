@@ -6,7 +6,7 @@ export const SEO_TITLE = universityConfig.branding.seoTitle
 export const SEO_DESCRIPTION = universityConfig.branding.seoDescription
 export const SEO_ROBOTS_CONTENT = 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'
 
-const OG_IMAGE_PATH = '/og-image.png'
+const OG_IMAGE_PATH = '/og-image.jpg'
 const STRUCTURED_DATA_SCRIPT_ID = 'seo-structured-data'
 
 function ensureHeadNode(selector, tagName, attributes = {}) {
@@ -38,34 +38,33 @@ function setCanonicalLink(href) {
   link.setAttribute('href', href)
 }
 
+// The site (its name and former names, for the name shown in search
+// results) and the app, as index.html has them.
 function buildStructuredData(pageUrl, imageUrl) {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    name: APP_NAME,
-    headline: SEO_TITLE,
-    description: SEO_DESCRIPTION,
-    applicationCategory: 'EducationApplication',
-    operatingSystem: 'Any',
-    inLanguage: 'fr-FR',
-    isAccessibleForFree: true,
-    offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'EUR',
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: APP_NAME,
+      alternateName: universityConfig.branding.alternateNames ?? [],
+      url: pageUrl,
+      inLanguage: 'fr-FR',
     },
-    url: pageUrl,
-    image: imageUrl,
-    sameAs: [
-      universityConfig.branding.about?.repoUrl,
-    ].filter(Boolean),
-    featureList: [
-      'Consulter ses notes et résultats',
-      'Retrouver son emploi du temps ADE',
-      'Accéder aux services universitaires depuis une interface unique',
-      "Installer l'application en PWA sur mobile et ordinateur",
-    ],
-  }
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      name: APP_NAME,
+      url: pageUrl,
+      image: imageUrl,
+      description: SEO_DESCRIPTION,
+      applicationCategory: 'EducationalApplication',
+      operatingSystem: 'Web, iOS, Android',
+      inLanguage: 'fr-FR',
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+      sameAs: [universityConfig.branding.about?.repoUrl].filter(Boolean),
+    },
+  ]
 }
 
 function syncStructuredData(pageUrl, imageUrl) {
@@ -78,8 +77,10 @@ function syncStructuredData(pageUrl, imageUrl) {
   script.textContent = JSON.stringify(buildStructuredData(pageUrl, imageUrl))
 }
 
+// Signed out (the login page, the one search engines see): the SEO title as
+// it is, so the result's title is the page's.
 export function buildDocumentTitle(authenticated) {
-  return authenticated ? APP_DEFAULT_TITLE : `Connexion | ${SEO_TITLE}`
+  return authenticated ? APP_DEFAULT_TITLE : SEO_TITLE
 }
 
 export function syncRuntimeSeo({ authenticated = false } = {}) {
@@ -87,7 +88,8 @@ export function syncRuntimeSeo({ authenticated = false } = {}) {
     return
   }
 
-  const pageUrl = new URL(window.location.pathname + window.location.search, window.location.origin).toString()
+  // Always the home page: the app is one page whatever its path or query.
+  const pageUrl = new URL('/', window.location.origin).toString()
   const imageUrl = new URL(OG_IMAGE_PATH, window.location.origin).toString()
   const title = buildDocumentTitle(authenticated)
 

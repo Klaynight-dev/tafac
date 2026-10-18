@@ -68,16 +68,20 @@ const entDevAuthPlugin = {
     mountEntAuthApp(server)
   },
   // index.html carries %LENT_*% placeholders so titles/SEO follow the
-  // configured university in both dev and build.
-  transformIndexHtml(html) {
+  // configured university in both dev and build. Its __PUBLIC_ORIGIN__ stays
+  // in the build, for the server to fill in per request (server.js); the dev
+  // server leaves the links relative.
+  transformIndexHtml(html, context) {
     const replacements = {
       LENT_APP_NAME: branding.appName,
       LENT_SEO_TITLE: branding.seoTitle,
       LENT_SEO_DESCRIPTION: branding.seoDescription,
       LENT_REPO_URL: branding.about?.repoUrl ?? '',
+      LENT_ALTERNATE_NAMES_JSON: JSON.stringify(branding.alternateNames ?? []),
     }
 
-    return html.replace(/%(LENT_[A-Z_]+)%/g, (match, token) => replacements[token] ?? match)
+    const filled = html.replace(/%(LENT_[A-Z_]+)%/g, (match, token) => replacements[token] ?? match)
+    return context?.server ? filled.replaceAll('__PUBLIC_ORIGIN__', '') : filled
   },
 }
 
@@ -113,6 +117,9 @@ export default defineConfig({
         name: branding.appName,
         short_name: branding.appName,
         description: branding.pwaDescription ?? branding.seoDescription,
+        lang: 'fr',
+        id: '/',
+        categories: ['education'],
         theme_color: '#FCFBF8',
         background_color: '#FCFBF8',
         display: 'standalone',
