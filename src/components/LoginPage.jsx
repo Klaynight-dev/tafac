@@ -168,6 +168,20 @@ function LoginPage({
                 <p className="m-0 text-[15px] font-semibold leading-[1.2] text-text-muted font-body">Cours, notes et services de ton université</p>
               </div>
 
+              {/* What Tafac works with, over the title: the university's logo
+                  under "Compatible avec" rather than as the form's header
+                  (Tafac isn't the university's). */}
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-[13px] font-medium leading-none text-text-muted font-body">Compatible avec</span>
+                <img
+                  className="block h-[51px] w-[173px] object-contain dark:invert max-md:h-11 max-md:w-[150px]"
+                  src={universityLogo}
+                  alt={universityLogoAlt}
+                  width="173"
+                  height="51"
+                />
+              </div>
+
               <div className="flex w-full flex-col items-center gap-[10px] text-text">
                 <h2 className="m-0 w-full text-[40px] leading-[0.9] max-md:text-[36px]">Connexion</h2>
                 <p className="m-0 w-full text-[16px] font-medium leading-4 font-body max-md:text-[15px]">
@@ -176,20 +190,6 @@ function LoginPage({
               </div>
             </div>
           </header>
-
-          {/* What Tafac works with, above the form: the university's logo
-              under "Compatible avec" rather than as the form's header (Tafac
-              isn't the university's). */}
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-[13px] font-medium leading-none text-text-muted font-body">Compatible avec</span>
-            <img
-              className="block h-[51px] w-[173px] object-contain dark:invert max-md:h-11 max-md:w-[150px]"
-              src={universityLogo}
-              alt={universityLogoAlt}
-              width="173"
-              height="51"
-            />
-          </div>
 
           {/* Real form with labelled username/current-password fields and a
               submit button, so password managers recognize and offer to save
