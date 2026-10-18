@@ -58,9 +58,10 @@ export function buildNavItems(establishment, { gradesSupported = true } = {}) {
       targetId: 'sidebar-section-applications',
     },
     ...(gradesNavItem ? [gradesNavItem] : []),
-    // The in-app planning page (PlanningPage).
+    // The in-app planning page (PlanningPage), launched by its own
+    // « Nouveautés » entry (`announcedBy`, as « Mes notes »).
     ...(universityConfig.features?.planning
-      ? [{ id: 'planning', label: 'Planning', icon: 'carbon:calendar', page: 'planning' }]
+      ? [{ id: 'planning', label: 'Planning', icon: 'carbon:calendar', page: 'planning', announcedBy: 'planning' }]
       : []),
     // shortLabel: the tab bar's narrower tabs.
     ...(MAIL_HREF

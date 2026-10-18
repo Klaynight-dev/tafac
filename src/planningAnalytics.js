@@ -11,8 +11,10 @@
 // - nav / tabbar: the sidebar item, the phone's tab bar;
 // - tile: the planning service's app in the app lists (planningPortalApp.js);
 // - dashboard_card: the dashboard's "Prochain cours";
+// - launch_card: the Planning's announcement under the widgets
+//   (PlanningLaunchCard);
 // - history: back, forward or a reload landing on the page.
-export const PLANNING_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'history', 'other']
+export const PLANNING_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'launch_card', 'history', 'other']
 
 export function toPlanningPageSource(source) {
   return PLANNING_PAGE_SOURCES.includes(source) ? source : 'other'

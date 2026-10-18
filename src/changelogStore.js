@@ -4,6 +4,7 @@ import { CHANGELOG } from './changelog'
 import {
   forgetSeen,
   getApplicableEntries,
+  getHeldLaunchIds,
   markAllSeen,
   markEntrySeen,
   parseSeenValue,
@@ -24,6 +25,8 @@ import {
 // open: whether the list is showing
 // highlightIds: the ids that were unseen when the list opened, marked in it
 //   until it closes
+// heldLaunchIds: spotlight entries whose card waits for the next page load,
+//   another launch having been dealt with in this one (getLaunchId)
 
 // What this student has, beyond the university (setChangelogAudience): known
 // only once the app has read the student's establishment and relevé.
@@ -43,7 +46,7 @@ function getState() {
     if (visit.nextSeen) {
       writeSeenValue(visit.nextSeen)
     }
-    state = { entries, unseenIds: visit.unseenIds, open: false, highlightIds: [], firstVisit: visit.firstVisit }
+    state = { entries, unseenIds: visit.unseenIds, open: false, highlightIds: [], heldLaunchIds: [], firstVisit: visit.firstVisit }
   }
   return state
 }
@@ -63,7 +66,8 @@ export function useChangelog() {
 }
 
 // What this student has (e.g. ['grades-page'] for a BUT student of a school
-// with "Mes notes"), set by App.jsx once known. Entries it brings in are new
+// with "Mes notes", 'planning-page' where the Planning page is), set by
+// App.jsx once known. Entries it brings in are new
 // to the pill, unless this is the device's first visit: then, like
 // everything else on a first visit, they're recorded as seen.
 export function setChangelogAudience(nextAudience) {
@@ -98,24 +102,37 @@ export function closeChangelog() {
 }
 
 // One entry seen, the others left as they are: a spotlight entry's card
-// closed or its page visited. Nothing to do once it's seen.
+// closed or its page visited. Nothing to do once it's seen. The other
+// launches still unseen keep their tab mark but wait for the next page
+// load for their card (getHeldLaunchIds).
 export function markChangelogEntrySeen(id) {
-  const { unseenIds } = getState()
+  const { entries, unseenIds, heldLaunchIds } = getState()
   if (!unseenIds.includes(id)) return
   const nextSeen = markEntrySeen({ id, allEntries: CHANGELOG, rawSeen: readSeenValue() })
   if (nextSeen) writeSeenValue(nextSeen)
-  setState({ unseenIds: unseenIds.filter((unseenId) => unseenId !== id) })
+  const isLaunch = entries.some((entry) => entry.id === id && entry.spotlight)
+  setState({
+    unseenIds: unseenIds.filter((unseenId) => unseenId !== id),
+    heldLaunchIds: isLaunch ? [...new Set([...heldLaunchIds, ...getHeldLaunchIds(entries, unseenIds, id)])] : heldLaunchIds,
+  })
 }
 
 // Debug menu: makes `id` unseen again, so the pill (or, for a spotlight
-// entry, its card and tab mark) comes back for it.
+// entry, its card and tab mark) comes back for it. A spotlight entry's card
+// comes first, the other launches held back for this visit.
 // False when the entry doesn't apply to this student.
 export function replayChangelogEntry(id) {
-  const { entries, unseenIds } = getState()
-  if (!entries.some((entry) => entry.id === id)) return false
+  const { entries, unseenIds, heldLaunchIds } = getState()
+  const entry = entries.find((candidate) => candidate.id === id)
+  if (!entry) return false
   const nextSeen = forgetSeen({ id, allEntries: CHANGELOG, rawSeen: readSeenValue() })
   if (nextSeen) writeSeenValue(nextSeen)
   const unseen = new Set([...unseenIds, id])
-  setState({ open: false, highlightIds: [], unseenIds: entries.filter((entry) => unseen.has(entry.id)).map((entry) => entry.id) })
+  setState({
+    open: false,
+    highlightIds: [],
+    unseenIds: entries.filter((candidate) => unseen.has(candidate.id)).map((candidate) => candidate.id),
+    heldLaunchIds: entry.spotlight ? getHeldLaunchIds(entries, [...unseen], id) : heldLaunchIds,
+  })
   return true
 }

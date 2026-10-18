@@ -115,11 +115,29 @@ export function markEntrySeen({ id, allEntries, rawSeen }) {
 
 // The unseen ids the « Nouveautés » pill (and the Réglages dot) is about:
 // all but `spotlight` entries, which get their own card on the dashboard
-// (GradesLaunchCard) instead of a second signal for the same thing. They
-// stay in the list like any other.
+// (LaunchCard) instead of a second signal for the same thing. They stay in
+// the list like any other.
 export function getPillIds(entries, unseenIds) {
   const spotlit = new Set(entries.filter((entry) => entry.spotlight).map((entry) => entry.id))
   return unseenIds.filter((id) => !spotlit.has(id))
+}
+
+// The spotlight entry whose card the dashboard shows: the newest unseen one
+// (`entries` come newest first), leaving out `heldIds`, or null. One card
+// at a time, never two launches stacked.
+export function getLaunchId(entries, unseenIds, heldIds = []) {
+  const unseen = new Set(unseenIds)
+  const held = new Set(heldIds)
+  return entries.find((entry) => entry.spotlight && unseen.has(entry.id) && !held.has(entry.id))?.id ?? null
+}
+
+// The launches to hold back until the next visit once `id` is dealt with
+// (seen, or brought back by the debug menu): the other spotlight entries
+// still unseen. So closing one card doesn't pop the next one up in its
+// place; it comes with the next page load.
+export function getHeldLaunchIds(entries, unseenIds, id) {
+  const unseen = new Set(unseenIds)
+  return entries.filter((entry) => entry.spotlight && entry.id !== id && unseen.has(entry.id)).map((entry) => entry.id)
 }
 
 // Value to store once the list was opened: everything shown is seen, and

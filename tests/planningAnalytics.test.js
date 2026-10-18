@@ -37,8 +37,8 @@ function createClock() {
 test('page sources outside the list count as other', () => {
   assert.equal(toPlanningPageSource('dashboard_card'), 'dashboard_card')
   assert.equal(toPlanningPageSource('history'), 'history')
-  // The launch card is « Mes notes »'s.
-  assert.equal(toPlanningPageSource('launch_card'), 'other')
+  // The Planning's launch card (PlanningLaunchCard).
+  assert.equal(toPlanningPageSource('launch_card'), 'launch_card')
   assert.equal(toPlanningPageSource('sidebar'), 'other')
   assert.equal(toPlanningPageSource(undefined), 'other')
 })

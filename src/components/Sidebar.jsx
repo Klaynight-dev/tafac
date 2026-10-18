@@ -139,8 +139,9 @@ function Sidebar({
     }
 
     if (item.page) {
-      // Anonymous analytics: the item's « Nouveau » marker was showing.
-      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker' })
+      // Anonymous analytics: the item's « Nouveau » marker was showing
+      // (`launch`: its page, 'grades' or 'planning').
+      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker', launch: item.page })
       onNavigatePage?.(item.page, 'nav')
       return
     }
