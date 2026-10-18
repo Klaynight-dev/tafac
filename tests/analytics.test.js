@@ -265,3 +265,63 @@ test('grades events take the session demo flag from the server, never the client
   analytics.ingest({ events: [{ event: 'grades_action', properties: { action: 'pdf_downloaded', demo: true } }] }, { id: 'real-session', demo: false })
   assert.deepEqual(client.captured.map(({ properties }) => properties.demo), [true, false])
 })
+
+test('page_viewed keeps each page to its own sources, and `view` to the planning', () => {
+  const opts = { hasSession: true }
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'dashboard_card', view: 'two_days', week: '2026-10-19', day: '2026-10-21' } }, opts)?.properties,
+    { page: 'planning', source: 'dashboard_card', view: 'two_days' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'tile', view: 'twoDays' } }, opts)?.properties,
+    { page: 'planning', source: 'tile' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'grades', source: 'nav', view: 'week' } }, opts)?.properties,
+    { page: 'grades', source: 'nav' },
+  )
+  // The launch card announces « Mes notes » only.
+  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'launch_card' } }, opts), null)
+  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'nav' } }, { hasSession: false }), null)
+})
+
+test('planning_loaded keeps a status, a bucket and error_kind for unavailable only', () => {
+  const opts = { hasSession: true }
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'planning_loaded', properties: { status: 'unavailable', duration_bucket: '<10s', error_kind: 'http_5xx', error: 'ADE down', week: '2026-10-19' } }, opts)?.properties,
+    { status: 'unavailable', duration_bucket: '<10s', error_kind: 'http_5xx' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'planning_loaded', properties: { status: 'empty', duration_bucket: '<1s', error_kind: 'network', classes: 0 } }, opts)?.properties,
+    { status: 'empty', duration_bucket: '<1s' },
+  )
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'planning_loaded', properties: { status: 'ok', duration_bucket: 840, group: 'TP3' } }, opts)?.properties,
+    { status: 'ok' },
+  )
+  assert.deepEqual(sanitizeAnalyticsEvent({ event: 'planning_loaded', properties: { status: 'unconfigured' } }, opts)?.properties, { status: 'unconfigured' })
+  assert.equal(sanitizeAnalyticsEvent({ event: 'planning_loaded', properties: { status: 'loading' } }, opts), null)
+  assert.equal(sanitizeAnalyticsEvent({ event: 'planning_loaded', properties: { status: 'error' } }, opts), null)
+})
+
+test('planning_action keeps only the properties of its action, never a class or a day', () => {
+  const opts = { hasSession: true }
+  const keep = (properties) => sanitizeAnalyticsEvent({ event: 'planning_action', properties }, opts)?.properties ?? null
+  assert.deepEqual(keep({ action: 'view_changed', view: 'week', via: 'arrow', from: 'header' }), { action: 'view_changed', view: 'week' })
+  assert.deepEqual(keep({ action: 'course_opened', view: 'list', title: 'Maths', room: 'B204', teacher: 'Dupont', day: '2026-10-21' }), { action: 'course_opened', view: 'list' })
+  assert.deepEqual(keep({ action: 'week_changed', via: 'swipe', steps: '2-3', view: 'week' }), { action: 'week_changed', via: 'swipe', steps: '2-3' })
+  assert.deepEqual(keep({ action: 'day_changed', via: 'pill', steps: 3 }), { action: 'day_changed', via: 'pill' })
+  assert.deepEqual(keep({ action: 'ics_exported', from: 'settings', result: 'empty', classes: 12 }), { action: 'ics_exported', from: 'settings', result: 'empty' })
+  for (const action of ['today', 'calendar_picked', 'day_opened', 'occurrence_opened', 'retry', 'open_account']) {
+    assert.deepEqual(keep({ action, view: 'day', via: 'arrow', steps: '1', from: 'header', result: 'ok' }), { action })
+  }
+  // Context properties stay.
+  assert.deepEqual(keep({ action: 'today', device: 'mobile', formation: 'but-mmi' }), { device: 'mobile', formation: 'but-mmi', action: 'today' })
+  // Without what makes them meaningful, or with free text, dropped.
+  assert.equal(keep({ action: 'view_changed' }), null)
+  assert.equal(keep({ action: 'view_changed', view: 'Semaine du 19 octobre' }), null)
+  assert.equal(keep({ action: 'week_changed', steps: '1' }), null)
+  assert.equal(keep({ action: 'ics_exported', from: 'header' }), null)
+  assert.equal(keep({ action: 'ics_exported', from: 'dashboard', result: 'ok' }), null)
+  assert.equal(keep({ action: 'Maths B204' }), null)
+})

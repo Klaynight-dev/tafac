@@ -8,43 +8,25 @@
 // other apps have « notes » in theirs. A link counts when it is on the grade
 // service's origin, whatever the path (doAuth.php, the passerelle's pages),
 // or when it is one of the wrappers that lead there: the launch relay
-// (`/__ent_auth/launch?url=…`) and a CAS login (`/login?service=…`).
-
-function parseUrl(value, base) {
-  if (typeof value !== 'string' || !value.trim()) return null
-  try {
-    return new URL(value, base)
-  } catch {
-    return null
-  }
-}
+// (`/__ent_auth/launch?url=…`) and a CAS login (`/login?service=…`), see
+// serviceAppLink.js.
+import { getServiceOrigin, isServiceApp, isServiceHref } from './serviceAppLink.js'
 
 // The origin of `serviceUrl` (grades.serviceUrl in the config), or null.
 export function getGradesOrigin(serviceUrl) {
-  return parseUrl(serviceUrl)?.origin ?? null
+  return getServiceOrigin(serviceUrl)
 }
 
 // `base`: what relative links resolve against (the page's own URL).
 // `launchPath`: the launch relay's path; `casOrigin`: the CAS server's.
-export function isGradesPortalHref(href, { gradesOrigin, base, launchPath = '', casOrigin = '' } = {}) {
-  if (!gradesOrigin) return false
-  const url = parseUrl(href, base)
-  if (!url) return false
-  if (url.origin === gradesOrigin) return true
-
-  // One wrapper deep: a relay to a relay isn't something the portal makes.
-  const baseOrigin = parseUrl(base)?.origin
-  const isLaunchRelay = Boolean(launchPath) && url.origin === baseOrigin && url.pathname === launchPath
-  const isCasLogin = Boolean(casOrigin) && url.origin === parseUrl(casOrigin)?.origin && /\/login\/?$/.test(url.pathname)
-  const wrapped = isLaunchRelay ? url.searchParams.get('url') : isCasLogin ? url.searchParams.get('service') : null
-  return parseUrl(wrapped)?.origin === gradesOrigin
+export function isGradesPortalHref(href, { gradesOrigin, ...options } = {}) {
+  return isServiceHref(href, { ...options, serviceOrigin: gradesOrigin })
 }
 
 // A portal app's own `href` is often the ENT's link to it (/__ent_proxy/…):
 // where it really goes is its resolved launch link, so both are checked.
-export function isGradesPortalApp(application, { resolvedHref = '', ...options } = {}) {
-  if (!application) return false
-  return [application.href, resolvedHref].some((href) => isGradesPortalHref(href, options))
+export function isGradesPortalApp(application, { gradesOrigin, ...options } = {}) {
+  return isServiceApp(application, { ...options, serviceOrigin: gradesOrigin })
 }
 
 // The one rule for every tile (grid, search results, favourites, sidebar):

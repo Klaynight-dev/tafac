@@ -66,6 +66,8 @@ function WidgetContainer({
   gradesSupported = true,
   onOpenGrade = null,
   onOpenGradesPage = null,
+  onOpenPlanningPage = null,
+  onOpenPlanningDay = null,
 }) {
   const displayName = userName?.trim() || ' '
   const [, setWeatherState] = useState(INITIAL_WEATHER_STATE)
@@ -271,6 +273,7 @@ function WidgetContainer({
               selection={selectedPlanningSelection}
               sessionUser={sessionUser}
               lookaheadDays={nextClassLookaheadDays}
+              onOpenPlanning={onOpenPlanningDay}
             />
           </div>
         ) : null}
@@ -316,6 +319,7 @@ function WidgetContainer({
             favoritesPortalTarget={favoritesPortalTarget}
             showDescriptions={showAppDescriptions}
             onOpenGradesPage={onOpenGradesPage}
+            onOpenPlanningPage={onOpenPlanningPage}
           />
         </div>
       </div>
