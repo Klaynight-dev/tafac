@@ -36,6 +36,16 @@
 
 export const CHANGELOG = [
   {
+    id: 'simulateur-fluide',
+    date: '2026-10-19',
+    title: 'Un simulateur plus fluide sur iPhone',
+    body: 'Dans Mes notes, la roue de «\u202fSimuler\u202f» suit ton doigt sans à-coups sur iPhone, iPad et Safari.',
+    icon: 'ph:gauge',
+    universities: ['univ-rennes'],
+    features: ['grades'],
+    audience: ['grades-page'],
+  },
+  {
     id: 'mes-notes',
     date: '2026-10-16',
     title: 'Tes notes, enfin dans l’appli',
