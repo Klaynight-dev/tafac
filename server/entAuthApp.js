@@ -4104,6 +4104,7 @@ app.get('/__ent_auth/ade/tree', async (req, res) => {
     if (USE_PLANNING_PORTAL_REST) {
       const tree = await fetchPortalTree(entSession.jar, {
         requestedResourceId: requestedTreeId,
+        fallbackResourceId: String(req.query.fallback ?? ''),
         cacheScope: getPlanningCacheScope(entSession),
       })
 

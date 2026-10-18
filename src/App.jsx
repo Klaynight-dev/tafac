@@ -67,6 +67,7 @@ import {
   clearAdeTimetableCache,
   clearGradesCache,
   detectScodocGroupSelection,
+  findAdeGroupForScodoc,
   getAccountInfo,
   getAdeAlerts,
   getAdeCalendarMetadata,
@@ -1518,6 +1519,14 @@ function App() {
         debugForceTpChoiceRef.current = false
 
         let treeResponse = await getAdeTree()
+        // Planning never set up on the account (no group of its own): its
+        // ScoDoc group, found in the planning, stands in for it.
+        if (!treeResponse?.tree?.defaultSelection?.resourceId && scodocGroupSelection?.tpAliases?.length) {
+          const fallbackGroup = await findAdeGroupForScodoc(scodocGroupSelection).catch(() => null)
+          if (fallbackGroup) {
+            treeResponse = await getAdeTree('', { fallback: fallbackGroup.id })
+          }
+        }
         let treePayload = treeResponse?.tree
         const detectedEstablishment = detectEstablishmentFromAdeTree(treePayload)
         const resolvedDefault = treePayload?.defaultSelection?.resourceId

@@ -664,8 +664,13 @@ export function createPlanningPortalApiClient({
     }
   }
 
+  // `fallbackResourceId`: a group the client found for the student (from
+  // ScoDoc) standing in for the account's own resource when the account has
+  // none (its planning never set up), so the tree and its default selection
+  // come back as for a set-up account. Ignored otherwise.
   async function fetchPortalTree(jar, {
     requestedResourceId = '',
+    fallbackResourceId = '',
     cacheScope = null,
   } = {}) {
     const context = await authenticatePortal(jar, { cacheScope })
@@ -682,7 +687,12 @@ export function createPlanningPortalApiClient({
       cache = 'miss'
     }
 
-    const resources = getAccountResources(context)
+    const ownResources = getAccountResources(context)
+    const fallbackId = String(fallbackResourceId ?? '').trim()
+    const fallbackNode = ownResources.length === 0 && fallbackId
+      ? findPortalTreePath(cachedTree, fallbackId)?.at(-1) ?? null
+      : null
+    const resources = fallbackNode ? [normalizePortalResource(fallbackNode)] : ownResources
     const requestedId = String(requestedResourceId ?? '').trim()
     const requestedPath = requestedId ? findPortalTreePath(cachedTree, requestedId) ?? [] : []
     const accountResource = resources.find(({ id }) => id === requestedId) ?? resources[0] ?? null
