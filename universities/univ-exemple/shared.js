@@ -20,7 +20,7 @@ export const branding = {
     "Tafac réunit ta vie universitaire avec tes cours, notes et messagerie dans une seule application rapide et agréable à utiliser.",
   logoAlt: 'Université Exemple',
   sidebarLogoAlt: "Tafac — Université Exemple",
-  loginFooterLine: "Client alternatif à l'ENT de l'Université Exemple (démo)",
+  loginFooterLine: "Projet non officiel, non affilié à l'Université Exemple (démo)",
   about: {
     intro: "est un client alternatif aux services numériques de l'Université Exemple. Cette instance est une démonstration : connectez-vous avec le compte démo.",
     disclaimer: "Université fictive servant à tester l'ajout d'universités. Aucun service réel n'est relayé.",
