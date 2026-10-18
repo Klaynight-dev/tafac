@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { readSemesterUes } from '../semesterUes'
 import { useUeColor } from '../useUeColor'
-import { RING_SIZE as SIZE, buildRingSegments, readSegmentIndexAt } from '../ueRingGeometry'
+import { RING_SIZE as SIZE, buildRingSegmentPath, buildRingSegments, readSegmentIndexAt } from '../ueRingGeometry'
 import CardInfoTip from './CardInfoTip'
 
 // Ring drawn in a 120×120 box (ueRingGeometry.js), shown at the ECTS
 // ring's size (.ue-ring).
+// The hovered (or focused, or tapped) UE's segment: this much thicker on
+// each side, in the box's units, over this long.
+const GROW = 3
+const GROW_LENGTH = 150
+const easeOutCubic = (progress) => 1 - (1 - progress) ** 3
 const CARD_CLASSES = 'ue-widget widget-card shadow-md size-[188px] shrink-0 p-4 border rounded-[22px] overflow-hidden text-base leading-6 border-white bg-widget-bg flex flex-col gap-[6px] text-text max-md:order-1 max-md:h-auto max-md:min-h-[160px] max-md:w-auto max-md:flex-[1_0_clamp(136px,40%,170px)] max-md:snap-start max-md:p-3 max-md:rounded-[20px] relative'
 
 function formatAverage(value) {
@@ -52,8 +57,39 @@ function WidgetUes({ releve = null, config = null, visible = false }) {
 
   const segments = useMemo(() => {
     const geometry = buildRingSegments(ues.length)
-    return ues.map((ue, index) => ({ ...ue, path: geometry[index].path }))
+    return ues.map((ue, index) => ({ ...ue, ...geometry[index] }))
   }, [ues])
+
+  // The active segment thickens (and the one before thins back), frame by
+  // frame from here: WebKit can't transition a path's `d` in CSS.
+  // `growRef`: how far each segment has grown (0 to 1), anew with new
+  // segments (their paths drawn thin again).
+  const pathRefs = useRef([])
+  const growRef = useRef({ segments: null, values: [] })
+  useEffect(() => {
+    if (growRef.current.segments !== segments) growRef.current = { segments, values: [] }
+    const { values } = growRef.current
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    let frame = 0
+    let last = null
+    const tick = (now) => {
+      const step = reducedMotion ? 1 : (now - (last ?? now)) / GROW_LENGTH
+      last = now
+      let moving = false
+      segments.forEach((segment, index) => {
+        const target = index === activeIndex ? 1 : 0
+        const current = values[index] ?? 0
+        if (current === target) return
+        const next = current < target ? Math.min(target, current + step) : Math.max(target, current - step)
+        values[index] = next
+        pathRefs.current[index]?.setAttribute('d', buildRingSegmentPath(segment.start, segment.end, segments.length, GROW * easeOutCubic(next)))
+        if (next !== target) moving = true
+      })
+      if (moving) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [activeIndex, segments])
 
   if (!ues.some((ue) => ue.average != null)) {
     return null
@@ -103,6 +139,7 @@ function WidgetUes({ releve = null, config = null, visible = false }) {
           {segments.map((segment, index) => (
             <path
               key={segment.code}
+              ref={(element) => { pathRefs.current[index] = element }}
               d={segment.path}
               className={`ue-ring-segment ue-ring-segment--${segment.state} ${activeIndex === index ? 'ue-ring-segment--active' : ''}`}
               style={{ '--ue-color': segment.color, animationDelay: `${index * 70}ms` }}
