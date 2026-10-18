@@ -194,7 +194,9 @@ test('the seed entries follow each university’s features', () => {
   const rennes = { id: 'univ-rennes', features: { ade: true, planning: true, moodle: true, grades: true, mail: true, moodleDeadlines: true, schoolCertificate: true } }
   const exemple = { id: 'univ-exemple', features: { ade: true, planning: true, moodle: false, grades: 'disabled', mail: false, moodleDeadlines: false } }
 
-  assert.equal(ids(rennes).length, CHANGELOG.length - 2, 'all but « Mes notes » and the Planning, which need their audience')
+  const needAudience = CHANGELOG.filter((entry) => entry.audience).map((entry) => entry.id)
+  assert.deepEqual(needAudience, ['planning', 'simulateur-fluide', 'mes-notes'])
+  assert.equal(ids(rennes).length, CHANGELOG.length - needAudience.length, 'all but the ones for « Mes notes » and the Planning, which need their audience')
   assert.ok(!ids(rennes).includes('mes-notes'))
   assert.ok(!ids(rennes).includes('planning'))
   assert.equal(getApplicableEntries(CHANGELOG, rennes, ['grades-page', 'planning-page']).length, CHANGELOG.length)
