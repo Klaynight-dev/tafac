@@ -28,7 +28,7 @@ export const branding = {
   loginFooterLine: "Projet étudiant non officiel, non affilié à l'Université de Rennes",
   // Under the login form: what happens to the password (server/entAuthApp.js
   // keeps only the CAS session, never the password).
-  loginPasswordNote: "Ton mot de passe sert uniquement à te connecter au CAS de l'université et n'est jamais enregistré",
+  loginPasswordNote: "Ton mot de passe sert uniquement à te connecter au site de l'université et n'est jamais enregistré",
   about: {
     intro: "est un client alternatif aux services numériques de l'Université de Rennes.",
     disclaimer:

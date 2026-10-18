@@ -162,9 +162,7 @@ function LoginPage({
           <header className="relative flex shrink-0 justify-center text-center">
             <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[clamp(66px,calc(30vh_-_153px),117px)] max-4xl:pt-[66px] max-md:pt-[62px]">
               {/* The left panel (its app logo and tagline) is hidden below
-                  4xl: both here instead. The university's logo isn't the
-                  form's header (Tafac isn't the university's): it says what
-                  Tafac works with, under the form. */}
+                  4xl: both here instead. */}
               <div className="hidden flex-col items-center gap-3 max-4xl:flex">
                 <img className="h-11 w-auto object-contain" src={lentLogo} alt={APP_NAME} />
                 <p className="m-0 text-[15px] font-semibold leading-[1.2] text-text-muted font-body">Cours, notes et services de ton université</p>
@@ -178,6 +176,20 @@ function LoginPage({
               </div>
             </div>
           </header>
+
+          {/* What Tafac works with, above the form: the university's logo
+              under "Compatible avec" rather than as the form's header (Tafac
+              isn't the university's). */}
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-[13px] font-medium leading-none text-text-muted font-body">Compatible avec</span>
+            <img
+              className="block h-[51px] w-[173px] object-contain dark:invert max-md:h-11 max-md:w-[150px]"
+              src={universityLogo}
+              alt={universityLogoAlt}
+              width="173"
+              height="51"
+            />
+          </div>
 
           {/* Real form with labelled username/current-password fields and a
               submit button, so password managers recognize and offer to save
@@ -256,20 +268,10 @@ function LoginPage({
             </div>
           ) : null}
 
-          {/* What Tafac works with, and what happens to the password. */}
-          <div className="flex flex-col items-center gap-[10px] text-center">
-            <span className="inline-flex items-center gap-2 text-[13px] font-medium leading-none text-text-muted font-body">
-              Compatible avec
-              <img
-                className="h-6 w-auto max-w-[110px] object-contain opacity-70 grayscale dark:invert"
-                src={universityLogo}
-                alt={universityLogoAlt}
-              />
-            </span>
-            {passwordNote ? (
-              <p className="m-0 max-w-[400px] text-[13px] font-medium leading-[1.35] text-text-muted font-body">{passwordNote}</p>
-            ) : null}
-          </div>
+          {/* What happens to the password. */}
+          {passwordNote ? (
+            <p className="m-0 mx-auto max-w-[400px] text-center text-[13px] font-medium leading-[1.35] text-text-muted font-body">{passwordNote}</p>
+          ) : null}
 
           {otherUniversities.length > 0 ? (
             <div
