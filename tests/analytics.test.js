@@ -250,12 +250,21 @@ test('simulator_step keeps reveal outcomes on reveal_shown and `reached` on clos
   assert.equal(sanitizeAnalyticsEvent({ event: 'simulator_step', properties: { step: 'typed' } }, opts), null)
 })
 
-test('launch_card only carries its action', () => {
+test('launch_card only carries its action and which launch', () => {
   const opts = { hasSession: true }
   for (const action of ['shown', 'cta', 'dismissed', 'tab_marker']) {
-    assert.deepEqual(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action } }, opts)?.properties, { action })
+    for (const launch of ['grades', 'planning']) {
+      assert.deepEqual(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action, launch } }, opts)?.properties, { action, launch })
+    }
   }
-  assert.equal(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action: 'clicked' } }, opts), null)
+  // Versions from before the Planning's launch only announced « Mes notes ».
+  assert.deepEqual(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action: 'shown' } }, opts)?.properties, { action: 'shown', launch: 'grades' })
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action: 'cta', launch: 'planning', title: 'Ton emploi du temps dans l’appli', page: '/planning' } }, opts)?.properties,
+    { action: 'cta', launch: 'planning' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action: 'clicked', launch: 'planning' } }, opts), null)
+  assert.equal(sanitizeAnalyticsEvent({ event: 'launch_card', properties: { action: 'shown', launch: 'planning' } }, { hasSession: false }), null)
 })
 
 test('grades events take the session demo flag from the server, never the client', () => {
@@ -280,8 +289,12 @@ test('page_viewed keeps each page to its own sources, and `view` to the planning
     sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'grades', source: 'nav', view: 'week' } }, opts)?.properties,
     { page: 'grades', source: 'nav' },
   )
-  // The launch card announces « Mes notes » only.
-  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'launch_card' } }, opts), null)
+  // Both pages have their launch card.
+  assert.deepEqual(
+    sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'launch_card', view: 'week' } }, opts)?.properties,
+    { page: 'planning', source: 'launch_card', view: 'week' },
+  )
+  assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'launch-card' } }, opts), null)
   assert.equal(sanitizeAnalyticsEvent({ event: 'page_viewed', properties: { page: 'planning', source: 'nav' } }, { hasSession: false }), null)
 })
 

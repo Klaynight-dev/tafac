@@ -2000,11 +2000,16 @@ function App() {
   const hasMobileTabBar =useMemo(() => getMobileTabItems(establishment, { gradesSupported }).length > 0, [establishment, gradesSupported])
   // « Nouveautés » about « Mes notes » only reach students who have it: a
   // school with the page and a relevé confirmed BUT (not while unknown, so
-  // the pill doesn't come and go).
+  // the pill doesn't come and go). Those about the Planning page, students
+  // signed in at a school with it.
   const hasConfirmedGradesPage = hasGradesPage && gradesFormation === 'BUT'
+  const hasConfirmedPlanningPage = hasPlanningPage && sessionState.authenticated
   useEffect(() => {
-    setChangelogAudience(hasConfirmedGradesPage ? ['grades-page'] : [])
-  }, [hasConfirmedGradesPage])
+    setChangelogAudience([
+      ...(hasConfirmedGradesPage ? ['grades-page'] : []),
+      ...(hasConfirmedPlanningPage ? ['planning-page'] : []),
+    ])
+  }, [hasConfirmedGradesPage, hasConfirmedPlanningPage])
   // Falls back to the dashboard if the grades item goes away (establishment
   // without grade widgets, feature switched off, a relevé that isn't BUT).
   const isGradesPage = useMemo(
@@ -2025,6 +2030,10 @@ function App() {
   useEffect(() => {
     if (isGradesPage && hasConfirmedGradesPage) markChangelogEntrySeen('mes-notes')
   }, [isGradesPage, hasConfirmedGradesPage])
+  // Likewise for the Planning's launch.
+  useEffect(() => {
+    if (isPlanningPage && hasConfirmedPlanningPage) markChangelogEntrySeen('planning')
+  }, [isPlanningPage, hasConfirmedPlanningPage])
   // The other pages sit on the plain background, like with the wallpaper off.
   const isWallpaperShown = showWallpaper && shownPage === 'dashboard'
 
@@ -2116,8 +2125,8 @@ function App() {
   // The grade service's app in the app lists ('tile': "Mes notes" rather
   // than ScoDoc) and the launch card ('launch_card') say which they are.
   const handleOpenGradesPage = useCallback((source = 'tile') => handleNavigatePage('grades', source), [handleNavigatePage])
-  // The planning service's app in the app lists ('tile'): the planning page
-  // rather than the service.
+  // The planning service's app in the app lists ('tile': the planning page
+  // rather than the service) and its launch card ('launch_card').
   const handleOpenPlanningPage = useCallback((source = 'tile') => handleNavigatePage('planning', source), [handleNavigatePage])
   // The dashboard's "Prochain cours": the planning page, opened on that
   // class's day (today without one).
@@ -3152,6 +3161,19 @@ function App() {
                 disabled={debugState.loading}
               >
                 Nouveautés : rejouer « Mes notes »
+              </button>
+              {/* Likewise for the Planning's launch. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-wait"
+                onClick={() => void runDebugAction('Nouveautés : rejouer « Planning »', () => (
+                  replayChangelogEntry('planning')
+                    ? { replayed: true }
+                    : { replayed: false, note: 'L’entrée ne s’applique pas ici : pas de page Planning, ou pas connecté.' }
+                ))}
+                disabled={debugState.loading}
+              >
+                Nouveautés : rejouer « Planning »
               </button>
               <button
                 type="button"

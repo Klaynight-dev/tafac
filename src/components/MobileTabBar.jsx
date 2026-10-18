@@ -84,8 +84,9 @@ function MobileTabBar({ establishment, gradesSupported = true, activePage = 'das
     }
 
     if (item.page) {
-      // Anonymous analytics: the tab's « Nouveau » dot was showing.
-      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker' })
+      // Anonymous analytics: the tab's « Nouveau » dot was showing
+      // (`launch`: its page, as in the sidebar).
+      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker', launch: item.page })
       onNavigatePage?.(item.page, 'tabbar')
       return
     }

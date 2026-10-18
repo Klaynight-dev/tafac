@@ -6,6 +6,8 @@ import {
   formatEntryDate,
   forgetSeen,
   getApplicableEntries,
+  getHeldLaunchIds,
+  getLaunchId,
   getPillIds,
   groupEntriesByDate,
   isEntryApplicable,
@@ -192,9 +194,10 @@ test('the seed entries follow each university’s features', () => {
   const rennes = { id: 'univ-rennes', features: { ade: true, planning: true, moodle: true, grades: true, mail: true, moodleDeadlines: true, schoolCertificate: true } }
   const exemple = { id: 'univ-exemple', features: { ade: true, planning: true, moodle: false, grades: 'disabled', mail: false, moodleDeadlines: false } }
 
-  assert.equal(ids(rennes).length, CHANGELOG.length - 1, 'all but « Mes notes », which needs its audience')
+  assert.equal(ids(rennes).length, CHANGELOG.length - 2, 'all but « Mes notes » and the Planning, which need their audience')
   assert.ok(!ids(rennes).includes('mes-notes'))
-  assert.equal(getApplicableEntries(CHANGELOG, rennes, ['grades-page']).length, CHANGELOG.length)
+  assert.ok(!ids(rennes).includes('planning'))
+  assert.equal(getApplicableEntries(CHANGELOG, rennes, ['grades-page', 'planning-page']).length, CHANGELOG.length)
   assert.ok(!ids(exemple).includes('mes-notes'))
   assert.ok(!ids(exemple).includes('certificat-de-scolarite'))
   assert.ok(!ids(exemple).includes('raccourcis-messagerie-moodle'))
@@ -234,6 +237,69 @@ test('the pill leaves spotlight entries to their own card', () => {
   assert.deepEqual(getPillIds([GLOBAL], ['global']), ['global'])
 })
 
-test('« Mes notes » is the changelog’s spotlight entry', () => {
-  assert.deepEqual(CHANGELOG.filter((entry) => entry.spotlight).map((entry) => entry.id), ['mes-notes'])
+test('the Planning and « Mes notes » are the changelog’s spotlight entries', () => {
+  assert.deepEqual(CHANGELOG.filter((entry) => entry.spotlight).map((entry) => entry.id), ['planning', 'mes-notes'])
+})
+
+// The shipped entries, at a school with both pages (Rennes's features).
+const RENNES_FULL = { id: 'univ-rennes', features: { ade: true, planning: true, moodle: true, grades: true, mail: true, moodleDeadlines: true, schoolCertificate: true } }
+const BOTH_PAGES = ['grades-page', 'planning-page']
+
+test('the Planning’s launch only reaches students with the page', () => {
+  const planning = CHANGELOG.find((entry) => entry.id === 'planning')
+  assert.equal(isEntryApplicable(planning, RENNES_FULL), false, 'audience unknown yet (not signed in): hidden')
+  assert.equal(isEntryApplicable(planning, RENNES_FULL, ['planning-page']), true, 'no « Mes notes » needed')
+  assert.equal(isEntryApplicable(planning, { id: 'univ-exemple', features: { planning: true, grades: 'disabled' } }, ['planning-page']), true)
+  assert.equal(isEntryApplicable(planning, { id: 'example-minimal', features: { planning: false } }, ['planning-page']), false, 'no planning feature: never')
+})
+
+test('a fresh device records the launches as seen: no card, no tab mark', () => {
+  const entries = getApplicableEntries(CHANGELOG, RENNES_FULL, BOTH_PAGES)
+  const visit = resolveChangelogVisit({ entries, allEntries: CHANGELOG, rawSeen: null })
+  assert.deepEqual(visit.unseenIds, [])
+  assert.ok(parseSeenValue(visit.nextSeen).has('planning'))
+  assert.equal(getLaunchId(entries, visit.unseenIds), null)
+})
+
+test('a device that saw everything before gets the Planning’s card, not the pill', () => {
+  const entries = getApplicableEntries(CHANGELOG, RENNES_FULL, BOTH_PAGES)
+  const rawSeen = JSON.stringify({ ids: CHANGELOG.map((entry) => entry.id).filter((id) => id !== 'planning') })
+  const visit = resolveChangelogVisit({ entries, allEntries: CHANGELOG, rawSeen })
+  assert.deepEqual(visit.unseenIds, ['planning'])
+  assert.deepEqual(getPillIds(entries, visit.unseenIds), [])
+  assert.equal(getLaunchId(entries, visit.unseenIds), 'planning')
+  // Card closed or page visited: seen, nothing left to announce.
+  const seen = markEntrySeen({ id: 'planning', allEntries: CHANGELOG, rawSeen })
+  assert.deepEqual(resolveChangelogVisit({ entries, allEntries: CHANGELOG, rawSeen: seen }).unseenIds, [])
+})
+
+test('two unseen launches: one card at a time, the newest first, the next one on the next visit', () => {
+  const entries = getApplicableEntries(CHANGELOG, RENNES_FULL, BOTH_PAGES)
+  const rawSeen = JSON.stringify({ ids: CHANGELOG.map((entry) => entry.id).filter((id) => id !== 'planning' && id !== 'mes-notes') })
+  const visit = resolveChangelogVisit({ entries, allEntries: CHANGELOG, rawSeen })
+  assert.deepEqual(visit.unseenIds, ['planning', 'mes-notes'])
+  assert.equal(getLaunchId(entries, visit.unseenIds), 'planning')
+
+  // The Planning's card closed: « Mes notes » keeps its tab mark (still
+  // unseen) but its card waits for the next visit.
+  const held = getHeldLaunchIds(entries, visit.unseenIds, 'planning')
+  assert.deepEqual(held, ['mes-notes'])
+  const stillUnseen = visit.unseenIds.filter((id) => id !== 'planning')
+  assert.equal(getLaunchId(entries, stillUnseen, held), null)
+
+  const next = resolveChangelogVisit({ entries, allEntries: CHANGELOG, rawSeen: markEntrySeen({ id: 'planning', allEntries: CHANGELOG, rawSeen }) })
+  assert.deepEqual(next.unseenIds, ['mes-notes'])
+  assert.equal(getLaunchId(entries, next.unseenIds), 'mes-notes')
+})
+
+test('only spotlight entries get a card, and only unseen ones', () => {
+  const LAUNCH = { id: 'launch', date: '2026-10-16', title: 'Lancement', body: '…', spotlight: true }
+  const LATER = { id: 'later', date: '2026-10-20', title: 'Plus tard', body: '…', spotlight: true }
+  const entries = getApplicableEntries([LAUNCH, NEW_GLOBAL, GLOBAL, LATER], RENNES)
+  assert.equal(getLaunchId(entries, ['new-global', 'global']), null, 'no unseen launch: no card')
+  assert.equal(getLaunchId(entries, ['launch', 'new-global']), 'launch')
+  assert.equal(getLaunchId(entries, ['launch', 'later']), 'later', 'newest first')
+  assert.equal(getLaunchId(entries, ['launch', 'later'], ['later']), 'launch', 'a held launch is skipped')
+  assert.deepEqual(getHeldLaunchIds(entries, ['launch', 'later', 'new-global'], 'later'), ['launch'], 'the pill’s entries are never held')
+  assert.deepEqual(getHeldLaunchIds(entries, ['later'], 'later'), [])
 })

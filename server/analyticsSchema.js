@@ -21,7 +21,7 @@ const ERROR_KINDS = ['http_4xx', 'http_5xx', 'network', 'timeout', 'other']
 const GRADES_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'launch_card', 'history', 'other']
 const GRADES_ACTIONS = ['semester_changed', 'ue_view_opened', 'grade_detail_opened', 'pdf_downloaded', 'explainer_opened', 'department_message_expanded']
 // How the student arrived on the Planning page (see src/planningAnalytics.js).
-const PLANNING_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'history', 'other']
+const PLANNING_PAGE_SOURCES = ['nav', 'tabbar', 'tile', 'dashboard_card', 'launch_card', 'history', 'other']
 const PAGE_SOURCES = { grades: GRADES_PAGE_SOURCES, planning: PLANNING_PAGE_SOURCES }
 const PLANNING_VIEWS = ['day', 'two_days', 'week', 'list']
 const PLANNING_ACTIONS = [
@@ -244,13 +244,20 @@ export const ANALYTICS_EVENTS = {
       return props
     },
   },
-  // The « Mes notes » launch announcement: the dashboard card (shown, its
-  // button, its close button) and the nav item's « Nouveau » marker clicked.
+  // A page's launch announcement (« Mes notes », the Planning: `launch`):
+  // the dashboard card (shown, its button, its close button) and the nav
+  // item's « Nouveau » marker clicked. Versions from before the Planning's
+  // only announced « Mes notes » and don't say which: counted as `grades`.
   launch_card: {
     properties: {
       action: oneOf('shown', 'cta', 'dismissed', 'tab_marker'),
+      launch: oneOf('grades', 'planning'),
     },
     required: ['action'],
+    refine: (props) => {
+      props.launch ??= 'grades'
+      return props
+    },
   },
 }
 
