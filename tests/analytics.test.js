@@ -132,7 +132,7 @@ test('batch parsing accepts sendBeacon text bodies and caps the batch size', () 
 })
 
 test('disabled without a project key', () => {
-  assert.deepEqual(readAnalyticsConfig({}), { projectKey: null, host: 'https://eu.i.posthog.com' })
+  assert.deepEqual(readAnalyticsConfig({}), { projectKey: null, host: 'https://eu.i.posthog.com', excludedUsers: [] })
   const analytics = createAnalytics({ projectKey: null })
   assert.equal(analytics.enabled, false)
   assert.equal(analytics.ingest({ events: [{ event: 'dashboard_viewed' }] }, { id: 's' }), 0)
@@ -163,6 +163,20 @@ test('ingest hashes the session id and sets privacy flags', () => {
   })
   assert.match(withoutSession.distinctId, /^[0-9a-f-]{36}$/)
   assert.equal(withoutSession.properties.demo, false)
+})
+
+test('events of excluded accounts are dropped, never sent', () => {
+  assert.deepEqual(readAnalyticsConfig({ ANALYTICS_EXCLUDED_USERS: ' Dev1, dev2  dev3,' }).excludedUsers, ['dev1', 'dev2', 'dev3'])
+
+  const client = createFakeClient()
+  const analytics = createAnalytics({ projectKey: 'test', excludedUsers: ['dev1'], client })
+  const batch = { events: [{ event: 'dashboard_viewed' }] }
+
+  assert.equal(analytics.ingest(batch, { id: 'session-a', demo: false, user: 'DEV1' }), 0)
+  assert.equal(analytics.ingest(batch, { id: 'session-b', demo: false, user: 'student' }), 1)
+  assert.equal(analytics.ingest({ events: [{ event: 'login_result', properties: { result: 'success', demo: false } }] }, null), 1)
+  assert.equal(client.captured.length, 2)
+  assert.ok(client.captured.every(({ properties }) => !('user' in properties)))
 })
 
 test('formation slug is short and only accepted as a slug', () => {

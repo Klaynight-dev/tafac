@@ -14,14 +14,16 @@ const { branding } = await loadSharedConfig(universityId)
 
 // Dev/preview backend: the same Express app the production server mounts
 // (server/entAuthApp.js). Unmatched requests fall through to Vite.
-// POSTHOG_*, SESSION_SECRET* and DATA_DIR may come from the shell or from
-// .env / .env.local (shell wins). Without SESSION_SECRET the backend uses a
-// random per-process key: sessions then don't survive a dev-server restart.
-// Without DATA_DIR, automatic app icons are remembered in ./data.
+// POSTHOG_*, ANALYTICS_*, SESSION_SECRET* and DATA_DIR may come from the shell
+// or from .env / .env.local (shell wins). Without SESSION_SECRET the backend
+// uses a random per-process key: sessions then don't survive a dev-server
+// restart. Without DATA_DIR, automatic app icons are remembered in ./data.
+// No PostHog from the dev server unless POSTHOG_IN_DEV=1: what's tried here,
+// often with a real account, stays out of the real numbers.
 function mountEntAuthApp(server) {
-  const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), ['POSTHOG_', 'SESSION_SECRET', 'DATA_DIR'])
+  const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), ['POSTHOG_', 'ANALYTICS_', 'SESSION_SECRET', 'DATA_DIR'])
   const entAuthApp = createEntAuthApp(universityServerConfig, {
-    analytics: readAnalyticsConfig(env),
+    analytics: env.POSTHOG_IN_DEV === '1' ? readAnalyticsConfig(env) : { projectKey: null },
     appIcons: { dataDir: resolveDataDir(env) },
     session: {
       secret: env.SESSION_SECRET,
