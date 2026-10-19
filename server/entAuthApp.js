@@ -2087,7 +2087,7 @@ app.post('/__ent_auth/analytics', (req, res) => {
 
     try {
       const session = getSessionFromRequest(req)
-      analytics.ingest(req.body, session ? { id: session.id, demo: isDemoSession(session) } : null)
+      analytics.ingest(req.body, session ? { id: session.id, demo: isDemoSession(session), user: session.user } : null)
     } catch {
       // Analytics must never break the app.
     }

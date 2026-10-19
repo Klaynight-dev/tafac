@@ -89,6 +89,8 @@ Le serveur Express écoute sur le port `3000` (configurable via `PORT`).
 | `TENANTS`        | Universités servies/buildées en multi-tenant (ids séparés par `,`) | Non              |
 | `POSTHOG_PROJECT_KEY` | Clé PostHog : active la mesure d'audience anonyme côté serveur (absente = désactivée) | Non |
 | `POSTHOG_HOST`   | Hôte PostHog (défaut : `https://eu.i.posthog.com`, UE)              | Non              |
+| `ANALYTICS_EXCLUDED_USERS` | Identifiants ENT dont les événements ne sont jamais envoyés (séparés par `,`), par exemple les développeurs de l'instance | Non |
+| `POSTHOG_IN_DEV` | `1` pour que `npm run dev` envoie aussi à PostHog (coupé sinon) | Non |
 | `DATA_DIR`       | Dossier où le serveur mémorise les icônes automatiques des applications (défaut : `./data`, voir [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#icônes-automatiques-des-applications)) | Non |
 
 ## Multi-université par sous-domaine

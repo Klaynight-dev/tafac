@@ -97,8 +97,10 @@ Identifiant ENT, e-mail, nom, prénom, numéro étudiant, id ou cookie de sessio
 | --- | --- | --- |
 | `POSTHOG_PROJECT_KEY` | Clé de projet PostHog (`phc_…`). **Absente = mesure désactivée.** | — |
 | `POSTHOG_HOST` | Hôte d'ingestion PostHog | `https://eu.i.posthog.com` (UE) |
+| `ANALYTICS_EXCLUDED_USERS` | Identifiants ENT, séparés par `,`, dont le serveur ignore les événements (les développeurs de l'instance) : rien n'est envoyé pour eux, ni événement ni marqueur. | — |
+| `POSTHOG_IN_DEV` | `1` pour que le serveur de dev (`npm run dev`) envoie aussi à PostHog. Sans elle, le dev n'envoie rien, même avec une clé dans `.env.local` : les essais, souvent faits avec un vrai compte, ne comptent pas. | coupé |
 
-En production (`node server.js`), elles sont lues dans l'environnement. En dev (`npm run dev`), elles peuvent aussi venir de `.env` / `.env.local`. Au `SIGTERM`/`SIGINT`, le serveur vide la file PostHog avant de quitter.
+En production (`node server.js`), elles sont lues dans l'environnement. En dev (`npm run dev`), elles peuvent aussi venir de `.env` / `.env.local`, et PostHog n'est utilisé qu'avec `POSTHOG_IN_DEV=1`. Au `SIGTERM`/`SIGINT`, le serveur vide la file PostHog avant de quitter.
 
 ### Réglages à faire dans le projet PostHog
 
