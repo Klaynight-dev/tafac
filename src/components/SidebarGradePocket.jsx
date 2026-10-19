@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import SidebarStatPocket from './SidebarStatPocket'
-import { GRADES_LAUNCH_HREF, getLatestGrade, openGradesService } from '../entApi'
+import { getLatestGrade } from '../entApi'
 import {
   DEMO_LATEST_GRADE,
   GRADES_FEATURE_DISABLED,
@@ -36,7 +36,9 @@ function DisabledSidebarGradePocket() {
   )
 }
 
-function LiveSidebarGradePocket() {
+// A click opens « Mes notes » on that grade (`onOpen(grade)`), as the
+// dashboard's "Dernière note" does.
+function LiveSidebarGradePocket({ onOpen }) {
   const [grade, setGrade] = useState(null)
 
   useEffect(() => {
@@ -62,7 +64,7 @@ function LiveSidebarGradePocket() {
       label="Dernière note"
       value={noteDisplay}
       max={noteMax}
-      onClick={GRADES_LAUNCH_HREF ? openGradesService : undefined}
+      onClick={() => onOpen(grade)}
       caption={gradeName}
       ariaLabel={`Dernière note: ${noteDisplay} sur ${noteMax}${ariaTooltipParts ? ` (${ariaTooltipParts})` : ''}`}
       tooltipPrimary={gradeName}
@@ -71,12 +73,12 @@ function LiveSidebarGradePocket() {
   )
 }
 
-function SidebarGradePocket() {
+function SidebarGradePocket({ onOpen }) {
   if (GRADES_FEATURE_DISABLED) {
     return <DisabledSidebarGradePocket />
   }
 
-  return <LiveSidebarGradePocket />
+  return <LiveSidebarGradePocket onOpen={onOpen} />
 }
 
 export default SidebarGradePocket

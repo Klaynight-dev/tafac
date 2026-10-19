@@ -428,7 +428,7 @@ function GradeDetailModal({ report, module, evaluation, semesterId, icon = null,
                 </span>
                 <button
                   type="button"
-                  className="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full border border-[rgba(27,27,27,0.16)] bg-[#f3f1eb]/90 p-0 text-text transition-colors duration-[120ms] hover:bg-[#edebe5] dark:border-border dark:bg-bg-muted dark:hover:bg-bg-subtle"
+                  className="glass-close-button inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full p-0 text-text"
                   onClick={onClose}
                   aria-label="Fermer"
                 >

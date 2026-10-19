@@ -10,11 +10,6 @@ import {
 
 // Main navigation, shared by the desktop sidebar and the mobile tab bar.
 
-const PLANNING_SERVICE_URL = universityConfig.planning?.serviceUrl ?? null
-const PLANNING_HREF = PLANNING_SERVICE_URL
-  ? `${ENT_AUTH_PREFIX}/launch?url=${encodeURIComponent(PLANNING_SERVICE_URL)}`
-  : null
-
 const MOODLE_ORIGIN = universityConfig.origins?.moodle ?? null
 const MOODLE_HREF = universityConfig.features?.moodle && MOODLE_ORIGIN
   ? `${ENT_AUTH_PREFIX}/launch?url=${encodeURIComponent(`${MOODLE_ORIGIN.replace(/\/$/, '')}/my/`)}`
@@ -63,14 +58,10 @@ export function buildNavItems(establishment, { gradesSupported = true } = {}) {
       targetId: 'sidebar-section-applications',
     },
     ...(gradesNavItem ? [gradesNavItem] : []),
-    ...(universityConfig.features?.planning && PLANNING_HREF
-      ? [{
-          id: 'planning',
-          label: 'Planning',
-          icon: 'carbon:calendar',
-          href: PLANNING_HREF,
-          target: '_blank',
-        }]
+    // The in-app planning page (PlanningPage), launched by its own
+    // « Nouveautés » entry (`announcedBy`, as « Mes notes »).
+    ...(universityConfig.features?.planning
+      ? [{ id: 'planning', label: 'Planning', icon: 'carbon:calendar', page: 'planning', announcedBy: 'planning' }]
       : []),
     // shortLabel: the tab bar's narrower tabs.
     ...(MAIL_HREF

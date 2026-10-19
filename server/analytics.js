@@ -10,6 +10,9 @@
 //   random, lives in memory only and is replaced at each UTC day change, so
 //   ids cannot be linked across days nor reversed to a session/user.
 // - No person profiles ($process_person_profile: false), no identify().
+// - ANALYTICS_EXCLUDED_USERS: ENT accounts (comma-separated) whose events are
+//   dropped here, never sent (the instance's own developers): no flag or id
+//   leaves the server for them.
 // ============================================================================
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { PostHog } from 'posthog-node'
@@ -22,11 +25,19 @@ const DISTINCT_ID_HEX_LENGTH = 32
 // Live PostHog clients, flushed by shutdownAllAnalytics() on process exit.
 const liveClients = new Set()
 
+function normalizeUser(user) {
+  return String(user ?? '').trim().toLowerCase()
+}
+
 export function readAnalyticsConfig(env = process.env) {
   const projectKey = String(env.POSTHOG_PROJECT_KEY ?? '').trim()
   const host = String(env.POSTHOG_HOST ?? '').trim() || DEFAULT_POSTHOG_HOST
+  const excludedUsers = String(env.ANALYTICS_EXCLUDED_USERS ?? '')
+    .split(/[\s,]+/)
+    .map(normalizeUser)
+    .filter(Boolean)
 
-  return { projectKey: projectKey || null, host }
+  return { projectKey: projectKey || null, host, excludedUsers }
 }
 
 function utcDay(timestamp) {
@@ -63,6 +74,7 @@ export function createAnalytics({
   projectKey,
   host = DEFAULT_POSTHOG_HOST,
   universityId = null,
+  excludedUsers = [],
   client = null,
   hasher = createDailyHasher(),
 } = {}) {
@@ -84,10 +96,12 @@ export function createAnalytics({
   // Analytics must never break or spam the app: swallow SDK errors.
   posthog.on?.('error', () => {})
   liveClients.add(posthog)
+  const excluded = new Set(excludedUsers.map(normalizeUser).filter(Boolean))
 
-  // session: { id, demo } or null. Returns the number of events queued.
+  // session: { id, demo, user } or null. Returns the number of events queued.
   function ingest(body, session = null) {
     try {
+      if (session?.user && excluded.has(normalizeUser(session.user))) return 0
       const hasSession = Boolean(session?.id)
       const events = sanitizeAnalyticsBatch(body, { hasSession })
       if (events.length === 0) return 0

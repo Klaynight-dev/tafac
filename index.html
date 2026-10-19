@@ -15,61 +15,67 @@
     <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
     <title>%LENT_SEO_TITLE%</title>
 
-    <!-- Primary Meta Tags -->
-    <meta name="title" content="%LENT_SEO_TITLE%" />
+    <!-- Primary Meta Tags. __PUBLIC_ORIGIN__ is the site's address, set by
+         the server as it sends the page (server.js), so link previews (which
+         don't run the app) get absolute URLs; the canonical is always the
+         home page. -->
     <meta
       name="description"
       content="%LENT_SEO_DESCRIPTION%"
     />
+    <link rel="canonical" href="__PUBLIC_ORIGIN__/" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="fr_FR" />
     <meta property="og:site_name" content="%LENT_APP_NAME%" />
-    <meta property="og:url" content="/" />
+    <meta property="og:url" content="__PUBLIC_ORIGIN__/" />
     <meta property="og:title" content="%LENT_SEO_TITLE%" />
     <meta
       property="og:description"
       content="%LENT_SEO_DESCRIPTION%"
     />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="__PUBLIC_ORIGIN__/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Aperçu de l'application %LENT_APP_NAME%" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="/" />
+    <meta name="twitter:url" content="__PUBLIC_ORIGIN__/" />
     <meta name="twitter:title" content="%LENT_SEO_TITLE%" />
     <meta
       name="twitter:description"
       content="%LENT_SEO_DESCRIPTION%"
     />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image" content="__PUBLIC_ORIGIN__/og-image.jpg" />
     <meta name="twitter:image:alt" content="Aperçu de l'application %LENT_APP_NAME%" />
 
     <script type="application/ld+json" id="seo-structured-data">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "%LENT_APP_NAME%",
-        "headline": "%LENT_SEO_TITLE%",
-        "description": "%LENT_SEO_DESCRIPTION%",
-        "applicationCategory": "EducationApplication",
-        "operatingSystem": "Any",
-        "inLanguage": "fr-FR",
-        "isAccessibleForFree": true,
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "EUR"
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "%LENT_APP_NAME%",
+          "alternateName": %LENT_ALTERNATE_NAMES_JSON%,
+          "url": "__PUBLIC_ORIGIN__/",
+          "inLanguage": "fr-FR"
         },
-        "sameAs": ["%LENT_REPO_URL%"],
-        "featureList": [
-          "Consulter ses notes et résultats",
-          "Retrouver son emploi du temps ADE",
-          "Accéder aux services universitaires depuis une interface unique",
-          "Installer l'application en PWA sur mobile et ordinateur"
-        ]
-      }
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "%LENT_APP_NAME%",
+          "url": "__PUBLIC_ORIGIN__/",
+          "image": "__PUBLIC_ORIGIN__/og-image.jpg",
+          "description": "%LENT_SEO_DESCRIPTION%",
+          "applicationCategory": "EducationalApplication",
+          "operatingSystem": "Web, iOS, Android",
+          "inLanguage": "fr-FR",
+          "isAccessibleForFree": true,
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+          "sameAs": ["%LENT_REPO_URL%"]
+        }
+      ]
     </script>
 
     <script>

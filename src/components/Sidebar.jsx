@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import UniversityLockup from './UniversityLockup'
 import ChangelogPill from './ChangelogPill'
+import SidebarGradePocket from './SidebarGradePocket'
 import { track } from '../analytics'
 import { useChangelog } from '../changelogStore'
 import UpdateNotice from './UpdateNotice'
@@ -115,6 +116,7 @@ function Sidebar({
   gradesSupported = true,
   activePage = 'dashboard',
   onNavigatePage,
+  onOpenLatestGrade = null,
 }) {
   const [activeSection, setActiveSection] = useState('applications')
   const navItems = buildNavItems(establishment, { gradesSupported })
@@ -137,8 +139,9 @@ function Sidebar({
     }
 
     if (item.page) {
-      // Anonymous analytics: the item's « Nouveau » marker was showing.
-      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker' })
+      // Anonymous analytics: the item's « Nouveau » marker was showing
+      // (`launch`: its page, 'grades' or 'planning').
+      if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker', launch: item.page })
       onNavigatePage?.(item.page, 'nav')
       return
     }
@@ -233,6 +236,12 @@ function Sidebar({
         </div>
 
         <div className="flex flex-col gap-3 w-full">
+          {/* With « Mes notes »: the latest grade, opening there on it. */}
+          {onOpenLatestGrade ? (
+            <div className="flex w-full empty:hidden">
+              <SidebarGradePocket onOpen={onOpenLatestGrade} />
+            </div>
+          ) : null}
           <div ref={favoritesSlotRef} className="sidebar-favorites-slot empty:hidden w-full" />
           {hasPendingUpdate ? <UpdateNotice onUpdateClick={onUpdateClick} /> : null}
           {showChangelogPill ? <ChangelogPill className="flex" /> : null}

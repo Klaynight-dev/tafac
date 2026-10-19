@@ -4,6 +4,9 @@ import universityConfig from '@university'
 import { useWidgetLoadReport } from '../analytics'
 import { publishBriefingSource } from '../briefingSources'
 import { ENT_AUTH_PREFIX, getRecentEntLoginAgeMs, getRequestErrorKind } from '../entApi'
+import { accentStyle } from '../eventAccents'
+import { toDayKey } from '../planningDates'
+import { useEventAccents } from '../usePlanningWeeks'
 import {
   NEXT_CLASS_LOOKAHEAD_DAYS,
   buildNextClassCacheEntryKey,
@@ -13,7 +16,6 @@ import {
   readNextClassCache,
 } from '../upcomingClasses'
 
-const CLASS_COLORS_KEY = 'l-ent:class-colors'
 const NEXT_CLASS_TICK_MS = 30 * 1000
 const NEXT_CLASS_REFRESH_MS = 5 * 60 * 1000
 const NEXT_CLASS_LOGIN_QUIET_MS = 90 * 1000
@@ -30,19 +32,6 @@ function createWidgetState(overrides = {}) {
     errorKind: null,
     complete: true,
     ...overrides,
-  }
-}
-
-function getClassHue(title) {
-  try {
-    const stored = JSON.parse(localStorage.getItem(CLASS_COLORS_KEY) || '{}')
-    if (stored[title] != null) return stored[title]
-    const hue = Math.floor(Math.random() * 360)
-    stored[title] = hue
-    localStorage.setItem(CLASS_COLORS_KEY, JSON.stringify(stored))
-    return hue
-  } catch {
-    return 207
   }
 }
 
@@ -267,7 +256,10 @@ function buildFakeNextClass() {
   }
 }
 
-function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
+// `opensInApp`: the card opens the Planning page, not the planning service.
+function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS, { opensInApp = false } = {}) {
+  const action = opensInApp ? 'Voir le planning' : 'Ouvrir l\'emploi du temps'
+
   switch (widgetState.status) {
     case 'loading':
       return {
@@ -286,20 +278,20 @@ function getStatusCopy(widgetState, lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS) {
         title: 'Planning partiel',
         body: 'Les données reçues sont incomplètes pour le moment',
         icon: 'carbon:warning-alt',
-        action: 'Ouvrir l\'emploi du temps',
+        action,
       }
     case 'empty':
       return {
         title: 'Aucun cours à venir',
         body: `Rien de prévu dans les ${lookaheadDays} prochains jours`,
-        action: 'Ouvrir l\'emploi du temps',
+        action,
       }
     case 'paused':
       return {
         title: 'Synchroniser le planning',
         body: 'Appuie ici pour mettre à jour le prochain cours',
         icon: 'carbon:calendar-settings',
-        action: 'Ouvrir l\'emploi du temps',
+        action,
       }
     default:
       return {
@@ -331,6 +323,10 @@ function getLoadOutcome(widgetState, debug) {
   return null
 }
 
+// `onOpenPlanning`: the in-app Planning page, passed only while the student
+// has it, called with the next class's day ("YYYY-MM-DD", null without one).
+// With it the card opens that page on that day; without it, the planning
+// service in a new tab.
 function WidgetNextClass({
   visible = false,
   debug = false,
@@ -338,6 +334,7 @@ function WidgetNextClass({
   sessionUser = null,
   autoLoad = true,
   lookaheadDays = NEXT_CLASS_LOOKAHEAD_DAYS,
+  onOpenPlanning = null,
 }) {
   const resourceIds = useMemo(() => buildResourceIdsFromSelection(selection), [selection])
   const resourceKey = resourceIds.join('|')
@@ -697,35 +694,40 @@ function WidgetNextClass({
     }
   }, [displayTimeRange, firstGroup, measureWideLayout, nextClass, nextClassKey, timeLabel, widgetState.status])
 
-  const hue = useMemo(
-    () => nextClass?.title ? getClassHue(nextClass.title) : 207,
-    [nextClass?.title],
-  )
-  const accentColor = `hsl(${hue}, 60%, 42%)`
-  const classGradient = `linear-gradient(180deg, hsla(${hue}, 60%, 72%, 0.25) 0%, transparent 55%)`
-  const classGradientDark = `linear-gradient(180deg, hsla(${hue}, 40%, 18%, 0.4) 0%, transparent 55%)`
+  // The course's colour as the planning gives it (the same one on its
+  // page: eventAccents, handed out in the order the courses are seen).
+  const accentEvents = useMemo(() => (nextClass?.title ? [{ title: nextClass.title }] : []), [nextClass?.title])
+  const accentFor = useEventAccents(accentEvents)
+  const showsClass = widgetState.status === 'ready' && Boolean(nextClass)
   const exactDateLabel = formatExactDateLabel(nextClass?.start)
   const shouldShowExactDateTooltip = Boolean(exactDateLabel && timeLabel && timeLabel !== 'En cours')
-  const statusCopy = getStatusCopy(widgetState, lookaheadDays)
+  const opensInApp = Boolean(onOpenPlanning)
+  const statusCopy = getStatusCopy(widgetState, lookaheadDays, { opensInApp })
   // Also takes the full row on phones, where a class shares it with the grade.
   // There the card is a size container: at half width the title gets two
   // lines, teacher and group go (@max-[240px]) and the time range wraps.
   const isStatusWide = ['unconfigured', 'limited', 'empty', 'paused'].includes(widgetState.status)
-  const openAdePlanning = useCallback(() => {
+  const nextClassDay = widgetState.status === 'ready' && nextClass?.start ? toDayKey(nextClass.start) : null
+  const openPlanning = useCallback(() => {
+    if (onOpenPlanning) {
+      onOpenPlanning(nextClassDay)
+      return
+    }
+
     if (!ADE_HREF) {
       return
     }
 
     window.open(ADE_HREF, '_blank', 'noopener,noreferrer')
-  }, [])
+  }, [nextClassDay, onOpenPlanning])
   const handleKeyDown = useCallback((event) => {
     if (event.key !== 'Enter' && event.key !== ' ') {
       return
     }
 
     event.preventDefault()
-    openAdePlanning()
-  }, [openAdePlanning])
+    openPlanning()
+  }, [openPlanning])
 
   // Hidden when the planning can't be loaded; the background refresh brings
   // the card back once ADE answers again.
@@ -736,43 +738,47 @@ function WidgetNextClass({
   return (
     <article
       className={`next-class-widget widget-card relative z-0 hover:z-10 shadow-md flex-[0_1_190px] h-[140px] p-4 border border-white rounded-[22px] overflow-visible text-base leading-6 min-w-0 max-2xl:flex-[1_1_calc(50%-6px)] max-2xl:min-w-[min(320px,100%)] max-md:h-[132px] max-md:p-3 max-md:rounded-[20px] max-xs:h-[140px] max-xs:min-w-0 max-xs:@container flex flex-col gap-[6px] text-text cursor-pointer ${isStatusWide ? 'max-xs:flex-[1_1_100%]' : 'max-xs:flex-[1_1_calc(50%-4px)]'} ${wide ? '2xl:flex-[0_1_380px]' : isStatusWide ? '2xl:flex-[0_1_300px]' : ''} ${visible ? 'widget-card-visible' : ''}`}
-      style={{ '--class-gradient': classGradient, '--class-gradient-dark': classGradientDark }}
-      aria-label="Prochain cours ouvrir ADE"
-      onClick={openAdePlanning}
+      style={showsClass ? accentStyle(accentFor(nextClass.title)) : undefined}
+      aria-label={opensInApp ? 'Prochain cours, voir le planning' : 'Prochain cours ouvrir ADE'}
+      onClick={openPlanning}
       onKeyDown={handleKeyDown}
-      role="link"
+      role={opensInApp ? 'button' : 'link'}
       tabIndex={0}
     >
-      <Icon icon="carbon:arrow-up-right" className="grade-corner-arrow absolute top-3 right-3 w-[14px] h-[14px] text-text opacity-0 transition-opacity duration-150 ease-in-out shrink-0" aria-hidden="true" />
+      {/* The course's wash, as the planning's blocks wear it, in a layer of
+          its own clipped to the card's corners (the card lets its date
+          tooltip hang out). */}
+      {showsClass ? (
+        <span className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-[inherit]" aria-hidden="true">
+          <span className="latest-grade-wash planning-accent-fill" />
+        </span>
+      ) : null}
+      {/* The "opens another site" arrow: none when the card opens the
+          Planning page, as on "Dernière note". */}
+      {opensInApp ? null : <Icon icon="carbon:arrow-up-right" className="grade-corner-arrow absolute top-3 right-3 w-[14px] h-[14px] text-text opacity-0 transition-opacity duration-150 ease-in-out shrink-0" aria-hidden="true" />}
       <div className="flex items-center gap-[5px] min-w-0">
         <span className="m-0 min-w-0 leading-[1.06] text-base font-medium text-text-muted overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[15px]">Prochain cours</span>
       </div>
 
       <div className="flex-1 flex flex-col justify-between min-h-0">
-        {widgetState.status === 'ready' && nextClass ? (
+        {showsClass ? (
           <>
             <div className="flex items-center gap-2 flex-1 min-h-0 my-1.5 max-xs:my-1">
               <div className="flex self-stretch items-center">
-                <div
-                  className="w-[6px] h-full rounded-[25px] shrink-0 relative overflow-hidden"
-                  style={{ background: accentColor }}
-                  aria-hidden="true"
-                >
-                  <div className="absolute inset-0 rounded-[25px]" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, transparent 70%)' }} />
-                </div>
+                <div className="planning-accent-fill w-[6px] h-full rounded-[25px] shrink-0" aria-hidden="true" />
               </div>
               <div className="flex flex-col justify-center gap-[3px] min-w-0 flex-1">
                 <span ref={titleRef} className="block m-0 min-w-0 leading-[1.06] text-[15px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap max-md:text-[14px] max-xs:whitespace-normal max-xs:line-clamp-2" title={nextClass.title}>{nextClass.title}</span>
                 <div className="flex flex-col gap-[2px] min-w-0">
                   {nextClass.location ? (
                     <span className="flex items-center gap-[3px] min-w-0 text-text-muted">
-                      <Icon icon="carbon:location" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
+                      <Icon icon="ph:map-pin-simple" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
                       <span ref={locationRef} className="block min-w-0 leading-[1.06] text-[13px] overflow-hidden text-ellipsis whitespace-nowrap" title={nextClass.location}>{nextClass.location}</span>
                     </span>
                   ) : null}
                   {nextClass.teacher ? (
                     <span className="flex items-center gap-[3px] min-w-0 text-text-muted max-xs:@max-[240px]:hidden">
-                      <Icon icon="carbon:user-avatar" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
+                      <Icon icon="ph:user-square" className="w-[14px] h-[14px] shrink-0" aria-hidden="true" />
                       <span ref={teacherRef} className="block min-w-0 leading-[1.06] text-[13px] overflow-hidden text-ellipsis whitespace-nowrap" title={nextClass.teacher}>{nextClass.teacher}</span>
                     </span>
                   ) : null}
@@ -819,7 +825,7 @@ function WidgetNextClass({
             {statusCopy.action ? (
               <span className="inline-flex items-center gap-1 text-[13px] font-semibold opacity-80">
                 {statusCopy.action}
-                <Icon icon="carbon:arrow-up-right" className="w-[13px] h-[13px] shrink-0" aria-hidden="true" />
+                <Icon icon={opensInApp ? 'carbon:arrow-right' : 'carbon:arrow-up-right'} className="w-[13px] h-[13px] shrink-0" aria-hidden="true" />
               </span>
             ) : null}
           </div>

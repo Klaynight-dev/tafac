@@ -20,7 +20,8 @@
 // counts as off. `audience` narrows it to students, for what only some of a
 // university's students get; App.jsx says what this student has
 // (setChangelogAudience): 'grades-page' for a BUT student of a school with
-// « Mes notes ». Where an entry doesn't apply, it's invisible: no pill, not in
+// « Mes notes », 'planning-page' for a signed-in student of a school with
+// the Planning page (features.planning, as its nav item). Where an entry doesn't apply, it's invisible: no pill, not in
 // the list. Copy rules: ’ apostrophes, a narrow no-break space (`\u202f`)
 // before : ! ? » and after «, and no app name (each university brands its own).
 //
@@ -30,11 +31,34 @@
 // Same-day entries keep the order they have here.
 //
 // A `spotlight` entry is a launch: instead of lighting the pill, it gets its
-// own card on the dashboard (GradesLaunchCard, for « Mes notes ») and a
-// « Nouveau » mark on its tab, until the card is closed or the page visited.
-// It still shows in the list, as new if the list opens first.
+// own card on the dashboard (LaunchCard: GradesLaunchCard for « Mes notes »,
+// PlanningLaunchCard for the Planning) and a « Nouveau » mark on its tab
+// (navItems' `announcedBy`), until the card is closed or the page visited.
+// One card at a time, the newest first: the next one waits for the next
+// visit (getLaunchId). It still shows in the list, as new if the list opens
+// first.
 
 export const CHANGELOG = [
+  {
+    id: 'planning',
+    date: '2026-10-19',
+    title: 'Ton emploi du temps dans l’appli',
+    body: 'Tes cours par jour, par semaine ou en liste, sur la page Planning. Touche un cours pour voir sa fiche et ses prochaines séances, et exporte ton planning en .ics vers ton agenda.',
+    icon: 'carbon:calendar',
+    features: ['planning'],
+    audience: ['planning-page'],
+    spotlight: true,
+  },
+  {
+    id: 'simulateur-fluide',
+    date: '2026-10-19',
+    title: 'Un simulateur plus fluide sur iPhone',
+    body: 'Dans Mes notes, la roue de «\u202fSimuler\u202f» suit ton doigt sans à-coups sur iPhone, iPad et Safari.',
+    icon: 'ph:gauge',
+    universities: ['univ-rennes'],
+    features: ['grades'],
+    audience: ['grades-page'],
+  },
   {
     id: 'mes-notes',
     date: '2026-10-16',

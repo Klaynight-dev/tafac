@@ -9,9 +9,11 @@ function jsonResponse(payload, status = 200) {
   })
 }
 
-function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = false, law = false, noResources = false } = {}) {
+function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = false, law = false, noResources = false, sessionExpiresAfter = null } = {}) {
   const requests = []
   let accessTokenRequestCount = 0
+  let signInCount = 0
+  let eventsRequestCount = 0
   let casFollowCount = 0
   let treeRequestCount = 0
   const fetchWithJar = async (url, _jar, options = {}) => {
@@ -30,6 +32,7 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     }
 
     if (url.endsWith('/RestApi/portal/ssologin')) {
+      signInCount += 1
       return jsonResponse({
         data: {
           authData: {
@@ -47,6 +50,9 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     }
 
     if (url.includes('/RestApi/portal/refreshtoken?')) {
+      if (sessionExpiresAfter !== null) {
+        return jsonResponse({ error: 'session expired' }, 401)
+      }
       return jsonResponse({
         data: {
           accessToken: 'fixture-api-token-refreshed',
@@ -129,6 +135,12 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     }
 
     if (url.includes('/RestApi/portal/projects/1/resourcesEventsPortal/')) {
+      eventsRequestCount += 1
+      // The portal session ends on ADE's side after that many calls: the
+      // next one is refused until a new sign-in.
+      if (sessionExpiresAfter !== null && eventsRequestCount === sessionExpiresAfter + 1) {
+        return jsonResponse({ error: 'expired' }, 401)
+      }
       return jsonResponse({
         data: [{
           id: 14961,
@@ -172,6 +184,7 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     client,
     requests,
     getAccessTokenRequestCount: () => accessTokenRequestCount,
+    getSignInCount: () => signInCount,
     getCasFollowCount: () => casFollowCount,
     getTreeRequestCount: () => treeRequestCount,
   }
@@ -287,6 +300,38 @@ test('refreshes the API bearer and retries one unauthorized REST request', async
 
   const refreshRequest = requests.find(({ url }) => url.includes('/RestApi/portal/refreshtoken?'))
   assert.equal(refreshRequest.options.headers.Authorization, undefined)
+})
+
+test('weeks asked at once share one portal sign-in', async () => {
+  const { client, getSignInCount, getAccessTokenRequestCount } = createFixtureClient()
+  const weeks = ['2026-09-07', '2026-09-14', '2026-09-21']
+
+  const results = await Promise.all(weeks.map((date) => (
+    client.fetchPortalEvents({}, { date, lookaheadDays: 7, resourceIds: ['14961'], cacheScope: 'portal-fixture-together' })
+  )))
+
+  assert.equal(results.length, 3)
+  assert.ok(results.every((result) => result.complete))
+  assert.equal(getSignInCount(), 1)
+  assert.equal(getAccessTokenRequestCount(), 1)
+})
+
+test('signs in again when a cached portal session is gone on ADE’s side', async () => {
+  const { client, getSignInCount } = createFixtureClient({ sessionExpiresAfter: 1 })
+  const ask = () => client.fetchPortalEvents({}, { date: '2026-09-07', lookaheadDays: 7, resourceIds: ['14961'], cacheScope: 'portal-fixture-expired' })
+
+  await ask()
+  const result = await ask()
+
+  assert.equal(result.events.length, 1)
+  assert.equal(getSignInCount(), 2)
+})
+
+test('does not sign in twice when a fresh sign-in fails', async () => {
+  const { client, getSignInCount } = createFixtureClient({ sessionExpiresAfter: 0 })
+
+  await assert.rejects(client.fetchPortalEvents({}, { date: '2026-09-07', resourceIds: ['14961'], cacheScope: 'portal-fixture-fresh-fail' }))
+  assert.equal(getSignInCount(), 1)
 })
 
 test('maps a non-BUT path to generic level, TD and TP selections', async () => {

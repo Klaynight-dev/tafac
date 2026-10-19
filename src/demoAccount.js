@@ -55,6 +55,10 @@ const DEMO_SCHEDULE_TEMPLATES = [
   },
 ]
 
+// The demo's « Emplois du temps »: a public calendar for its link, it opens
+// the in-app Planning page all the same (planningPortalApp.js's `appKeys`).
+export const DEMO_PLANNING_APP_FNAME = 'demo-emploi-du-temps'
+
 const DEMO_APPLICATIONS = Object.freeze([
   {
     id: 'demo-mail',
@@ -66,7 +70,7 @@ const DEMO_APPLICATIONS = Object.freeze([
   },
   {
     id: 'demo-planning',
-    fname: 'demo-emploi-du-temps',
+    fname: DEMO_PLANNING_APP_FNAME,
     title: 'Emplois du temps',
     description: 'Ouvrir un calendrier public.',
     href: 'https://calendar.google.com/',

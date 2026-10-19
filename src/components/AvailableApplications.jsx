@@ -5,7 +5,9 @@ import universityConfig from '@university'
 import { toAppSlug, track } from '../analytics'
 import { fetchAppIcons, getCachedAppIcons } from '../appIcons'
 import { scoreAppSearch, searchApps } from '../appSearch'
+import { DEMO_PLANNING_APP_FNAME } from '../demoAccount'
 import { getGradesOrigin, opensGradesPageInApp } from '../gradesPortalApp'
+import { getPlanningOrigin, opensPlanningPageInApp } from '../planningPortalApp'
 import LoadingDots from './LoadingDots'
 import {
   ENT_AUTH_PREFIX,
@@ -75,7 +77,8 @@ function getApplicationKey(application = {}) {
 
 // Anonymous analytics: which application was opened, and from where. Only
 // the portal/app identifier (slugged) is sent — never its title or URL.
-// `in_app`: the grade service's app opened « Mes notes » rather than ScoDoc.
+// `in_app`: the grade service's app opened « Mes notes » rather than ScoDoc,
+// or the planning service's app the Planning page rather than the service.
 function trackApplicationOpened(application, source, { inApp = false } = {}) {
   const app = toAppSlug(getApplicationKey(application))
   if (app) {
@@ -900,16 +903,34 @@ const GRADES_PORTAL_OPTIONS = {
   casOrigin: universityConfig.origins?.cas ?? '',
 }
 
+// Likewise for the planning service's app (« Emplois du temps », see
+// planningPortalApp.js), the demo's included.
+const PLANNING_PORTAL_OPTIONS = {
+  planningOrigin: getPlanningOrigin(universityConfig.planning?.serviceUrl),
+  appKeys: [DEMO_PLANNING_APP_FNAME],
+  launchPath: `${ENT_AUTH_PREFIX}/launch`,
+  casOrigin: universityConfig.origins?.cas ?? '',
+}
+
+// What an in-app tile says it opens (aria-description).
+const IN_APP_PAGE_DESCRIPTIONS = {
+  grades: 'Ouvre Mes notes',
+  planning: 'Ouvre le planning',
+}
+
 // `onOpenGradesPage`: the app's own grades page, passed only while the
 // student has it (called with 'tile', its page_viewed source). With it, the grade service's app opens that page instead of
 // ScoDoc from every tile; a modified or middle click and « Ouvrir dans un
 // nouvel onglet » still open ScoDoc, its link stays on the tile for that.
+// `onOpenPlanningPage`: the same for the planning service's app and the
+// in-app Planning page, passed only while the student has it.
 function AvailableApplications({
   establishment = null,
   canUseServerLaunch = true,
   favoritesPortalTarget = null,
   showDescriptions = false,
   onOpenGradesPage = null,
+  onOpenPlanningPage = null,
 }) {
   const [viewState, setViewState] = useState({
     status: 'loading',
@@ -1765,20 +1786,43 @@ function AvailableApplications({
     })
   }
 
+  // The planning service's app while the student has the Planning page,
+  // checked the same way.
+  function opensPlanningPage(application) {
+    return opensPlanningPageInApp(application, {
+      ...PLANNING_PORTAL_OPTIONS,
+      hasPlanningPage: Boolean(onOpenPlanningPage),
+      resolvedHref: launchTargets[getApplicationKey(application)]?.href,
+      base: window.location.href,
+    })
+  }
+
+  // The app's own page a tile opens instead of its site, or null.
+  function getInAppPage(application) {
+    if (opensGradesPage(application)) return 'grades'
+    if (opensPlanningPage(application)) return 'planning'
+    return null
+  }
+
   async function handleApplicationClick(event, application, source) {
     // Modified clicks still open the app (natively, in a new tab), ScoDoc
-    // included: they don't count as opening « Mes notes ».
+    // and the planning service included: they don't count as opening the
+    // app's own page.
     const plainClick = isPlainLeftClick(event)
-    const inApp = plainClick && opensGradesPage(application)
-    trackApplicationOpened(application, source, { inApp })
+    const inAppPage = plainClick ? getInAppPage(application) : null
+    trackApplicationOpened(application, source, { inApp: Boolean(inAppPage) })
 
     if (!plainClick) {
       return
     }
 
-    if (inApp) {
+    if (inAppPage) {
       event.preventDefault()
-      onOpenGradesPage('tile')
+      if (inAppPage === 'grades') {
+        onOpenGradesPage('tile')
+      } else {
+        onOpenPlanningPage('tile')
+      }
       return
     }
 
@@ -1878,7 +1922,8 @@ function AvailableApplications({
             // In-app tiles drop `target` (a new tab a plain click doesn't
             // open; a modified click still does, natively, hence `rel`) and
             // say where they lead instead.
-            const opensInApp = opensGradesPage(application)
+            const inAppPage = getInAppPage(application)
+            const opensInApp = Boolean(inAppPage)
             const target = opensInApp ? '' : resolvedLaunch?.target || application.target
             const isLaunching = Boolean(launchingKeys[applicationKey])
             const isRemovingFavorite = favoriteActionState.removingKey === applicationKey
@@ -1895,7 +1940,7 @@ function AvailableApplications({
                 target={target || undefined}
                 rel={target === '_blank' || opensInApp ? 'noreferrer' : undefined}
                 aria-label={`Ouvrir ${application.title}`}
-                aria-description={opensInApp ? 'Ouvre Mes notes' : undefined}
+                aria-description={opensInApp ? IN_APP_PAGE_DESCRIPTIONS[inAppPage] : undefined}
                 aria-busy={isLaunching || isRemovingFavorite || isExitingFavorite}
                 draggable="true"
                 onDragStart={(event) => handleDragStart(event, index)}
@@ -1993,7 +2038,8 @@ function AvailableApplications({
               const applicationKey = getApplicationKey(service)
               const resolvedLaunch = launchTargets[applicationKey]
               const href = resolvedLaunch?.href || service.href
-              const opensInApp = opensGradesPage(service)
+              const inAppPage = getInAppPage(service)
+              const opensInApp = Boolean(inAppPage)
               const target = opensInApp ? '' : resolvedLaunch?.target || service.target
               const isBusy = favoriteActionState.removingKey === applicationKey
               const isLaunching = Boolean(launchingKeys[applicationKey])
@@ -2009,7 +2055,7 @@ function AvailableApplications({
                   href={href}
                   target={target || undefined}
                   rel={target === '_blank' || opensInApp ? 'noreferrer' : undefined}
-                  aria-description={opensInApp ? 'Ouvre Mes notes' : undefined}
+                  aria-description={opensInApp ? IN_APP_PAGE_DESCRIPTIONS[inAppPage] : undefined}
                   aria-busy={isBusy || isLaunching}
                   onMouseEnter={() => warmApplicationLaunch(service)}
                   onFocus={() => warmApplicationLaunch(service)}

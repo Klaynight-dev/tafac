@@ -4,6 +4,7 @@ export const ADE_LOOKAHEAD_KEY = 'l-ent:ade-lookahead-days'
 export const GREETING_HIDDEN_KEY = 'l-ent:greeting-hidden'
 export const HIDDEN_WIDGETS_KEY = 'l-ent:hidden-widgets'
 export const APP_DESCRIPTIONS_KEY = 'l-ent:show-app-descriptions'
+export const PLANNING_WEEKEND_KEY = 'l-ent:planning-weekend'
 export const WALLPAPER_KEY = 'l-ent:show-wallpaper'
 export const ANONYMOUS_ANALYTICS_KEY = 'l-ent:anonymous-analytics'
 const STUDENT_TP_SELECTION_VERSION = 4
@@ -204,6 +205,23 @@ export function getStoredShowAppDescriptions(userId = null) {
 export function persistShowAppDescriptions(show, userId = null) {
   try {
     localStorage.setItem(APP_DESCRIPTIONS_KEY, JSON.stringify({
+      user: userId || null,
+      value: Boolean(show),
+    }))
+  } catch {
+    // Storage unavailable
+  }
+}
+
+// The planning week's Saturday and Sunday without classes (Mon compte):
+// hidden unless this user shows them.
+export function getStoredShowPlanningWeekend(userId = null) {
+  return readScopedStorageValue(PLANNING_WEEKEND_KEY, userId) === true
+}
+
+export function persistShowPlanningWeekend(show, userId = null) {
+  try {
+    localStorage.setItem(PLANNING_WEEKEND_KEY, JSON.stringify({
       user: userId || null,
       value: Boolean(show),
     }))
