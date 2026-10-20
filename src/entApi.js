@@ -194,7 +194,13 @@ async function parseJsonPayload(response) {
         ? data
         : `Request failed with status ${response.status}.`
 
-    throw createHttpError(errorMessage, response.status)
+    const error = createHttpError(errorMessage, response.status)
+    // Seconds until the login rate limit lifts (429), for the message.
+    const retryAfterSeconds = Number(response.headers.get('Retry-After'))
+    if (retryAfterSeconds > 0) {
+      error.retryAfterSeconds = retryAfterSeconds
+    }
+    throw error
   }
 
   return data
