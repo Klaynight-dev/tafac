@@ -68,6 +68,18 @@ import {
   searchDemoAdeTree,
 } from '../src/demoAccount.js'
 import { findReleveEvaluation, normalizeDistributionAnswer } from '../src/evaluationDistribution.js'
+
+const DEFAULT_TRUST_PROXY = 'loopback, linklocal, uniquelocal'
+
+function resolveTrustProxy(value) {
+  const setting = String(value ?? '').trim()
+  if (!setting) return DEFAULT_TRUST_PROXY
+  if (setting === 'true') return true
+  if (setting === 'false') return false
+  if (/^\d+$/.test(setting)) return Number(setting)
+  return setting
+}
+
 // options.analytics: { projectKey, host } — defaults to POSTHOG_PROJECT_KEY /
 // POSTHOG_HOST from the environment (analytics are off without a key).
 // options.session: { secret, previousSecrets, production } — defaults to
@@ -76,8 +88,15 @@ import { findReleveEvaluation, normalizeDistributionAnswer } from '../src/evalua
 // Vite mount always passes false; tests inject a secret here.
 // options.appIcons: { dataDir } — defaults to DATA_DIR, else ./data (see
 // server/appIcons.js).
+// options.trustProxy — Express 'trust proxy' value, defaults to TRUST_PROXY,
+// else local and private peers.
 export function createEntAuthApp(universityConfig, options = {}) {
 const app = express()
+// Behind a reverse proxy (Caddy in deploy/), req.ip is the proxy's address
+// for every student, which turns the per-IP login limit into one limit for
+// the whole site. X-Forwarded-For is trusted from local and private peers
+// only (loopback, Docker network); TRUST_PROXY overrides it (Express syntax).
+app.set('trust proxy', resolveTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY))
 
 // Automatic tile icons, remembered per university, drawn in the university's
 // icon style and colour mode (server/appIcons.js, config → appIcons).
