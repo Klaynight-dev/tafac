@@ -54,6 +54,7 @@ Pour figer une version, remplacer `latest` par un numéro (`ghcr.io/l-ent-univ/l
 | `POSTHOG_PROJECT_KEY` | Mesure d'audience anonyme ([ANALYTICS.md](ANALYTICS.md)) | désactivée |
 | `PORT` | Port interne du conteneur | `3000` |
 | `DATA_DIR` | Dossier des icônes automatiques des applications | `/app/data` dans l'image, `./data` sinon |
+| `TRUST_PROXY` | Proxys dont l'en-tête `X-Forwarded-For` donne l'IP de l'étudiant (valeur `trust proxy` d'Express) | adresses locales et privées (Caddy, réseau Docker) |
 
 ## Icônes automatiques des applications
 

@@ -653,6 +653,15 @@ function getErrorMessage(error) {
 }
 
 function getFrenchAuthErrorMessage(error, context = 'login') {
+  // The server's 429 says "Too many login attempts", which matched none of
+  // the checks below and showed as wrong credentials.
+  if (error?.status === 429) {
+    const minutes = Math.ceil((error.retryAfterSeconds ?? 0) / 60)
+    return minutes > 0
+      ? `Trop de tentatives de connexion, réessaie dans ${minutes} min`
+      : 'Trop de tentatives de connexion. Réessaie dans quelques instants'
+  }
+
   const rawMessage = getErrorMessage(error).trim()
   const normalizedMessage = rawMessage.toLowerCase()
   const mentionsUsername = normalizedMessage.includes('username') || normalizedMessage.includes('identifiant')
