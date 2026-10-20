@@ -3,12 +3,12 @@ import { useState } from 'react'
 import { Icon } from '@iconify/react'
 import universityConfig from '@university'
 import universityShowcase from '../../universities/showcase.js'
-import lentLogo from '../assets/lent-logo.svg'
 import loginClouds from '../assets/login/login-clouds.webp'
 import loginIsland from '../assets/login/login-island.webp'
 import loginSky from '../assets/login/login-sky.webp'
 import loginLogo from '../assets/login/login-logo.webp'
 import LentButton from './LentButton'
+import LogoBut1 from './LogoBut1'
 import AboutModal from './AboutModal'
 import RenameNotice from './RenameNotice'
 import { APP_NAME } from '../seo'
@@ -18,8 +18,15 @@ const universityLogoAlt = universityConfig.branding.logoAlt ?? universityConfig.
 const passwordNote = universityConfig.branding.loginPasswordNote ?? null
 const repoUrl = universityConfig.branding.about?.repoUrl ?? null
 const loginLinks = universityConfig.links ?? {}
+// "Mot de passe oublié" / "Activer mon compte" under the button, hidden for now.
+const SHOW_ACCOUNT_LINKS = false
 // Width of the login page's left panel, matching its flex-basis.
 const PANEL_WIDTH = 'min(529px, 47vw)'
+
+// Pill fields like the rest of the app's inputs, in the widget colour so they
+// stand out on the page. Focus keeps the app-wide outline (index.css).
+const FIELD_CLASS = 'box-border w-full min-h-[52px] rounded-full border border-border-input bg-widget-bg px-[18px] py-[15px] text-base leading-none text-text font-body transition-[border-color,box-shadow] duration-150 hover:border-text-30 focus-visible:border-text-60'
+const LINK_CLASS = 'rounded-sm text-[14px] font-medium leading-[1.2] text-text-70 underline decoration-text-30 underline-offset-[3px] transition-colors duration-120 hover:text-text hover:decoration-current font-body'
 
 const activeUniversityId = typeof __UNIVERSITY_ID__ !== 'undefined' ? __UNIVERSITY_ID__ : universityConfig.id
 const otherUniversities = universityShowcase.filter(
@@ -134,163 +141,175 @@ function LoginPage({
 
       <RenameNotice visible={renameNoticeOpen} onDismiss={() => setRenameNoticeOpen(false)} />
 
-      <div className="relative isolate flex min-h-screen min-w-0 flex-[1_1_auto] items-stretch justify-center bg-[#f5f3ed] dark:bg-bg max-4xl:w-full max-md:justify-start">
-        <button
-          type="button"
-          className="absolute top-[27px] left-6 z-30 inline-flex h-8 items-center gap-[6px] rounded-full border border-border/70 bg-widget-bg/60 px-3 text-[13px] font-medium leading-none font-body transition-colors duration-120 hover:bg-widget-bg max-3xl:top-[23px] max-3xl:left-5 max-md:top-[19px] max-md:left-4"
-          onClick={() => setRenameNoticeOpen(true)}
-        >
-          <Icon icon="carbon:star" className="h-[14px] w-[14px] shrink-0 text-text-muted" aria-hidden="true" />
-          <span
-            className="bg-[linear-gradient(90deg,var(--color-text-muted)_0%,var(--color-text)_50%,var(--color-text-muted)_100%)] bg-[length:200%_100%] bg-clip-text text-transparent animate-shimmer"
-            style={{ animationDuration: '3s' }}
+      <div className="relative isolate flex min-h-screen min-w-0 flex-[1_1_auto] flex-col bg-[#f5f3ed] dark:bg-bg max-4xl:w-full">
+        {/* In the flow rather than pinned over the form, so nothing overlaps
+            on short or narrow screens. */}
+        <div className="flex shrink-0 items-center justify-between gap-3 px-6 pt-6 max-3xl:px-5 max-3xl:pt-5 max-md:px-4 max-md:pt-4">
+          <button
+            type="button"
+            className="inline-flex h-8 min-w-0 items-center gap-[6px] rounded-full border border-border/70 bg-widget-bg/60 px-3 text-[13px] font-medium leading-none font-body transition-colors duration-120 hover:bg-widget-bg"
+            onClick={() => setRenameNoticeOpen(true)}
           >
-            l'ent devient Tafac !
-          </span>
-        </button>
+            <Icon icon="carbon:star" className="h-[14px] w-[14px] shrink-0 text-text-muted" aria-hidden="true" />
+            <span
+              className="truncate bg-[linear-gradient(90deg,var(--color-text-muted)_0%,var(--color-text)_50%,var(--color-text-muted)_100%)] bg-[length:200%_100%] bg-clip-text text-transparent animate-shimmer"
+              style={{ animationDuration: '3s' }}
+            >
+              l'ent devient Tafac !
+            </span>
+          </button>
 
-        <button
-          type="button"
-          className="absolute top-6 right-6 z-30 inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border-0 bg-transparent text-text-muted transition-colors duration-120 hover:text-text max-3xl:top-5 max-3xl:right-5 max-md:top-4 max-md:right-4"
-          onClick={() => setAboutOpen(true)}
-          aria-label="À propos"
-        >
-          <Icon icon="carbon:information" className="h-[18px] w-[18px]" />
-        </button>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/70 bg-widget-bg/60 text-text-muted transition-colors duration-120 hover:bg-widget-bg hover:text-text"
+            onClick={() => setAboutOpen(true)}
+            aria-label="À propos"
+          >
+            <Icon icon="carbon:information" className="h-4 w-4" />
+          </button>
+        </div>
 
-        <div className="relative z-10 box-border flex min-h-screen w-[min(720px,100%)] flex-col gap-[clamp(14px,calc(6vh_-_26px),25px)] px-[88px] pb-[clamp(56px,calc(30vh_-_150px),120px)] max-4xl:w-[min(640px,100%)] max-4xl:gap-[clamp(14px,calc(6vh_-_26px),24px)] max-4xl:px-10 max-4xl:pb-[clamp(24px,calc(30vh_-_170px),48px)] max-3xl:w-[min(600px,100%)] max-3xl:px-8 max-3xl:pb-9 max-md:w-full max-md:gap-5 max-md:px-5 max-md:pb-6">
-          <header className="relative flex shrink-0 justify-center text-center">
-            <div className="flex w-[337px] max-w-full flex-col items-center gap-5 pt-[clamp(66px,calc(30vh_-_153px),117px)] max-4xl:pt-[66px] max-md:pt-[62px]">
-              {/* The left panel (its app logo and tagline) is hidden below
-                  4xl: both here instead. */}
-              <div className="hidden flex-col items-center gap-3 max-4xl:flex">
-                <img className="h-11 w-auto object-contain" src={lentLogo} alt={APP_NAME} />
-                <p className="m-0 text-[15px] font-semibold leading-[1.2] text-text-muted font-body">Cours, notes et services de ton université</p>
-              </div>
-
-              {/* What Tafac works with, over the title: the university's logo
-                  under "Compatible avec" rather than as the form's header
-                  (Tafac isn't the university's). */}
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[13px] font-medium leading-none text-text-muted font-body">Compatible avec</span>
-                <img
-                  className="block h-[51px] w-[173px] object-contain dark:invert max-md:h-11 max-md:w-[150px]"
-                  src={universityLogo}
-                  alt={universityLogoAlt}
-                  width="173"
-                  height="51"
-                />
-              </div>
-
-              <div className="flex w-full flex-col items-center gap-[10px] text-text">
-                <h2 className="m-0 w-full text-[40px] leading-[0.9] max-md:text-[36px]">Connexion</h2>
-                <p className="m-0 w-full text-[16px] font-medium leading-4 font-body max-md:text-[15px]">
-                  Utilise tes codes fournis par ton établissement d'enseignement supérieur
-                </p>
-              </div>
-            </div>
-          </header>
-
-          {/* Real form with labelled username/current-password fields and a
-              submit button, so password managers recognize and offer to save
-              the login (the labels are visually hidden: the placeholders do
-              the job on screen). */}
-          <form className="grid gap-[18px]" onSubmit={onSubmit}>
-            <label htmlFor="login-username" className="sr-only">Identifiant</label>
-            <input
-              id="login-username"
-              name="username"
-              className="w-full min-h-[56px] py-[17px] px-[18px] login-field border border-white rounded-[53px] bg-widget-bg text-text font-inherit text-base leading-none box-border placeholder:text-text-muted placeholder:opacity-100 focus-visible:border-brand font-body"
-              autoComplete="username"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              type="text"
-              placeholder="Identifiant"
-              value={credentials.username}
-              onChange={(event) => onCredentialsChange('username', event.target.value)}
-            />
-
-            <div className="relative">
-              <label htmlFor="login-password" className="sr-only">Mot de passe</label>
-              <input
-                id="login-password"
-                name="password"
-                className="w-full min-h-[56px] py-[17px] px-[18px] pr-[52px] login-field border border-white rounded-[53px] bg-widget-bg text-text font-inherit text-base leading-none box-border placeholder:text-text-muted placeholder:opacity-100 focus-visible:border-brand font-body"
-                autoComplete="current-password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Mot de passe"
-                value={credentials.password}
-                onChange={(event) => onCredentialsChange('password', event.target.value)}
-              />
-              <button
-                type="button"
-                className="absolute right-[6px] top-1/2 -translate-y-1/2 w-[42px] h-[42px] flex items-center justify-center rounded-full border-0 bg-transparent text-text-muted cursor-pointer transition-colors duration-120 hover:text-text hover:bg-bg-subtle"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                tabIndex={-1}
-              >
-                <Icon icon={showPassword ? 'carbon:view-off' : 'carbon:view'} className="w-[18px] h-[18px]" />
-              </button>
+        <div className="flex flex-1 flex-col items-center justify-center px-6 py-4 max-3xl:px-5 max-md:justify-start max-md:px-4 max-md:pt-8 max-md:pb-8">
+          <div className="flex w-full max-w-[420px] flex-col items-center gap-7 max-md:gap-6">
+            {/* The left panel (its app logo and tagline) is hidden below
+                4xl: both here instead. */}
+            <div className="hidden flex-col items-center gap-3 text-center max-4xl:flex">
+              <LogoBut1 className="h-10" />
+              <p className="m-0 text-[15px] font-medium leading-[1.25] text-text-muted font-body">Cours, notes et services de ton université</p>
             </div>
 
-            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${errorMessage ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-              <div className="overflow-hidden">
-                <div className={`flex items-center gap-2 px-4 py-3 rounded-2xl bg-error-bg border border-error/20 transition-opacity duration-200 ${errorMessage ? 'opacity-100' : 'opacity-0'}`}>
-                  <p className="m-0 text-error text-sm font-semibold font-body">{errorMessage}</p>
+            <div className="flex w-full flex-col items-center text-center">
+              <header className="flex flex-col items-center gap-5">
+                {/* What Tafac works with, over the title: the university's
+                    logo under "Compatible avec" rather than as the form's
+                    header (Tafac isn't the university's). */}
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-[12px] font-medium leading-none text-text-muted font-body">Compatible avec</span>
+                  <img
+                    className="block h-10 w-auto max-w-[180px] object-contain dark:invert"
+                    src={universityLogo}
+                    alt={universityLogoAlt}
+                  />
                 </div>
-              </div>
-            </div>
 
-            <LentButton type="submit" className="w-full justify-self-stretch font-bold!" loading={checking}>
-              Se connecter
-            </LentButton>
-          </form>
+                <div className="flex flex-col items-center gap-2 text-text">
+                  <h2 className="m-0 text-[32px] leading-none max-md:text-[28px]">Connexion</h2>
+                  <p className="m-0 text-[15px] font-medium leading-[1.35] text-text-70 font-body">
+                    Utilise tes codes fournis par ton établissement d'enseignement supérieur
+                  </p>
+                </div>
+              </header>
 
-          {loginLinks.forgotPassword || loginLinks.activateAccount ? (
-            <div className="flex justify-center items-start gap-[30px] max-md:flex-wrap max-md:gap-[14px_24px]">
-              {loginLinks.forgotPassword ? (
-                <a
-                  className="p-0 border-0 bg-transparent text-text font-inherit text-base font-medium leading-[1.06] underline underline-offset-2 font-body max-md:text-[15px]"
-                  href={loginLinks.forgotPassword}
-                >
-                  Mot de passe oublié
-                </a>
+              {/* Real form with labelled username/current-password fields and a
+                  submit button, so password managers recognize and offer to save
+                  the login. */}
+              <form className="mt-6 flex w-full flex-col" onSubmit={onSubmit}>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-[7px]">
+                    <label htmlFor="login-username" className="pl-[18px] text-left text-[13px] font-semibold leading-none text-text-70 font-body">Identifiant</label>
+                    <input
+                      id="login-username"
+                      name="username"
+                      className={FIELD_CLASS}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      type="text"
+                      value={credentials.username}
+                      onChange={(event) => onCredentialsChange('username', event.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-[7px]">
+                    <label htmlFor="login-password" className="pl-[18px] text-left text-[13px] font-semibold leading-none text-text-70 font-body">Mot de passe</label>
+                    <div className="relative">
+                      <input
+                        id="login-password"
+                        name="password"
+                        className={`${FIELD_CLASS} pr-[52px]`}
+                        autoComplete="current-password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={credentials.password}
+                        onChange={(event) => onCredentialsChange('password', event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-[5px] top-1/2 flex h-[42px] w-[42px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-muted transition-colors duration-120 hover:bg-text/6 hover:text-text"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                        aria-controls="login-password"
+                        tabIndex={-1}
+                      >
+                        <Icon icon={showPassword ? 'carbon:view-off' : 'carbon:view'} className="h-[18px] w-[18px]" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collapses to nothing when empty: its spacing sits inside
+                    the clipped row, so the button doesn't jump. */}
+                <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${errorMessage ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                  <div className="overflow-hidden">
+                    <div className="pt-4" role="alert">
+                      <div className={`flex items-start gap-[10px] rounded-[14px] border border-error/20 bg-error-bg px-4 py-3 text-error transition-opacity duration-200 ${errorMessage ? 'opacity-100' : 'opacity-0'}`}>
+                        <Icon icon="carbon:warning-filled" className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
+                        <p className="m-0 text-sm font-semibold leading-[1.3] font-body">{errorMessage}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <LentButton type="submit" className="mt-5 w-full font-bold!" loading={checking}>
+                  Se connecter
+                </LentButton>
+              </form>
+
+              {SHOW_ACCOUNT_LINKS && (loginLinks.forgotPassword || loginLinks.activateAccount) ? (
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+                  {loginLinks.forgotPassword ? (
+                    <a className={LINK_CLASS} href={loginLinks.forgotPassword}>
+                      Mot de passe oublié
+                    </a>
+                  ) : null}
+                  {loginLinks.activateAccount ? (
+                    <a className={LINK_CLASS} href={loginLinks.activateAccount}>
+                      Activer mon compte
+                    </a>
+                  ) : null}
+                </div>
               ) : null}
-              {loginLinks.activateAccount ? (
-                <a
-                  className="p-0 border-0 bg-transparent text-text font-inherit text-base font-medium leading-[1.06] underline underline-offset-2 font-body max-md:text-[15px]"
-                  href={loginLinks.activateAccount}
-                >
-                  Activer mon compte
-                </a>
+
+              {/* What happens to the password. */}
+              {passwordNote ? (
+                <p className="m-0 mt-5 box-border w-full rounded-[16px] border border-border bg-widget-bg px-4 py-3 text-[13px] font-medium leading-[1.4] text-text-muted font-body">
+                  <Icon icon="carbon:locked" className="mr-[6px] inline-block h-[14px] w-[14px] align-[-2px]" aria-hidden="true" />
+                  {passwordNote}
+                </p>
               ) : null}
             </div>
-          ) : null}
+          </div>
+        </div>
 
-          {/* What happens to the password. */}
-          {passwordNote ? (
-            <p className="m-0 mx-auto max-w-[400px] text-center text-[13px] font-medium leading-[1.35] text-text-muted font-body">{passwordNote}</p>
-          ) : null}
-
+        <div className="flex shrink-0 flex-col items-center gap-3 px-6 pb-5 text-center max-3xl:px-5 max-md:px-4">
           {otherUniversities.length > 0 ? (
             <div
-              className="mt-auto flex flex-col items-center gap-4 pt-[clamp(12px,calc(10vh_-_50px),40px)] max-md:mt-0 max-md:pt-3 max-md:gap-3"
+              className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3"
               aria-label="Autres universités disponibles"
             >
               <p className="m-0 text-[13px] font-medium leading-[1.1] text-text-muted font-body">
                 {APP_NAME} est aussi disponible pour
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-4">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
                 {otherUniversities.map((entry) => (
                   <a
                     key={entry.id}
-                    className="opacity-35 transition-opacity duration-120 hover:opacity-70 focus-visible:opacity-70"
+                    className="rounded-md opacity-40 transition-opacity duration-120 hover:opacity-75 focus-visible:opacity-75"
                     href={universityLoginUrl(entry)}
                     title={`Se connecter — ${entry.name}`}
                   >
                     <img
-                      className="h-8 w-auto max-w-[150px] object-contain grayscale dark:invert max-md:h-7"
+                      className="block h-7 w-auto max-w-[140px] object-contain grayscale dark:invert"
                       src={entry.logo}
                       alt={entry.name}
                     />
@@ -299,14 +318,14 @@ function LoginPage({
               </div>
             </div>
           ) : null}
-        </div>
 
-        <footer className="absolute bottom-8 left-12 right-12 flex flex-wrap justify-end gap-[8px_18px] text-text-muted text-[13px] font-medium leading-[1.1] font-body max-3xl:left-8 max-3xl:right-8 max-3xl:bottom-6 max-md:left-5 max-md:right-5 max-md:bottom-5 max-md:justify-center max-md:text-center" aria-label="Copyright">
-          <span>{universityConfig.branding.loginFooterLine}</span>
-          {repoUrl ? (
-            <a className="text-text-muted underline underline-offset-2 hover:text-text" href={repoUrl} target="_blank" rel="noreferrer">Code source</a>
-          ) : null}
-        </footer>
+          <footer className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[12px] font-medium leading-[1.4] text-text-muted font-body" aria-label="Copyright">
+            <span>{universityConfig.branding.loginFooterLine}</span>
+            {repoUrl ? (
+              <a className="text-text-muted underline decoration-text-30 underline-offset-2 transition-colors duration-120 hover:text-text hover:decoration-current" href={repoUrl} target="_blank" rel="noreferrer">Code source</a>
+            ) : null}
+          </footer>
+        </div>
       </div>
     </section>
   )
