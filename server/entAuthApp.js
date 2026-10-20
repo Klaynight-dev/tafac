@@ -234,10 +234,14 @@ const MOODLE_DEADLINES_CACHE_TTL_MS = 5 * 60 * 1000
 // Signed-in Moodle contexts are reused for this long (and dropped earlier if
 // Moodle rejects them), so a widget refresh doesn't replay the SAML chain.
 const MOODLE_CONTEXT_TTL_MS = 60 * 60 * 1000
+// Failed logins within the window before a short block. Enough room for a
+// forgotten password, while still keeping brute force (and the university's
+// own CAS lockout) away; the per-IP count is higher because students on
+// campus Wi-Fi share an address.
 const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
-const LOGIN_RATE_LIMIT_BLOCK_MS = 15 * 60 * 1000
-const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP = 10
-const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_USERNAME = 5
+const LOGIN_RATE_LIMIT_BLOCK_MS = 5 * 60 * 1000
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP = 30
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_USERNAME = 8
 const runtimeSessions = new Map()
 const runtimeGradesCache = new Map()
 // sessionId → Map(semesterId → { cachedAt, data }): relevés of the other

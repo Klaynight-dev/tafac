@@ -54,3 +54,14 @@ test('with TRUST_PROXY=false, X-Forwarded-For is ignored', () => withAuthApp({ t
   const spoofed = await login('someone-else', '203.0.113.2')
   assert.equal(spoofed.status, 429)
 }))
+
+test('one student gets 7 wrong passwords before a 5-minute block', () => withAuthApp({}, async (login) => {
+  for (let attempt = 1; attempt <= 7; attempt += 1) {
+    assert.equal((await login('forgetful', '203.0.113.9')).status, 401)
+  }
+
+  const blocked = await login('forgetful', '203.0.113.9')
+  assert.equal(blocked.status, 429)
+  const retryAfter = Number(blocked.headers.get('Retry-After'))
+  assert.ok(retryAfter > 4 * 60 && retryAfter <= 5 * 60)
+}))
