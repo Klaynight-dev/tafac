@@ -11,6 +11,7 @@ import LentButton from './LentButton'
 import LogoBut1 from './LogoBut1'
 import AboutModal from './AboutModal'
 import RenameNotice from './RenameNotice'
+import ServiceNotice from './ServiceNotice'
 import { APP_NAME } from '../seo'
 
 const universityLogo = universityConfig.branding.logo
@@ -199,6 +200,8 @@ function LoginPage({
                   </p>
                 </div>
               </header>
+
+              <ServiceNotice className="mt-5" />
 
               {/* Real form with labelled username/current-password fields and a
                   submit button, so password managers recognize and offer to save

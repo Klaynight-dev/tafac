@@ -55,6 +55,13 @@ export default {
     ],
   },
 
+  // Optional outage banner (dashboard + login page); remove once the
+  // service is back.
+  serviceNotice: {
+    title: "Moodle et la messagerie inaccessibles hors de l'université",
+    detail: "Suite à une faille de sécurité, Moodle et le portail ne sont accessibles que depuis les salles de TD/TP ou le Wi-Fi de l'université (eduroam, univ-rennes). La DSI travaille à rétablir le service",
+  },
+
   // Optional help links (login page + account modal); omit an entry to hide it.
   links: {
     forgotPassword: 'https://docinfo.univ-rennes1.fr/documentation/compte-jai-oublie-mon-mot-de-passe',
