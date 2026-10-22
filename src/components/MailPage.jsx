@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { getMailMessage, getMailMessages, markMailAsRead, trashMailMessage } from '../entApi'
+import { flagMailMessage, getMailMessage, getMailMessages, markMailAsRead, trashMailMessage } from '../entApi'
 import { getOfflineCache, setOfflineCache } from '../offlineStorage'
 import { MAIL_HREF } from '../navItems'
 import { CARD_CLASSES } from '../scodocPageUtils'
@@ -8,7 +8,10 @@ import { APP_NAME } from '../seo'
 import { AppPage, ICON_ONLY, PageButton } from './AppPage'
 import PageGuidedTour from './PageGuidedTour'
 import { LoadingDots, SegmentedControl, StatusMessage } from './ScodocUi'
+import { takeRequestedMailMessage } from '../mailSelection'
+import LinkPreviewCard from './mail/LinkPreviewCard'
 import MailComposeModal from './mail/MailComposeModal'
+import MailContextMenu from './mail/MailContextMenu'
 import MailDirectoryModal from './mail/MailDirectoryModal'
 import MailPreferencesModal from './mail/MailPreferencesModal'
 import {
@@ -147,6 +150,65 @@ function EmailBodyViewer({ html, text }) {
   const iframeRef = useRef(null)
   const [iframeHeight, setIframeHeight] = useState(250)
   const isDark = useIsDark()
+  // The hovered (or focused) link's preview: { url, anchor }.
+  const [hoveredLink, setHoveredLink] = useState(null)
+  const showTimerRef = useRef(null)
+  const hideTimerRef = useRef(null)
+
+  const keepPreview = useCallback(() => window.clearTimeout(hideTimerRef.current), [])
+  const hidePreview = useCallback(() => {
+    window.clearTimeout(showTimerRef.current)
+    window.clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = window.setTimeout(() => setHoveredLink(null), 200)
+  }, [])
+
+  // The body's links (in the sandboxed frame: same origin, no scripts): a
+  // moment on one shows its preview (LinkPreviewCard).
+  const bindLinkPreviews = (doc) => {
+    if (doc.tafacLinkPreviews) return
+    doc.tafacLinkPreviews = true
+    const linkOf = (target) => target?.closest?.('a[href]')
+    const show = (link) => {
+      window.clearTimeout(hideTimerRef.current)
+      window.clearTimeout(showTimerRef.current)
+      if (!/^https?:/i.test(link.href)) return
+      showTimerRef.current = window.setTimeout(() => {
+        const frame = iframeRef.current?.getBoundingClientRect()
+        if (!frame) return
+        const rect = link.getBoundingClientRect()
+        setHoveredLink({ url: link.href, anchor: { left: frame.left + rect.left, top: frame.top + rect.top, bottom: frame.top + rect.bottom } })
+      }, 400)
+    }
+    doc.addEventListener('mouseover', (event) => {
+      const link = linkOf(event.target)
+      if (link) show(link)
+    })
+    doc.addEventListener('mouseout', (event) => {
+      const link = linkOf(event.target)
+      if (link && !link.contains(event.relatedTarget)) hidePreview()
+    })
+    doc.addEventListener('focusin', (event) => {
+      const link = linkOf(event.target)
+      if (link) show(link)
+    })
+    doc.addEventListener('focusout', hidePreview)
+  }
+
+  // A moved page leaves the card behind: it goes.
+  useEffect(() => {
+    if (!hoveredLink) return undefined
+    const close = () => setHoveredLink(null)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [hoveredLink])
+  useEffect(() => () => {
+    window.clearTimeout(showTimerRef.current)
+    window.clearTimeout(hideTimerRef.current)
+  }, [])
 
   const srcDoc = useMemo(() => {
     if (!html) return ''
@@ -273,6 +335,7 @@ function EmailBodyViewer({ html, text }) {
     try {
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
       if (doc) {
+        bindLinkPreviews(doc)
         const images = doc.querySelectorAll('img')
         images.forEach((img) => {
           img.onerror = () => { img.style.display = 'none'; }
@@ -306,20 +369,25 @@ function EmailBodyViewer({ html, text }) {
   }
 
   return (
-    <iframe
-      ref={iframeRef}
-      srcDoc={srcDoc}
-      onLoad={adjustHeight}
-      title="Contenu de l'e-mail"
-      sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-      className="w-full border-0 transition-[height] duration-150 rounded-xl"
-      style={{
-        height: `${iframeHeight}px`,
-        minHeight: '120px',
-        backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
-        colorScheme: isDark ? 'dark' : 'light',
-      }}
-    />
+    <>
+      <iframe
+        ref={iframeRef}
+        srcDoc={srcDoc}
+        onLoad={adjustHeight}
+        title="Contenu de l'e-mail"
+        sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+        className="w-full border-0 transition-[height] duration-150 rounded-xl"
+        style={{
+          height: `${iframeHeight}px`,
+          minHeight: '120px',
+          backgroundColor: isDark ? '#1c1c1c' : '#ffffff',
+          colorScheme: isDark ? 'dark' : 'light',
+        }}
+      />
+      {hoveredLink ? (
+        <LinkPreviewCard url={hoveredLink.url} anchor={hoveredLink.anchor} onPointerEnter={keepPreview} onPointerLeave={hidePreview} />
+      ) : null}
+    </>
   )
 }
 
@@ -335,7 +403,8 @@ export default function MailPage() {
   const [errorServiceHref, setErrorServiceHref] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState('all') // 'all' | 'unread'
-  const [selectedId, setSelectedId] = useState(null)
+  // Opened on the message another page asked for (mailSelection), if any.
+  const [selectedId, setSelectedId] = useState(takeRequestedMailMessage)
   const [selectedMessage, setSelectedMessage] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState(false)
@@ -489,41 +558,74 @@ export default function MailPage() {
     let list = messages
     if (filterMode === 'unread') {
       list = list.filter((m) => m.unread)
+    } else if (filterMode === 'flagged') {
+      list = list.filter((m) => m.flagged)
     }
     return list
   }, [messages, filterMode])
 
-  const handleToggleRead = async (e) => {
-    e?.stopPropagation()
-    if (!selectedMessage) return
-    const nextRead = selectedMessage.unread // if unread now, mark read; else mark unread
-    const targetState = !nextRead // we want to invert
+  // A message's state in the list and, open, in the reading pane.
+  const updateMessage = useCallback((id, patch) => {
+    setMessages((cur) => cur.map((m) => (String(m.id) === String(id) ? { ...m, ...patch } : m)))
+    setSelectedMessage((cur) => (cur && String(cur.id) === String(id) ? { ...cur, ...patch } : cur))
+  }, [])
 
-    setSelectedMessage((cur) => (cur ? { ...cur, unread: targetState } : null))
-    setMessages((cur) =>
-      cur.map((m) => (m.id === selectedMessage.id ? { ...m, unread: targetState } : m))
-    )
-    setUnreadCount((count) => (targetState ? count + 1 : Math.max(0, count - 1)))
-    await markMailAsRead(selectedMessage.id, !targetState)
+  // Shown at once, put back if the webmail refuses.
+  const setMessageRead = async (message, read) => {
+    if (!message || message.unread === !read) return
+    updateMessage(message.id, { unread: !read })
+    setUnreadCount((count) => (read ? Math.max(0, count - 1) : count + 1))
+    if (!(await markMailAsRead(message.id, read))) {
+      updateMessage(message.id, { unread: read })
+      setUnreadCount((count) => (read ? count + 1 : Math.max(0, count - 1)))
+    }
   }
 
-  const handleTrashMessage = async (e) => {
-    e?.stopPropagation()
-    if (!selectedMessage) return
-    const id = selectedMessage.id
-    setSelectedId(null)
-    setMessages((prev) => prev.filter((m) => m.id !== id))
-    setUnreadCount((count) => (selectedMessage.unread ? Math.max(0, count - 1) : count))
-    await trashMailMessage(id)
+  const setMessageFlagged = async (message, flagged) => {
+    if (!message) return
+    updateMessage(message.id, { flagged })
+    if (!(await flagMailMessage(message.id, flagged))) updateMessage(message.id, { flagged: !flagged })
   }
 
-  const handleCopySender = () => {
-    const email = selectedMessage?.from?.email
+  const trashMessage = async (message) => {
+    if (!message) return
+    if (String(message.id) === String(selectedId)) setSelectedId(null)
+    setMessages((prev) => prev.filter((m) => m.id !== message.id))
+    if (message.unread) setUnreadCount((count) => Math.max(0, count - 1))
+    await trashMailMessage(message.id)
+  }
+
+  const handleToggleRead = (e) => {
+    e?.stopPropagation()
+    void setMessageRead(selectedMessage, Boolean(selectedMessage?.unread))
+  }
+
+  const handleToggleFlag = (e) => {
+    e?.stopPropagation()
+    void setMessageFlagged(selectedMessage, !selectedMessage?.flagged)
+  }
+
+  const handleTrashMessage = (e) => {
+    e?.stopPropagation()
+    void trashMessage(selectedMessage)
+  }
+
+  const copyAddress = (email) => {
     if (!email) return
     navigator.clipboard.writeText(email).then(() => {
       setCopiedAddress(true)
       setTimeout(() => setCopiedAddress(false), 2000)
     }).catch(() => {})
+  }
+
+  const handleCopySender = () => copyAddress(selectedMessage?.from?.email)
+
+  // The list's right-click menu: { x, y, message }.
+  const [contextMenu, setContextMenu] = useState(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const handleMessageContextMenu = (event, message) => {
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, message })
   }
 
   // Compose / Send modal state
@@ -549,14 +651,16 @@ export default function MailPage() {
     })
   }
 
-  const handleReplyMessage = () => {
-    if (!selectedMessage) return
-    const senderEmail = selectedMessage.from?.email || ''
-    const senderName = selectedMessage.from?.name || senderEmail || ''
-    const rawSubject = selectedMessage.subject || ''
+  // A reply to `message` (the open one, or one picked in the list: then
+  // quoting its preview).
+  const replyTo = (message) => {
+    if (!message) return
+    const senderEmail = message.from?.email || ''
+    const senderName = message.from?.name || senderEmail || ''
+    const rawSubject = message.subject || ''
     const replySubject = /^re\s*:/i.test(rawSubject) ? rawSubject : `Re: ${rawSubject}`
-    const dateFormatted = selectedMessage.receivedAt
-      ? fullDateFormatter.format(new Date(selectedMessage.receivedAt))
+    const dateFormatted = message.receivedAt
+      ? fullDateFormatter.format(new Date(message.receivedAt))
       : ''
 
     const quotedBody = `
@@ -565,7 +669,7 @@ export default function MailPage() {
       <p><strong>De :</strong> ${senderName} &lt;${senderEmail}&gt;<br/>
       <strong>Date :</strong> ${dateFormatted}<br/>
       <strong>Objet :</strong> ${rawSubject}</p>
-      <blockquote>${selectedMessage.bodyHtml || selectedMessage.bodyText || ''}</blockquote>
+      <blockquote>${message.bodyHtml || message.bodyText || ''}</blockquote>
     `
 
     setComposeState({
@@ -574,10 +678,12 @@ export default function MailPage() {
       cc: '',
       subject: replySubject,
       body: quotedBody,
-      origId: selectedMessage.id,
+      origId: message.id,
       replyType: 'r',
     })
   }
+
+  const handleReplyMessage = () => replyTo(selectedMessage)
 
   const [directoryOpen, setDirectoryOpen] = useState(false)
   const [preferencesOpen, setPreferencesOpen] = useState(false)
@@ -654,6 +760,7 @@ export default function MailPage() {
             options={[
               { value: 'all', label: 'Tous', count: messages.length },
               { value: 'unread', label: 'Non lus', count: messages.filter((m) => m.unread).length },
+              { value: 'flagged', label: 'Importants', count: messages.filter((m) => m.flagged).length },
             ]}
           />
         </div>
@@ -732,6 +839,7 @@ export default function MailPage() {
                         <button
                           type="button"
                           onClick={() => setSelectedId(message.id)}
+                          onContextMenu={(event) => handleMessageContextMenu(event, message)}
                           className={`w-full text-left p-3.5 rounded-[18px] border bg-widget-bg transition-[background-color,box-shadow] duration-150 flex flex-col gap-1.5 cursor-pointer relative ${
                             isSelected
                               ? 'border-accent-border shadow-md ring-2 ring-accent-border'
@@ -755,6 +863,9 @@ export default function MailPage() {
                               </span>
                             </div>
                             <div className="shrink-0 flex items-center gap-1.5 text-[12px] text-text-muted tabular-nums">
+                              {message.flagged ? (
+                                <Icon icon="carbon:flag-filled" className="size-3.5 text-[#e8590c]" aria-label="Important" />
+                              ) : null}
                               {isSelected && loadingDetail && (
                                 <Icon icon="carbon:renew" className="size-3.5 animate-spin text-brand" aria-label="Chargement du message" />
                               )}
@@ -832,6 +943,17 @@ export default function MailPage() {
                             >
                               <Icon icon="carbon:reply" className="size-3.5" />
                               <span className="max-xs:hidden">Répondre</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleToggleFlag}
+                              aria-pressed={Boolean(selectedMessage.flagged)}
+                              className={`size-8 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                                selectedMessage.flagged ? 'text-[#e8590c] bg-[#e8590c]/10' : 'text-text-muted hover:text-text hover:bg-bg-subtle'
+                              }`}
+                              title={selectedMessage.flagged ? 'Retirer l’importance' : 'Marquer comme important'}
+                            >
+                              <Icon icon={selectedMessage.flagged ? 'carbon:flag-filled' : 'carbon:flag'} className="size-4" />
                             </button>
                             <button
                               type="button"
@@ -1033,6 +1155,33 @@ export default function MailPage() {
             </div>
           </div>
         )}
+
+      {contextMenu ? (() => {
+        const { message } = contextMenu
+        return (
+          <MailContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            label={`Actions pour « ${message.subject || '(Sans objet)'} »`}
+            onClose={closeContextMenu}
+            items={[
+              { icon: 'carbon:email', label: 'Ouvrir', onSelect: () => setSelectedId(message.id) },
+              { icon: 'carbon:reply', label: 'Répondre', onSelect: () => replyTo({ ...message, bodyText: message.bodyText || message.snippet }) },
+              'separator',
+              message.unread
+                ? { icon: 'carbon:email', label: 'Marquer comme lu', onSelect: () => void setMessageRead(message, true) }
+                : { icon: 'carbon:email-new', label: 'Marquer comme non lu', onSelect: () => void setMessageRead(message, false) },
+              message.flagged
+                ? { icon: 'carbon:flag', label: 'Retirer l’importance', onSelect: () => void setMessageFlagged(message, false) }
+                : { icon: 'carbon:flag-filled', label: 'Marquer comme important', onSelect: () => void setMessageFlagged(message, true) },
+              ...(message.from?.email ? [{ icon: 'carbon:copy', label: 'Copier l’adresse de l’expéditeur', onSelect: () => copyAddress(message.from.email) }] : []),
+              { icon: 'carbon:launch', label: 'Ouvrir dans le webmail', onSelect: () => window.open(effectiveWebmailHref, '_blank', 'noopener,noreferrer') },
+              'separator',
+              { icon: 'carbon:trash-can', label: 'Mettre à la corbeille', danger: true, onSelect: () => void trashMessage(message) },
+            ]}
+          />
+        )
+      })() : null}
 
       {/* Mail Composer Modal */}
       <MailComposeModal

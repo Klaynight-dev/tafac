@@ -525,6 +525,33 @@ export async function markMailAsRead(id, read = true) {
   return response.ok
 }
 
+// Flags a message as important in the webmail (or clears it).
+export async function flagMailMessage(id, flagged = true) {
+  if (!id) return false
+
+  const response = await fetch(`${ENT_AUTH_PREFIX}/mail/flag`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, flagged }),
+    credentials: 'same-origin',
+  })
+
+  return response.ok
+}
+
+// A link's preview (title, description, image, site; server/linkPreview.js),
+// or null. Asked once per URL for the visit.
+const linkPreviews = new Map()
+export function getLinkPreview(url) {
+  if (!linkPreviews.has(url)) {
+    linkPreviews.set(url, fetch(`${ENT_AUTH_PREFIX}/link-preview?url=${encodeURIComponent(url)}`, { credentials: 'same-origin' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => payload?.preview ?? null)
+      .catch(() => null))
+  }
+  return linkPreviews.get(url)
+}
+
 export async function trashMailMessage(id) {
   if (!id) return false
 
