@@ -3116,6 +3116,28 @@ function assertMailSignInUrl(url) {
   assertSignInUrl(url, MAIL_SIGN_IN_DOMAINS, 'Webmail')
 }
 
+// A service that answers 403 while signing in (e.g. Moodle closed to
+// requests from outside the university's network): the student can still
+// open it themselves. `serviceHref`: its direct address, not the launch
+// relay, which would hit the same 403.
+class ServiceForbiddenError extends Error {
+  constructor(label, serviceHref) {
+    super(`${label} refuse l’accès depuis Tafac pour le moment (erreur 403). Ouvre-le directement.`)
+    this.serviceHref = serviceHref
+  }
+}
+
+// The mail and Moodle endpoints' errors: 503 with the direct link for a
+// ServiceForbiddenError, 500 otherwise.
+function sendServiceError(res, error) {
+  if (error instanceof ServiceForbiddenError) {
+    return res.status(503).json({ error: error.message, forbidden: true, serviceHref: error.serviceHref })
+  }
+  return res.status(500).json({
+    error: error instanceof Error ? error.message : String(error),
+  })
+}
+
 // Walks webmail → SP → IdP → CAS → IdP → SP (SAML POST) → webmail with a
 // copy of the session jar, so the CAS TGC can silently authenticate us.
 async function establishZimbraContext(session) {
@@ -3200,6 +3222,9 @@ async function establishZimbraContext(session) {
       continue
     }
 
+    if (response.status === 403) {
+      throw new ServiceForbiddenError('La messagerie', MAIL_WEBMAIL_URL)
+    }
     throw new Error(`Webmail sign-in stopped on an unexpected page (${response.status} at ${getHostnameFromUrl(currentUrl)}).`)
   }
 
@@ -3783,9 +3808,7 @@ app.get('/__ent_auth/mail/recent', async (req, res) => {
   } catch (error) {
     // Messages above are built from status codes/hostnames only — never from
     // cookies, tokens or upstream bodies.
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -3835,9 +3858,7 @@ app.get('/__ent_auth/mail/messages', async (req, res) => {
       mail,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -3877,9 +3898,7 @@ app.get('/__ent_auth/mail/message/:id', async (req, res) => {
       message,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -3910,9 +3929,7 @@ app.post('/__ent_auth/mail/read', async (req, res) => {
     setSessionCookie(res, session)
     return res.status(200).json({ ok: true })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -3944,9 +3961,7 @@ app.post('/__ent_auth/mail/trash', async (req, res) => {
     setSessionCookie(res, session)
     return res.status(200).json({ ok: true })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -3985,9 +4000,7 @@ app.post('/__ent_auth/mail/send', async (req, res) => {
     setSessionCookie(res, session)
     return res.status(200).json(result)
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -4021,9 +4034,7 @@ app.get('/__ent_auth/mail/directory', async (req, res) => {
     setSessionCookie(res, session)
     return res.status(200).json({ ok: true, contacts })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -4203,6 +4214,9 @@ async function establishMoodleContext(session) {
       continue
     }
 
+    if (response.status === 403) {
+      throw new ServiceForbiddenError('Moodle', `${MOODLE_ORIGIN}/my/`)
+    }
     throw new Error(`Moodle sign-in stopped on an unexpected page (${response.status} at ${getHostnameFromUrl(currentUrl)}).`)
   }
 
@@ -4964,9 +4978,7 @@ app.get('/__ent_auth/moodle/deadlines', async (req, res) => {
       deadlines,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -5008,9 +5020,7 @@ app.get('/__ent_auth/moodle/courses', async (req, res) => {
       ...payload,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -5057,9 +5067,7 @@ app.get('/__ent_auth/moodle/course-contents', async (req, res) => {
       ...payload,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -5133,9 +5141,7 @@ app.get('/__ent_auth/moodle/folder-contents', async (req, res) => {
       ...parsed,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -5540,9 +5546,7 @@ app.get('/__ent_auth/moodle/assignment-details', async (req, res) => {
       assignment,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
@@ -5634,9 +5638,7 @@ app.post('/__ent_auth/moodle/assignment-file/remove', async (req, res) => {
       assignment,
     })
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : String(error),
-    })
+    return sendServiceError(res, error)
   }
 })
 
