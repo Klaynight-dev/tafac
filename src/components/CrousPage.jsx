@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { CROUS_MEAL_PRICE, describeClosures, fetchCrous, getStoredCrousRestaurant, hasMenu, pickMenuDay, readOpeningHours, sectionIcon, setStoredCrousRestaurant, todayKey } from '../crousApi'
+import { accentStyle } from '../eventAccents'
 import { APP_NAME } from '../seo'
-import { AppPage, INLINE_BUTTON, PAGE_CARD, PageButton, PageSection, StatCard, StatRow } from './AppPage'
+import { AppPage, INLINE_BUTTON, PageButton, PageSection, StatCard, StatRow } from './AppPage'
 import Dropdown from './Dropdown'
 import { GradesNotice } from './GradesNotice'
 import LoadingDots from './LoadingDots'
@@ -25,19 +26,52 @@ function dayChipLabel(date) {
   return date === todayKey() ? 'Aujourd’hui' : formatDay(date)
 }
 
+// A section's colour (eventAccents), as a UE's on Mes notes: green for the
+// starters, orange for the mains, pink for the desserts.
+function sectionAccent(title) {
+  const text = String(title ?? '').toLowerCase()
+  if (/entr|hors/.test(text)) return 6
+  if (/dessert|fromage/.test(text)) return 7
+  if (/pizza|grill|snack|sandwich|burger/.test(text)) return 1
+  if (/accomp|légume|legume|féculent|feculent/.test(text)) return 4
+  if (/plat/.test(text)) return 8
+  return 0
+}
+
+// "Tartine aux légumes VG": the dish, and a « Végé » badge.
+function readDish(item) {
+  const match = String(item).match(/^(.*?)\s+(?:VG|végé|vegan|végétarien)\.?\s*$/i)
+  return match ? { name: match[1], veggie: true } : { name: item, veggie: false }
+}
+
+// One section of a meal, carded as Mes notes' groups: its colour washing
+// the top, its icon on a disc of that colour, its count, then its dishes as
+// rows, each with its colour's dot.
 function MenuSection({ section }) {
   return (
-    <article className={`${PAGE_CARD} flex flex-col gap-3 p-4 max-md:p-3.5`}>
-      <h3 className="m-0 flex items-center gap-2 font-body text-[15px] font-semibold text-text">
-        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted-fill" aria-hidden="true">
-          <Icon icon={sectionIcon(section.title)} className="size-4" />
+    <article
+      className="widget-card widget-card-visible relative isolate flex min-w-0 flex-col gap-1 overflow-hidden rounded-[22px] border border-white bg-widget-bg p-2 text-text shadow-md dark:border-border max-md:rounded-[20px]"
+      style={accentStyle(sectionAccent(section.title))}
+    >
+      <span className="latest-grade-wash planning-accent-fill" aria-hidden="true" />
+      <h3 className="m-0 flex items-center gap-2.5 px-2 pt-2 pb-1.5 font-body text-[16px] font-semibold leading-tight text-text">
+        <span className="planning-accent-fill inline-flex size-9 shrink-0 items-center justify-center rounded-full text-white" aria-hidden="true">
+          <Icon icon={sectionIcon(section.title)} className="size-[18px]" />
         </span>
-        {section.title}
+        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{section.title}</span>
+        <span className="shrink-0 rounded-full border border-border bg-bg-subtle px-2 py-1 font-body text-[12px] font-semibold leading-none text-text-muted">{section.items.length}</span>
       </h3>
-      <ul className="m-0 grid list-none gap-1.5 p-0">
-        {section.items.map((item, index) => (
-          <li key={`${item}-${index}`} className="font-body text-[15px] font-medium leading-snug text-text-secondary">{item}</li>
-        ))}
+      <ul className="m-0 grid list-none gap-0.5 p-0">
+        {section.items.map((item, index) => {
+          const dish = readDish(item)
+          return (
+            <li key={`${item}-${index}`} className="flex min-w-0 items-center gap-2.5 rounded-[14px] px-3 py-2 font-body text-[15px] font-medium leading-snug text-text">
+              <span className="planning-accent-fill size-1.5 shrink-0 rounded-full" aria-hidden="true" />
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{dish.name}</span>
+              {dish.veggie ? <span className="shrink-0 rounded-full bg-[#e3f5e1] px-[7px] py-[3px] text-[11px] font-semibold leading-none text-[#2f7a2b] dark:bg-[#183a17] dark:text-[#8fd88a]">Végé</span> : null}
+            </li>
+          )
+        })}
       </ul>
     </article>
   )
@@ -126,7 +160,7 @@ function CrousPage({ establishment = null }) {
             icon={/soir/i.test(meal.name) ? 'carbon:moon' : 'carbon:sun'}
             title={meal.name.charAt(0).toUpperCase() + meal.name.slice(1)}
           >
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 max-md:grid-cols-1">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] items-start gap-3 max-md:grid-cols-1 max-md:gap-2">
               {meal.sections.map((section) => <MenuSection key={section.title} section={section} />)}
             </div>
           </PageSection>
