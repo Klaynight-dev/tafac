@@ -3300,6 +3300,7 @@ function normalizeZimbraMessage(message) {
     snippet: typeof message?.fr === 'string' ? message.fr.replace(/\s+/g, ' ').trim().slice(0, 280) : '',
     receivedAt: Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp).toISOString() : null,
     unread: typeof message?.f === 'string' && message.f.includes('u'),
+    flagged: typeof message?.f === 'string' && message.f.includes('f'),
     // Unverified deep link format for the Zimbra Ajax client.
     // Partage can't deep-link through the sign-in handoff: rows open the inbox.
     href: getMailWebmailHref(),
@@ -3514,6 +3515,7 @@ async function fetchZimbraMessageDetail(session, messageId) {
         cc: ccRecipients,
         receivedAt: Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp).toISOString() : null,
         unread: typeof msg.f === 'string' && msg.f.includes('u'),
+        flagged: typeof msg.f === 'string' && msg.f.includes('f'),
         bodyHtml: bodyHtml || null,
         bodyText: bodyText || msg.fr || '',
         snippet: typeof msg.fr === 'string' ? msg.fr.slice(0, 280) : '',
@@ -3924,6 +3926,37 @@ app.post('/__ent_auth/mail/read', async (req, res) => {
     const context = await getZimbraContext(session)
     await zimbraSoapRequest(context, 'MsgActionRequest', {
       action: { id, op: read ? 'read' : '!read' },
+    })
+    setSessionCookie(res, session)
+    return res.status(200).json({ ok: true })
+  } catch (error) {
+    return sendServiceError(res, error)
+  }
+})
+
+// Flag a message as important (Zimbra's flag), or not.
+app.post('/__ent_auth/mail/flag', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    const session = getSessionFromRequest(req)
+
+    if (!session) {
+      return res.status(401).json({ authenticated: false, error: 'Non authentifié' })
+    }
+
+    const { id, flagged = true } = req.body || {}
+    if (!id) {
+      return res.status(400).json({ error: 'Identifiant de message manquant' })
+    }
+
+    if (isDemoSession(session)) {
+      setSessionCookie(res, session)
+      return res.status(200).json({ ok: true })
+    }
+
+    const context = await getZimbraContext(session)
+    await zimbraSoapRequest(context, 'MsgActionRequest', {
+      action: { id, op: flagged ? 'flag' : '!flag' },
     })
     setSessionCookie(res, session)
     return res.status(200).json({ ok: true })
