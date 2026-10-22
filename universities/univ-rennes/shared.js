@@ -38,6 +38,7 @@ export const branding = {
     team: [
       { name: 'Tom', login: 'tom-things' },
       { name: 'Lucas Lavajo', login: 'tryon-dev' },
+      { name: 'Elouan Passereau', login: 'Klaynight-dev' },
     ],
   },
 }
