@@ -80,6 +80,12 @@ export function isCrousPageAvailable() {
   return Boolean(universityConfig.features?.crous && universityConfig.crous?.region)
 }
 
+// Whether /bus can show the bus network (« Bus »): a network configured
+// and a campus for this establishment.
+export function isTransitPageAvailable(establishment) {
+  return Boolean(universityConfig.features?.transit && universityConfig.transit?.gtfsUrl && universityConfig.transit?.campuses?.[establishment])
+}
+
 // `gradesSupported: false`: a student whose relevé Tafac can't read (not a
 // BUT): no "Mes notes".
 export function buildNavItems(establishment, { gradesSupported = true } = {}) {
@@ -114,6 +120,10 @@ export function buildNavItems(establishment, { gradesSupported = true } = {}) {
     // Not in the tab bar (six tabs already): the dashboard's card opens it.
     ...(isCrousPageAvailable()
       ? [{ id: 'ru', label: 'Menu du RU', icon: 'carbon:restaurant', route: 'ru', inTabBar: false }]
+      : []),
+    // Not in the tab bar either: its card and the planning open it.
+    ...(isTransitPageAvailable(establishment)
+      ? [{ id: 'bus', label: 'Bus', icon: 'carbon:bus', route: 'bus', inTabBar: false }]
       : []),
   ]
 }

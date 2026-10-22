@@ -4284,3 +4284,165 @@ li + li > .planning-row .planning-row-text {
     transition: none;
   }
 }
+
+/* ── « Bus » (TransitPage, TransitLineDiagram, TransitMap) ── */
+
+/* Real time: the dot breathes, unless motion is reduced. */
+.transit-live-dot {
+  animation: transit-live 1.6s ease-in-out infinite;
+}
+
+@keyframes transit-live {
+  50% { opacity: 0.35; }
+}
+
+/* A line's plan: a rail in the line's colour (--line-color) through every
+   stop, a ringed dot per stop, bigger at both ends. */
+.transit-diagram-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 6px;
+  margin-left: -3px;
+  background: var(--line-color);
+}
+
+.transit-diagram-rail.is-first {
+  top: 50%;
+}
+
+.transit-diagram-rail.is-last {
+  bottom: 50%;
+}
+
+.transit-diagram-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 3px solid var(--line-color);
+  background: var(--color-widget-bg);
+}
+
+.transit-diagram-dot.is-end {
+  width: 18px;
+  height: 18px;
+  border-width: 4px;
+}
+
+/* Home and campus pins on the map. */
+.transit-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transit-pin > span {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.transit-pin.is-home > span {
+  background: #2563eb;
+}
+
+.transit-pin.is-campus > span {
+  background: #111827;
+}
+
+/* The OpenStreetMap tiles, darkened with the theme. */
+:where([data-theme="dark"]) .transit-map-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
+
+.transit-map .leaflet-container,
+.transit-map.leaflet-container {
+  font-family: inherit;
+  background: var(--color-bg-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transit-live-dot {
+    animation: none;
+  }
+}
+
+/* ── Progress ring (ProgressRing: « Bus » countdown, « Menu du RU » service) ──
+   A track and its arc, drawn in on arrival like « UE validées »' ring. */
+.progress-ring-track,
+.progress-ring-value {
+  fill: none;
+  stroke-width: 13;
+}
+
+.progress-ring-track {
+  stroke: var(--color-border);
+}
+
+.progress-ring-value {
+  stroke-linecap: round;
+  transition: stroke-dasharray 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: progress-ring-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes progress-ring-in {
+  from { stroke-dasharray: 0 100; }
+}
+
+/* ── Journey strip (TransitUi › JourneyStrip) ──
+   Each part as wide as it lasts: buses in their colours (inline), the walk
+   dotted, a change hatched, the time to spare in green. The parts grow in
+   from the left, one after the other. */
+.journey-strip-part {
+  transform-origin: left center;
+  animation: journey-strip-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.journey-strip-part:nth-child(2) { animation-delay: 60ms; }
+.journey-strip-part:nth-child(3) { animation-delay: 120ms; }
+.journey-strip-part:nth-child(4) { animation-delay: 180ms; }
+.journey-strip-part:nth-child(5) { animation-delay: 240ms; }
+.journey-strip-part:nth-child(n + 6) { animation-delay: 300ms; }
+
+@keyframes journey-strip-in {
+  from { transform: scaleX(0); opacity: 0; }
+}
+
+.journey-strip-part.is-walk {
+  color: var(--color-text-muted);
+  background: radial-gradient(circle, var(--color-text-muted) 1.4px, transparent 1.6px) 0 50% / 7px 7px repeat-x;
+  opacity: 0.85;
+}
+
+.journey-strip-part.is-wait {
+  color: var(--color-text-muted);
+  background: repeating-linear-gradient(135deg, var(--color-border) 0 4px, transparent 4px 8px);
+}
+
+.journey-strip-part.is-spare {
+  background: #e3f5e1;
+  color: #2f7a2b;
+}
+
+:where([data-theme="dark"]) .journey-strip-part.is-spare {
+  background: #183a17;
+  color: #8fd88a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-ring-value,
+  .journey-strip-part {
+    animation: none;
+    transition: none;
+  }
+}

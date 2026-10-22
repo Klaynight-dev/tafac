@@ -14,6 +14,7 @@ const ROUTE_PATHS = {
   mail: '/mail',
   moodle: '/moodle',
   ru: '/ru',
+  bus: '/bus',
 }
 
 const ROUTE_CHANGE_EVENT = 'tafac:route-change'

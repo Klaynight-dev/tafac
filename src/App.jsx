@@ -54,12 +54,14 @@ import LoadingDots from './components/LoadingDots'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
-import { getMobileTabItems, isCrousPageAvailable, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from './navItems'
+import { getMobileTabItems, isCrousPageAvailable, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable, isTransitPageAvailable } from './navItems'
 import { getLastNavigationSource, navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
 import AbsencesPage from './components/AbsencesPage'
 import MailPage from './components/MailPage'
 import MoodlePage from './components/MoodlePage'
 import CrousPage from './components/CrousPage'
+import TransitPage from './components/TransitPage'
+import { useTransitReminderSync } from './transitPush'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import { getAvailableWidgets } from './dashboardWidgets'
 import useGradesFormation from './useGradesFormation'
@@ -477,7 +479,7 @@ function findTpOptionByLabel(options, labelOrLabels) {
 }
 
 // Sidebar order of the pages, for the direction of the page slide.
-const PAGE_ORDER = ['dashboard', 'grades', 'absences', 'planning', 'mail', 'moodle', 'ru']
+const PAGE_ORDER = ['dashboard', 'grades', 'absences', 'planning', 'mail', 'moodle', 'ru', 'bus']
 
 // What a page transition fades: each frosted card on its own (its blur keeps
 // working, unlike under a fading ancestor) and every block without one.
@@ -2180,12 +2182,16 @@ function App() {
   const mailPageAvailable = isMailPageAvailable()
   const moodlePageAvailable = isMoodlePageAvailable()
   const crousPageAvailable = isCrousPageAvailable()
+  const transitPageAvailable = isTransitPageAvailable(establishment)
+  // Bus reminders on: each open hands the server the coming days' ones.
+  useTransitReminderSync({ establishment, selection: selectedTp, sessionUser: sessionState.authenticated ? sessionState.user : '' })
   const activeRoute = (deferredRoute === 'grades' && gradesPageAvailable)
     || (deferredRoute === 'absences' && scodocPagesAvailable)
     || (deferredRoute === 'planning' && planningPageAvailable)
     || (deferredRoute === 'mail' && mailPageAvailable)
     || (deferredRoute === 'moodle' && moodlePageAvailable)
     || (deferredRoute === 'ru' && crousPageAvailable)
+    || (deferredRoute === 'bus' && transitPageAvailable)
     ? deferredRoute
     : 'dashboard'
   const hasGradesPage = gradesPageAvailable
@@ -2920,10 +2926,11 @@ function App() {
       || (route === 'mail' && !mailPageAvailable)
       || (route === 'moodle' && !moodlePageAvailable)
       || (route === 'ru' && !crousPageAvailable)
+      || (route === 'bus' && !transitPageAvailable)
     if (isDashboardShellVisible && unavailable) {
       navigateTo('dashboard', { replace: true })
     }
-  }, [crousPageAvailable, gradesPageAvailable, isDashboardShellVisible, mailPageAvailable, moodlePageAvailable, planningPageAvailable, route, scodocPagesAvailable])
+  }, [crousPageAvailable, gradesPageAvailable, isDashboardShellVisible, mailPageAvailable, moodlePageAvailable, planningPageAvailable, route, scodocPagesAvailable, transitPageAvailable])
 
   const scodocPageRef = useRef(null)
   const dashboardPageRef = useRef(null)
@@ -3077,6 +3084,7 @@ function App() {
                     <MoodlePage />
                   ) : null}
                   {activeRoute === 'ru' ? <CrousPage establishment={establishment} /> : null}
+                  {activeRoute === 'bus' ? <TransitPage establishment={establishment} selection={selectedTp} sessionUser={sessionState.user} /> : null}
                 </PageErrorBoundary>
               </div>
             )}
