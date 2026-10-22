@@ -1901,6 +1901,15 @@
     flex: 1 1 0;
     min-width: 0;
   }
+
+  /* The RU's card, in the strip too: a row of its own under the two. */
+  .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .widget-lists {
+    flex-wrap: wrap;
+  }
+
+  .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .widget-lists > .crous-card-widget {
+    flex: 1 1 100%;
+  }
 }
 
 /* ── Phone layout (max-xs) ──
@@ -1945,6 +1954,11 @@
 
   .widget-lists > .widget-card:only-child {
     flex-basis: 100%;
+  }
+
+  /* As tall as the cards it's swiped with. */
+  .widget-lists > .crous-card-widget {
+    height: auto;
   }
 
   /* A thin 20px row tucked under the strip, with the section gap below

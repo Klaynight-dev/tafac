@@ -6,7 +6,7 @@ import { CROUS_MEAL_PRICE, describeClosures, fetchCrous, getStoredCrousRestauran
 // « Menu du RU » card: the hot dishes of the student's RU today (or its next
 // day with a menu), the meal's price; the whole card opens the page.
 
-const CARD_CLASSES = 'crous-card-widget widget-card shadow-md relative flex h-[140px] flex-[0_1_360px] min-w-0 flex-col gap-[6px] overflow-hidden rounded-[22px] border border-white bg-widget-bg p-4 text-left text-text cursor-pointer transition-colors duration-150 hover:bg-row-hover max-2xl:flex-[1_1_calc(50%-6px)] max-md:h-[124px] max-md:rounded-[20px] max-md:p-3 max-xs:flex-[1_1_100%]'
+const CARD_CLASSES = 'crous-card-widget widget-card shadow-md relative flex h-[140px] w-full flex-[1_1_360px] min-w-0 flex-col gap-[6px] overflow-hidden rounded-[22px] border border-white bg-widget-bg p-4 text-left text-text cursor-pointer transition-colors duration-150 hover:bg-row-hover max-2xl:flex-[1_1_calc(50%-6px)] max-md:h-[124px] max-md:rounded-[20px] max-md:p-3 max-xs:flex-[1_1_100%]'
 
 function formatDay(date) {
   const label = new Date(`${date}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long' })

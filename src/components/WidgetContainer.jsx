@@ -239,6 +239,12 @@ function WidgetContainer({
     { label: 'Échéances', card: <WidgetDeadlines key="deadlines" visible={areWidgetsVisible} /> },
   ]
   if (listCardsFirst === 'deadlines') listCards.reverse()
+  // With both list cards, the RU's card joins their strip (swiped with them
+  // on a phone) rather than a row of its own.
+  const crousInStrip = pairListWidgets && showCrousWidget
+  if (crousInStrip) {
+    listCards.push({ label: 'Menu du RU', card: <WidgetCrous key="crous" visible={areWidgetsVisible} establishment={establishment} /> })
+  }
   // Where the greeting briefing gets classes: the shown card's loads, its
   // own load when the student hid the card, nothing without the widget.
   const briefingClassesSource = debugNextClass || !isWidgetAvailable('nextClass', establishment)
@@ -312,8 +318,8 @@ function WidgetContainer({
             )}
           </div>
         ) : null}
-        {showCrousWidget ? (
-          <div className="flex-[1_1_320px] max-w-[420px] min-w-[280px]">
+        {showCrousWidget && !crousInStrip ? (
+          <div className="flex flex-[1_1_320px] max-w-[420px] min-w-[280px] max-md:max-w-none">
             <WidgetCrous visible={areWidgetsVisible} establishment={establishment} />
           </div>
         ) : null}
