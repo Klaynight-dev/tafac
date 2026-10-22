@@ -105,6 +105,7 @@ function useDailyBriefing({
     text: buildDailyBriefing({
       classes,
       deadlines: expectDeadlines && deadlines?.status === 'ok' ? deadlines.items : null,
+      bus: sources.bus,
       now,
     }),
   }

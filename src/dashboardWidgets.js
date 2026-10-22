@@ -50,6 +50,12 @@ export const DASHBOARD_WIDGETS = [
     icon: 'carbon:restaurant',
     isAvailable: () => Boolean(universityConfig.features?.crous && universityConfig.crous?.region),
   },
+  {
+    id: 'transit',
+    label: 'Bus',
+    icon: 'carbon:bus',
+    isAvailable: (establishment) => Boolean(universityConfig.features?.transit && universityConfig.transit?.campuses?.[establishment]),
+  },
 ]
 
 export function isWidgetAvailable(widgetId, establishment) {

@@ -12,6 +12,7 @@ import WidgetListStrip from './WidgetListStrip'
 import WidgetNextClass from './WidgetNextClass'
 import WidgetRecentMail from './WidgetRecentMail'
 import WidgetCrous from './WidgetCrous'
+import WidgetTransit from './WidgetTransit'
 import { trackDashboardView } from '../analytics'
 import { isWidgetAvailable } from '../dashboardWidgets'
 import { useListCardOrder } from '../listCardOrder'
@@ -230,6 +231,7 @@ function WidgetContainer({
   const showMailWidget = isShown('mail')
   const showDeadlinesWidget = isShown('deadlines')
   const showCrousWidget = isShown('crous')
+  const showTransitWidget = isShown('transit')
   const pairListWidgets = showMailWidget && showDeadlinesWidget
   // The busier of the two goes first (src/listCardOrder.js). Keyed, so a swap
   // moves the cards instead of remounting (and refetching) them.
@@ -244,6 +246,12 @@ function WidgetContainer({
   const crousInStrip = pairListWidgets && showCrousWidget
   if (crousInStrip) {
     listCards.push({ label: 'Menu du RU', card: <WidgetCrous key="crous" visible={areWidgetsVisible} establishment={establishment} /> })
+  }
+  // The bus card too.
+  const transitInStrip = pairListWidgets && showTransitWidget
+  const transitCard = <WidgetTransit key="transit" visible={areWidgetsVisible} establishment={establishment} selection={selectedPlanningSelection} sessionUser={sessionUser} />
+  if (transitInStrip) {
+    listCards.push({ label: 'Bus', card: transitCard })
   }
   // Where the greeting briefing gets classes: the shown card's loads, its
   // own load when the student hid the card, nothing without the widget.
@@ -321,6 +329,11 @@ function WidgetContainer({
         {showCrousWidget && !crousInStrip ? (
           <div className="flex flex-[1_1_320px] max-w-[420px] min-w-[280px] max-md:max-w-none">
             <WidgetCrous visible={areWidgetsVisible} establishment={establishment} />
+          </div>
+        ) : null}
+        {showTransitWidget && !transitInStrip ? (
+          <div className="flex flex-[1_1_320px] max-w-[420px] min-w-[280px] max-md:max-w-none">
+            {transitCard}
           </div>
         ) : null}
       </div>

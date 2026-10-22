@@ -1907,8 +1907,13 @@
     flex-wrap: wrap;
   }
 
-  .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .widget-lists > .crous-card-widget {
+  .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .widget-lists > :is(.crous-card-widget, .transit-card-widget) {
     flex: 1 1 100%;
+  }
+
+  /* RU and bus together: two rows of halves, mail | deadlines, RU | bus. */
+  .widget-row:has(.recent-mail-widget):has(.moodle-deadlines-widget) .widget-lists:has(> .crous-card-widget):has(> .transit-card-widget) > .widget-card {
+    flex: 1 1 calc(50% - 6px);
   }
 }
 
@@ -1957,7 +1962,7 @@
   }
 
   /* As tall as the cards it's swiped with. */
-  .widget-lists > .crous-card-widget {
+  .widget-lists > :is(.crous-card-widget, .transit-card-widget) {
     height: auto;
   }
 
