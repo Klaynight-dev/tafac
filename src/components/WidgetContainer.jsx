@@ -279,6 +279,7 @@ function WidgetContainer({
               sessionUser={sessionUser}
               lookaheadDays={nextClassLookaheadDays}
               onOpenPlanning={onOpenPlanningDay}
+              establishment={establishment}
             />
           </div>
         ) : null}
