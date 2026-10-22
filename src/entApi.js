@@ -172,9 +172,12 @@ export function getRequestErrorKind(error) {
   return 'other'
 }
 
-function createHttpError(message, status) {
+// `serviceHref`: the service's own address when the server says it refused
+// Tafac (403, see sendServiceError): the student can still open it there.
+function createHttpError(message, status, serviceHref = null) {
   const error = new Error(message)
   error.status = status
+  error.serviceHref = serviceHref
   return error
 }
 
@@ -421,7 +424,7 @@ export async function getRecentMail() {
     }
 
     if (!response.ok || !payload) {
-      throw createHttpError(payload?.error || `Mail request failed (${response.status}).`, response.status)
+      throw createHttpError(payload?.error || `Mail request failed (${response.status}).`, response.status, payload?.serviceHref)
     }
 
     if (!payload.authenticated || !payload.mail) {
@@ -442,6 +445,7 @@ export async function getRecentMail() {
       messages: [],
       error: error instanceof Error ? error.message : String(error),
       errorKind: getRequestErrorKind(error),
+      serviceHref: error?.serviceHref ?? null,
     }
   }
 }
@@ -467,7 +471,7 @@ export async function getMailMessages({ limit = 30, query = '' } = {}) {
     }
 
     if (!response.ok || !payload) {
-      throw createHttpError(payload?.error || `Mail messages request failed (${response.status}).`, response.status)
+      throw createHttpError(payload?.error || `Mail messages request failed (${response.status}).`, response.status, payload?.serviceHref)
     }
 
     if (!payload.authenticated || !payload.mail) {
@@ -488,6 +492,7 @@ export async function getMailMessages({ limit = 30, query = '' } = {}) {
       messages: [],
       error: error instanceof Error ? error.message : String(error),
       errorKind: getRequestErrorKind(error),
+      serviceHref: error?.serviceHref ?? null,
     }
   }
 }
@@ -602,7 +607,7 @@ export async function getMoodleDeadlines() {
     }
 
     if (!response.ok || !payload) {
-      throw createHttpError(payload?.error || `Moodle request failed (${response.status}).`, response.status)
+      throw createHttpError(payload?.error || `Moodle request failed (${response.status}).`, response.status, payload?.serviceHref)
     }
 
     if (!payload.authenticated || !payload.deadlines) {
@@ -620,6 +625,7 @@ export async function getMoodleDeadlines() {
       ...empty,
       error: error instanceof Error ? error.message : String(error),
       errorKind: getRequestErrorKind(error),
+      serviceHref: error?.serviceHref ?? null,
     }
   }
 }
@@ -647,7 +653,7 @@ export async function getMoodleCourses() {
     }
 
     if (!response.ok || !payload) {
-      throw createHttpError(payload?.error || `Moodle request failed (${response.status}).`, response.status)
+      throw createHttpError(payload?.error || `Moodle request failed (${response.status}).`, response.status, payload?.serviceHref)
     }
 
     if (!payload.authenticated) {
@@ -665,6 +671,7 @@ export async function getMoodleCourses() {
       ...empty,
       error: error instanceof Error ? error.message : String(error),
       errorKind: getRequestErrorKind(error),
+      serviceHref: error?.serviceHref ?? null,
     }
   }
 }

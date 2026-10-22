@@ -155,6 +155,8 @@ export default function MoodlePage() {
   const [courses, setCourses] = useState([])
   const [loadingCourses, setLoadingCourses] = useState(true)
   const [coursesError, setCoursesError] = useState(null)
+  // Moodle's own address when it refused Tafac (403): the student opens it there.
+  const [coursesServiceHref, setCoursesServiceHref] = useState(null)
   const [moodleWebHref, setMoodleWebHref] = useState(null)
 
   const [deadlines, setDeadlines] = useState([])
@@ -228,6 +230,7 @@ export default function MoodlePage() {
   const loadCourses = useCallback(async () => {
     setLoadingCourses(true)
     setCoursesError(null)
+    setCoursesServiceHref(null)
     try {
       const result = await getMoodleCourses()
       if (result.status === 'ok') {
@@ -241,6 +244,7 @@ export default function MoodlePage() {
           setCourses(offline.data)
         } else {
           setCoursesError(result.error || 'Impossible de récupérer vos cours Moodle.')
+          setCoursesServiceHref(result.serviceHref ?? null)
         }
       } else if (result.status === 'unauthenticated') {
         setCoursesError('Veuillez vous reconnecter pour accéder à Moodle.')
@@ -1701,13 +1705,28 @@ export default function MoodlePage() {
                   title="Impossible de charger tes cours"
                   detail={coursesError}
                   action={(
-                    <button
-                      type="button"
-                      className="rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover transition-colors"
-                      onClick={() => void loadCourses()}
-                    >
-                      Réessayer
-                    </button>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {coursesServiceHref ? (
+                        <a
+                          href={coursesServiceHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg no-underline hover:bg-brand-hover transition-colors"
+                        >
+                          Ouvrir Moodle
+                          <Icon icon="carbon:arrow-up-right" className="size-4" aria-hidden="true" />
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        className={coursesServiceHref
+                          ? 'rounded-full border border-border bg-widget-bg px-4 py-2 font-body text-[14px] font-semibold text-text hover:bg-bg-subtle transition-colors'
+                          : 'rounded-full border-0 bg-brand px-4 py-2 font-body text-[14px] font-semibold text-bg hover:bg-brand-hover transition-colors'}
+                        onClick={() => void loadCourses()}
+                      >
+                        Réessayer
+                      </button>
+                    </div>
                   )}
                 />
               ) : filteredCourses.length === 0 ? (

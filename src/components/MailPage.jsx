@@ -331,6 +331,8 @@ export default function MailPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
+  // The webmail's own address when it refused Tafac (403): opened there.
+  const [errorServiceHref, setErrorServiceHref] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMode, setFilterMode] = useState('all') // 'all' | 'unread'
   const [selectedId, setSelectedId] = useState(null)
@@ -354,6 +356,7 @@ export default function MailPage() {
     if (isManualRefresh) setRefreshing(true)
     else setLoading(true)
     setError(null)
+    setErrorServiceHref(null)
 
     try {
       const result = await getMailMessages({ limit: 40, query })
@@ -383,6 +386,7 @@ export default function MailPage() {
         setError('Session expirée. Veuillez vous reconnecter.')
       } else {
         setError(result.error || 'Erreur lors du chargement des e-mails.')
+        setErrorServiceHref(result.serviceHref ?? null)
       }
     } catch (err) {
       const offline = await getOfflineCache('mail:inbox')
@@ -662,13 +666,28 @@ export default function MailPage() {
             title="Impossible de charger les e-mails"
             detail={error}
             action={
-              <button
-                type="button"
-                onClick={() => void loadMessages(searchQuery, true)}
-                className="rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-bg hover:opacity-90 transition-opacity"
-              >
-                Réessayer
-              </button>
+              <div className="flex flex-wrap justify-center gap-2">
+                {errorServiceHref ? (
+                  <a
+                    href={errorServiceHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-bg no-underline hover:opacity-90 transition-opacity"
+                  >
+                    Ouvrir la messagerie
+                    <Icon icon="carbon:arrow-up-right" className="size-4" aria-hidden="true" />
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void loadMessages(searchQuery, true)}
+                  className={errorServiceHref
+                    ? 'rounded-full border border-border bg-widget-bg px-4 py-2 text-[14px] font-semibold text-text hover:bg-bg-subtle transition-colors'
+                    : 'rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-bg hover:opacity-90 transition-opacity'}
+                >
+                  Réessayer
+                </button>
+              </div>
             }
           />
         )}

@@ -181,12 +181,14 @@ function WidgetRecentMail({ visible = false }) {
   useEffect(() => () => publishBriefingSource('mailCount', null), [])
 
   // Hidden when the mailbox can't be loaded; the background refresh brings
-  // the card back once the webmail answers again.
-  if (state.status === 'disabled' || state.status === 'unauthenticated' || state.status === 'error') {
+  // the card back once the webmail answers again. The webmail refusing Tafac
+  // (403, `serviceHref`) stays, with its direct link.
+  const isForbidden = state.status === 'error' && Boolean(state.serviceHref)
+  if (state.status === 'disabled' || state.status === 'unauthenticated' || (state.status === 'error' && !isForbidden)) {
     return null
   }
 
-  const webmailHref = state.webmailHref || storedWebmailHref
+  const webmailHref = isForbidden ? state.serviceHref : state.webmailHref || storedWebmailHref
   const messages = state.messages.slice(0, MAX_VISIBLE_MESSAGES)
   const unreadCount = state.status === 'ok'
     ? (state.unreadCount ?? state.messages.filter((message) => message.unread).length)
@@ -224,6 +226,10 @@ function WidgetRecentMail({ visible = false }) {
             <MailRow key={message.id ?? index} message={message} fallbackHref={webmailHref} now={now} />
           ))}
         </ul>
+      ) : null}
+
+      {isForbidden ? (
+        <WidgetListStatus icon="carbon:locked" title="Messagerie inaccessible depuis Tafac" body="Ouvre-la directement pour lire tes mails" />
       ) : null}
 
       {state.status === 'ok' && messages.length === 0 ? (
