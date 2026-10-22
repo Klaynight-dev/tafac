@@ -1680,7 +1680,7 @@ function App() {
 
         let treeResponse = await getAdeTree()
         let treePayload = treeResponse?.tree
-        const detectedEstablishment = detectEstablishment({
+        let detectedEstablishment = detectEstablishment({
           treePayload,
           account: sessionState.account,
           user: sessionState.user,
@@ -1694,9 +1694,10 @@ function App() {
           try {
             const gradesResponse = await getGrades()
             if (gradesResponse?.unavailable && detectedEstablishment === 'iutlan') {
-              const revised = 'enssat'
-              persistEstablishment(revised, sessionState.user)
-              setEstablishment(revised)
+              // Kept for the later persists below, which would undo it.
+              detectedEstablishment = 'enssat'
+              persistEstablishment(detectedEstablishment, sessionState.user)
+              setEstablishment(detectedEstablishment)
             } else if (gradesResponse?.authenticated && !gradesResponse?.disabled) {
               scodocGroupSelection = detectScodocGroupSelection(gradesResponse.grades)
             }
@@ -1861,7 +1862,7 @@ function App() {
           return
         }
 
-        if (!establishment) {
+        if (!getStoredEstablishment(sessionState.user)) {
           persistEstablishment('other', sessionState.user)
           setEstablishment('other')
         }
@@ -1881,8 +1882,9 @@ function App() {
     return () => {
       cancelled = true
     }
+  // Not `establishment`: this effect sets it, and a rerun would cancel
+  // the hydration midway (ENSSAT: iutlan → enssat → iutlan… forever).
   }, [
-    establishment,
     hasHydratedProfile,
     profileReloadNonce,
     profileUser,
@@ -3083,7 +3085,7 @@ function App() {
                   {activeRoute === 'moodle' ? (
                     <MoodlePage />
                   ) : null}
-                  {activeRoute === 'ru' ? <CrousPage establishment={establishment} /> : null}
+                  {activeRoute === 'ru' ? <CrousPage establishment={establishment} selection={selectedTp} sessionUser={sessionState.user} /> : null}
                   {activeRoute === 'bus' ? <TransitPage establishment={establishment} selection={selectedTp} sessionUser={sessionState.user} /> : null}
                 </PageErrorBoundary>
               </div>

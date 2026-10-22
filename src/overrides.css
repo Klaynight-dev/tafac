@@ -4451,3 +4451,22 @@ li + li > .planning-row .planning-row-text {
     transition: none;
   }
 }
+
+/* « Menu du RU »'s live card: the student's break on the service bar,
+   hatched in the brand colour. */
+.ru-lunch-band {
+  background: repeating-linear-gradient(135deg, var(--color-brand) 0 6px, color-mix(in srgb, var(--color-brand) 82%, transparent) 6px 12px);
+  border-radius: 7px;
+}
+
+/* « Menu du RU »'s course icons: the course's colour (--accent, from
+   eventAccents) on a tile tinted with it. */
+.menu-tile {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+:where([data-theme="dark"]) .menu-tile {
+  color: var(--accent-dark);
+  background: color-mix(in srgb, var(--accent-dark) 22%, transparent);
+}
