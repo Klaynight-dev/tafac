@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { concernsEstablishment, dashboardSignals, detectMailSignals, extractDays, noticeForEvent } from '../src/mailSignals.js'
+import { concernsEstablishment, dashboardSignals, detectMailSignals, extractDays, groupByThread, groupSiteSignals, noticeForEvent, signalTitle, subjectCore } from '../src/mailSignals.js'
 
 // Wednesday 21 October 2026, at noon.
 const RECEIVED = '2026-10-21T12:00:00'
@@ -60,4 +60,54 @@ test('a strike marks every class of the day; the dashboard keeps what is ahead',
   ])
   assert.equal(noticeForEvent(signals, { title: 'Anglais', teacher: '', day: '2026-10-22' }, 'enssat')?.kind, 'strike')
   assert.deepEqual(dashboardSignals(signals, 'iutlan', '2026-10-21').map(({ id }) => id), ['strike'])
+})
+
+test('a date split by a non-breaking space is found', () => {
+  const [signal] = detectMailSignals([mail('[iutlan-2627] blocus IUT Lannion', 'L’IUT sera bloqué le vendredi 23 octobre. Pas de cours.')])
+  assert.deepEqual(signal.days, ['2026-10-23'])
+})
+
+test('a sports mail with a closed gym is not a site closure; a blockade is one', () => {
+  assert.deepEqual(detectMailSignals([
+    mail('[Volley-ball Mardi 20:30 22:00 Tous niveaux]', 'Le gymnase sera fermé pendant les vacances. Rendez-vous sur le campus à la rentrée.'),
+  ]), [])
+  assert.equal(detectMailSignals([mail('[iutlan-2627] blocus étudiant AG 7H55 demain')])[0].kind, 'closure')
+})
+
+test('the same blockade over several mails is one group, newest mail first', () => {
+  const signals = detectMailSignals([
+    { ...mail('[iutlan-2627] blocus mardi 20 octobre'), receivedAt: '2026-10-19T18:00:00' },
+    { ...mail('[iutlan-2627] continuité du blocus mercredi 21 octobre'), receivedAt: '2026-10-20T18:00:00' },
+    { ...mail('[iutlan-2627] blocus étudiant AG 7H55 demain'), receivedAt: '2026-10-21T18:00:00' },
+    mail('Fermeture de l’ENSSAT demain', 'Les bâtiments seront fermés.'),
+  ])
+  const groups = groupSiteSignals(signals, 'iutlan')
+  assert.equal(groups.length, 1)
+  assert.deepEqual(groups[0].days, ['2026-10-20', '2026-10-21', '2026-10-22'])
+  assert.equal(groups[0].signals[0].subject, '[iutlan-2627] blocus étudiant AG 7H55 demain')
+})
+
+test('the blockade only in the body is a consequence of it, not the site closing', () => {
+  const [volley] = detectMailSignals([mail('[Volley-ball Mardi 20:30 22:00 Tous niveaux]', 'Pas de séance mardi : la séance est annulée à cause du blocus.')])
+  assert.equal(volley.kind, 'cancelled')
+  assert.equal(volley.cause, 'blocus')
+  assert.equal(signalTitle(volley), 'Cours annulé (blocus)')
+
+  const [rendu] = detectMailSignals([mail('[iutlan-iutlan-L00121-2627] urgent pour BUT3 - groupe TD D FI pour rendu du TD noté R5C10 ECO DURABLE', 'Avec le blocus de jeudi 22 octobre, déposez le rendu sur Moodle.')])
+  assert.equal(rendu.kind, 'related')
+  assert.equal(signalTitle(rendu), 'Annonce liée au blocus')
+  assert.equal(noticeForEvent([rendu], { title: 'R5.C.10 Éco-conception', teacher: '', day: '2026-10-22' }, 'iutlan')?.kind, 'related')
+  assert.deepEqual(groupSiteSignals([volley, rendu], 'iutlan'), [])
+})
+
+test('a reply and its first mail are one thread', () => {
+  const body = 'Avec le blocus du jeudi 22 octobre, rendu du TD sur Moodle.'
+  const signals = detectMailSignals([
+    mail('Re: [iutlan-iutlan-L00121-2627] confirmation : urgent pour BUT3 - groupe TD D FI pour rendu du TD noté R5C10 ECO DURABLE', body, 'reply'),
+    mail('[iutlan-iutlan-L00121-2627] urgent pour BUT3 - groupe TD D FI pour rendu du TD noté R5C10 ECO DURABLE', body, 'first'),
+    mail('Cours de Réseaux annulé', 'Le TD Réseaux du jeudi 22 octobre n’aura pas lieu.', 'other'),
+  ])
+  const threads = groupByThread(signals)
+  assert.deepEqual(threads.map((thread) => thread.signals.map(({ id }) => id)), [['reply', 'first'], ['other']])
+  assert.equal(subjectCore('TR: Re: [liste] Rappel : AG demain'), 'ag demain')
 })

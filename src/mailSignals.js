@@ -10,15 +10,22 @@ import { addDays, daysBetween, toDayKey, weekdayIndex } from './planningDates.js
 const MONTHS = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre']
 const WEEKDAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
 
-const CLASS_WORDS = /\b(cours|td|tp|cm|seances?|ds|examens?|controles?|partiels?|soutenances?|evaluations?)\b/
-const PLACE_WORDS = /\b(iut|enssat|batiments?|locaux|campus|site|ecole|universite|etablissement|acces)\b/
+const CLASS_WORDS = /\b(cours|td|tp|cm|seances?|ds|examens?|controles?|partiels?|soutenances?|evaluations?|entrainements?|creneaux?|activites?|sports?|matchs?)\b/
+const CANCEL_WORDS = /\b(annulee?s?|annulation|n'aura pas lieu|ne sera pas assuree?|supprimee?s?|pas de (cours|td|tp|seance|entrainement|sport|match))\b/
+const CLOSURE_WORDS = '(bloquee?s?|blocage|fermee?s?|fermeture|inaccessibles?|evacuee?s?|evacuation)'
+const PLACE_WORDS = '(iut|enssat|batiments?|locaux|campus|ecole|universite|etablissement)'
+// A closure names the place next to the word ("l'IUT sera fermé", "fermeture
+// du bâtiment"), within a few words: a gym closed in a sports mail that
+// mentions the campus further on isn't one. "Blocus" is one by itself.
+const NEAR = '(?:\\W+\\w+){0,6}?\\W+'
+const CLOSURE_NEAR_PLACE = new RegExp(`\\b${CLOSURE_WORDS}\\b${NEAR}${PLACE_WORDS}\\b|\\b${PLACE_WORDS}\\b${NEAR}${CLOSURE_WORDS}\\b`)
 
 // First match wins: a class cancelled because the site is blocked is a
 // closure.
 const RULES = [
-  { kind: 'closure', test: (text) => /\b(bloquee?s?|blocage|blocus|fermee?s?|fermeture|inaccessibles?|evacuee?s?|evacuation)\b/.test(text) && PLACE_WORDS.test(text) },
+  { kind: 'closure', test: (text) => /\bblocus\b/.test(text) || CLOSURE_NEAR_PLACE.test(text) },
   { kind: 'strike', test: (text) => /\b(greve|mouvement social|preavis)\b/.test(text) },
-  { kind: 'cancelled', test: (text) => /\b(annulee?s?|annulation|n'aura pas lieu|ne sera pas assuree?|supprimee?s?)\b/.test(text) && CLASS_WORDS.test(text) },
+  { kind: 'cancelled', test: (text) => CANCEL_WORDS.test(text) && CLASS_WORDS.test(text) },
   { kind: 'postponed', test: (text) => /\b(reportee?s?|report|decalee?s?|reprogrammee?s?)\b/.test(text) && CLASS_WORDS.test(text) },
   { kind: 'room', test: (text) => /\b(changement de salle|change de salle|nouvelle salle|salle modifiee|deplacee?s? (en|dans la) salle|aura lieu en salle|se tiendra en salle)\b/.test(text) },
 ]
@@ -29,10 +36,20 @@ export const SIGNAL_LABELS = {
   cancelled: 'Cours annulé',
   postponed: 'Report annoncé',
   room: 'Changement de salle',
+  related: 'Annonce liée au blocus',
 }
 
+// A signal's title, its cause when the mail gives one: "Cours annulé
+// (blocus)", "Annonce liée à la fermeture".
+export function signalTitle(signal) {
+  if (signal.kind === 'related') return signal.cause === 'blocus' ? SIGNAL_LABELS.related : 'Annonce liée à la fermeture'
+  return signal.cause ? `${SIGNAL_LABELS[signal.kind]} (${signal.cause})` : SIGNAL_LABELS[signal.kind]
+}
+
+// Lowercase, without accents, every space (the non-breaking ones French
+// mails put in "23 octobre" too) a plain one.
 export function normalizeText(text) {
-  return String(text ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’`]/g, "'")
+  return String(text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[’`]/g, "'").replace(/\s+/g, ' ')
 }
 
 // "23 octobre" is this year's, or next year's when it's long past (a mail
@@ -103,18 +120,30 @@ export function detectMailSignals(messages = []) {
     const subject = String(message?.subject ?? '')
     const snippet = String(message?.snippet ?? '')
     const text = normalizeText(`${subject} ${snippet}`)
-    const rule = RULES.find(({ test }) => test(text))
+    let rule = RULES.find(({ test }) => test(text))
     if (!rule) continue
+    // The blockade only in the body, its subject about something else
+    // ("[Volley-ball Mardi…]", "urgent … rendu du TD noté R5C10"): not the
+    // site's closure but a consequence of it, cancelled, postponed or moved
+    // when the mail says so, else an announcement related to it.
+    if (rule.kind === 'closure' && !RULES[0].test(normalizeText(subject))) {
+      rule = RULES.slice(2).find(({ test }) => test(text)) ?? { kind: 'related' }
+    }
     const receivedAt = Date.parse(message.receivedAt)
     const receivedKey = toDayKey(Number.isFinite(receivedAt) ? receivedAt : Date.now())
     signals.push({
       id: String(message.id ?? `${rule.kind}-${receivedKey}-${subject}`),
       kind: rule.kind,
+      // Why, when the mail says: 'blocus' or 'grève'.
+      cause: rule.kind === 'closure' || rule.kind === 'strike' ? null
+        : /\b(blocus|bloquee?s?|blocage)\b/.test(text) ? 'blocus'
+          : /\bgreve\b/.test(text) ? 'grève' : null,
       days: extractDays(text, receivedKey),
       sites: extractSites(text),
       room: rule.kind === 'room' ? extractRoom(subject, snippet) : null,
       text,
       subject,
+      from: message.from?.name || message.from?.email || null,
       receivedKey,
       href: message.href ?? null,
     })
@@ -134,8 +163,9 @@ export function concernsEstablishment(signal, establishment) {
 // its teacher's surname.
 function namesClass(text, event) {
   const title = normalizeText(event.title)
-  const code = title.match(/\b[rs]\d\.[a-z0-9.]+/)?.[0]
-  if (code && text.includes(code)) return true
+  // Compared without dots: a mail writes "R5C10" for "R5.C.10".
+  const code = title.match(/\b[rs]\d\.[a-z0-9.]+/)?.[0]?.replace(/\.+$/, '').replace(/\./g, '')
+  if (code && code.length >= 4 && new RegExp(`\\b${code}\\b`).test(text.replace(/\./g, ''))) return true
   const name = title.replace(/\b[rs]\d\.[a-z0-9.]+/, '').replace(/\b(cm|td|tp)\b/g, '').trim()
   if (name.length >= 4 && text.includes(name)) return true
   const surname = normalizeText(event.teacher).split(/[\s,]+/).find((part) => part.length >= 3)
@@ -156,12 +186,64 @@ export function noticeForEvent(signals, event, establishment) {
     if (!signal.days.includes(event.day)) continue
     const siteWide = signal.kind === 'closure' || signal.kind === 'strike'
     if (siteWide ? !concernsEstablishment(signal, establishment) : !namesClass(signal.text, event)) continue
+    const because = signal.cause ? ` (${signal.cause})` : ''
     const label = signal.kind === 'room'
       ? (signal.room ? `Salle changée : ${signal.room} (mail)` : 'Changement de salle annoncé par mail')
-      : EVENT_LABELS[signal.kind]
+      : signal.kind === 'related' ? `${signalTitle(signal)} (mail)` : `${EVENT_LABELS[signal.kind]}${because}`
     return { kind: signal.kind, label, signal }
   }
   return null
+}
+
+// A subject's core, the same across a thread: without "Re:", "Tr:",
+// "Fwd:", list tags ("[iutlan-2627]") or "confirmation :"-like prefixes.
+export function subjectCore(subject) {
+  let core = normalizeText(subject).trim()
+  for (let previous = ''; previous !== core;) {
+    previous = core
+    core = core
+      .replace(/^\[[^\]]*\]\s*/, '')
+      .replace(/^(re|tr|fw|fwd|aw|rappel|confirmation|important|urgent|info|maj|mise a jour)\s*(\(\d+\))?\s*:\s*/, '')
+      .trim()
+  }
+  return core
+}
+
+// The other signals, one group per kind and thread (subjectCore, one
+// starting with the other's: a reply that adds a word). `days`: all of
+// theirs; `signals`: newest mail first, as the inbox lists them.
+export function groupByThread(signals) {
+  const groups = []
+  for (const signal of signals) {
+    const core = subjectCore(signal.subject)
+    const group = groups.find((candidate) => candidate.kind === signal.kind
+      && core && (candidate.core.startsWith(core) || core.startsWith(candidate.core)))
+    if (group) {
+      group.signals.push(signal)
+      group.days = [...new Set([...group.days, ...signal.days])].sort()
+    } else {
+      groups.push({ kind: signal.kind, core, days: [...signal.days], signals: [signal] })
+    }
+  }
+  return groups
+}
+
+// The site-wide signals (closure, strike) concerning the student, one group
+// per kind: the same blockade announced day after day in several mails is
+// one notice. `days`: all their days, in order; `signals`: newest mail first.
+export function groupSiteSignals(signals, establishment) {
+  const groups = new Map()
+  for (const signal of signals) {
+    if ((signal.kind !== 'closure' && signal.kind !== 'strike') || !concernsEstablishment(signal, establishment)) continue
+    const group = groups.get(signal.kind) ?? { kind: signal.kind, days: [], signals: [] }
+    group.signals.push(signal)
+    group.days = [...new Set([...group.days, ...signal.days])].sort()
+    groups.set(signal.kind, group)
+  }
+  for (const group of groups.values()) {
+    group.signals.sort((left, right) => (left.receivedKey < right.receivedKey ? 1 : -1))
+  }
+  return [...groups.values()]
 }
 
 // The signals worth a card on the dashboard: about today or later, or
