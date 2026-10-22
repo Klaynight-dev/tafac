@@ -370,6 +370,7 @@ function PlanningPage({ selection = null, user = null, establishment = null, sho
       {sheet.isOpen && openEvent ? (
         <PlanningEventSheet
           event={openEvent}
+          establishment={establishment}
           accent={accentFor(openEvent.title)}
           events={events}
           todayKey={todayKey}
