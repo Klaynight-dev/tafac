@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { flushPlanningNavigation, trackPlanningAction, trackPlanningNavigation, usePlanningPageReport } from '../analytics'
+import { noticeForEvent } from '../mailSignals'
 import { describePlanningLoad, toPlanningPageSource, toPlanningView } from '../planningAnalytics'
 import { addDays, daysBetween, startOfWeek, toDayKey } from '../planningDates'
 import { weekColumns } from '../planningEvents'
 import { usePlanningWeeks, useEventAccents } from '../usePlanningWeeks'
 import { useHistorySheet } from '../useHistorySheet'
+import { useMailSignals } from '../useMailSignals'
 import PlanningDayPage from './PlanningDayPage'
 import PlanningEventSheet from './PlanningEventSheet'
 import PlanningHeader from './PlanningHeader'
@@ -105,8 +107,9 @@ function useFontsReady() {
 // ("YYYY-MM-DD", the dashboard's "Prochain cours"), handed back with
 // onInitialDayHandled once taken. `arrivalSource`: how the student got here,
 // for the anonymous analytics (src/planningAnalytics.js); the page mounts
-// once per arrival.
-function PlanningPage({ selection = null, user = null, showWeekend = false, onOpenAccount = null, initialDay = null, onInitialDayHandled = () => {}, arrivalSource = 'other' }) {
+// once per arrival. `establishment`: the student's site, for the mails
+// announcing it blocked or closed (mailSignals).
+function PlanningPage({ selection = null, user = null, establishment = null, showWeekend = false, onOpenAccount = null, initialDay = null, onInitialDayHandled = () => {}, arrivalSource = 'other' }) {
   const now = useNow()
   const todayKey = toDayKey(now)
   const isWide = useWideLayout()
@@ -125,7 +128,16 @@ function PlanningPage({ selection = null, user = null, showWeekend = false, onOp
     onInitialDayHandled()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDay])
-  const { events, statusOn, errorKindOn, load, retry } = usePlanningWeeks({ selection, user })
+  const { events: loadedEvents, statusOn, errorKindOn, load, retry } = usePlanningWeeks({ selection, user })
+  // Each class with what the student's mails say about it (`notice`: the
+  // site blocked, the class cancelled, moved…, see mailSignals).
+  const signals = useMailSignals()
+  const events = useMemo(() => (signals.length
+    ? loadedEvents.map((event) => {
+      const notice = noticeForEvent(signals, event, establishment)
+      return notice ? { ...event, notice } : event
+    })
+    : loadedEvents), [loadedEvents, signals, establishment])
   const accentFor = useEventAccents(events)
   // Anonymous analytics: page_viewed, then how the week it opens on loaded
   // (categories only, never its classes or which week it is).

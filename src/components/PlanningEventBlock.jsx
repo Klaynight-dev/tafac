@@ -65,6 +65,12 @@ function PlanningEventBlock({ event, accent, variant, stackFirst = false, width,
   const content = (
     <>
       <span className="latest-grade-wash planning-accent-fill" aria-hidden="true" />
+      {/* What the mails say about it (mailSignals): a mark in its corner. */}
+      {event.notice ? (
+        <span className="absolute top-1.5 right-1.5 z-10 inline-flex size-5 items-center justify-center rounded-full bg-[#fff7e8] text-[#b76e00] shadow-xs dark:bg-[#2f2410]" title={event.notice.label} aria-hidden="true">
+          <Icon icon="carbon:warning-filled" className="size-3.5" />
+        </span>
+      ) : null}
       <span
         className="planning-bar planning-accent-fill"
         style={{ left: layout.bar.x, top: layout.bar.y, width: layout.bar.width, height: layout.bar.height }}
@@ -88,8 +94,10 @@ function PlanningEventBlock({ event, accent, variant, stackFirst = false, width,
       </span>
     </>
   )
+  // A class the mails call off (site closed, cancelled) is faded.
+  const isCalledOff = event.notice?.kind === 'closure' || event.notice?.kind === 'cancelled'
   const card = {
-    className: 'planning-block widget-card widget-card-visible isolate border bg-widget-bg text-text',
+    className: `planning-block widget-card widget-card-visible isolate border bg-widget-bg text-text${isCalledOff ? ' opacity-60' : ''}`,
     style: { width, height, borderRadius: layout.radius, ...accentStyle(accent), ...style },
   }
 
@@ -101,7 +109,7 @@ function PlanningEventBlock({ event, accent, variant, stackFirst = false, width,
       type="button"
       {...card}
       onClick={() => onOpen(event)}
-      aria-label={`${formatTime(event.start)} à ${formatTime(event.end)}, ${event.title}${[event.location, event.teacher].filter(Boolean).map((part) => `, ${part}`).join('')}, ${durationText(event.start, event.end)}`}
+      aria-label={`${formatTime(event.start)} à ${formatTime(event.end)}, ${event.title}${[event.location, event.teacher].filter(Boolean).map((part) => `, ${part}`).join('')}, ${durationText(event.start, event.end)}${event.notice ? `, ${event.notice.label}` : ''}`}
     >
       {content}
     </button>

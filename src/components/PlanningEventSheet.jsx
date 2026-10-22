@@ -123,6 +123,7 @@ function PlanningEventSheet({ event, accent, events, todayKey, searching, onClos
                   <PlanningEventBlock event={event} accent={accent} variant="regular" width={contentWidth} height={FULL_BLOCK_HEIGHT} style={{ position: 'relative' }} />
                 ) : <div style={{ height: FULL_BLOCK_HEIGHT }} />}
                 <ul className={CARD_CLASSES}>
+                  {event.notice ? <SheetRow icon="carbon:warning-filled" title={event.notice.label} detail={`D’après le mail « ${event.notice.signal.subject} »`} /> : null}
                   <SheetRow icon="carbon:time" title={`De ${formatTime(event.start)} à ${formatTime(event.end)}`} />
                   <SheetRow icon="carbon:calendar" title={`${dayText(event.day)} · ${durationText(event.start, event.end)}`} />
                   {event.group ? <SheetRow icon="carbon:events" title={event.group} /> : null}

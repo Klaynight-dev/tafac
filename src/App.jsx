@@ -3068,7 +3068,7 @@ function App() {
                   {activeRoute === 'grades' ? <GradesPage user={sessionState.user} arrivalSource={arrivalSource} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} /> : null}
                   {activeRoute === 'absences' ? <AbsencesPage /> : null}
                   {activeRoute === 'planning' ? (
-                    <PlanningPage selection={selectedTp} user={sessionState.user} showWeekend={showPlanningWeekend} onOpenAccount={handleOpenAccountModal} initialDay={pendingPlanningDay} onInitialDayHandled={clearPendingPlanningDay} arrivalSource={arrivalSource} />
+                    <PlanningPage selection={selectedTp} user={sessionState.user} establishment={establishment} showWeekend={showPlanningWeekend} onOpenAccount={handleOpenAccountModal} initialDay={pendingPlanningDay} onInitialDayHandled={clearPendingPlanningDay} arrivalSource={arrivalSource} />
                   ) : null}
                   {activeRoute === 'mail' ? (
                     <MailPage />
