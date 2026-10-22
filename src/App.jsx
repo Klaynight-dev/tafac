@@ -18,6 +18,7 @@ import OnboardingPage from './components/OnboardingPage'
 import PwaUpdateManager from './components/PwaUpdateManager'
 import UpdateNotice from './components/UpdateNotice'
 import ServiceNotice from './components/ServiceNotice'
+import MailSignalsNotice from './components/MailSignalsNotice'
 import WelcomeFromLent from './components/WelcomeFromLent'
 import OfflineBanner from './components/OfflineBanner'
 import { settingsTransfer } from './settingsTransferBoot'
@@ -3057,8 +3058,9 @@ function App() {
               </div>
             ) : null}
             {activeRoute === 'dashboard' ? (
-              <div className="px-6 pt-3 max-md:px-3 4xl:pt-5">
+              <div className="flex flex-col gap-2 px-6 pt-3 empty:hidden max-md:px-3 4xl:pt-5">
                 <ServiceNotice />
+                {sessionState.authenticated ? <MailSignalsNotice establishment={establishment} /> : null}
               </div>
             ) : (
               <div key={activeRoute} ref={scodocPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
