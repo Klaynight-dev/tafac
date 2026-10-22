@@ -43,6 +43,9 @@ import { createPlanningPortalApiClient } from '../planningPortalApi.js'
 import { SchoolCertificateUnavailableError, buildDemoCertificatePdf, openCertificateDownload } from './schoolCertificate.js'
 import { createPlanningRpcClient } from '../planningRpc.js'
 import { createCrousFeed } from './crousFeed.js'
+import { createTransitFeed } from './transitFeed.js'
+import { findDepartures, planJourneys, stopsNear } from './transitPlanner.js'
+import { createTransitPushStore, readReminders, readSubscription } from './transitPush.js'
 import { createLinkPreviewer } from './linkPreview.js'
 import {
   DEMO_ACCOUNT,
@@ -5968,6 +5971,166 @@ app.get('/__ent_auth/crous', async (req, res) => {
     })
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// « Bus »: the town's bus network (server/transitFeed.js), journeys and
+// departures (server/transitPlanner.js), and the anonymous push reminders
+// (server/transitPush.js). Public data: only the reminders need a session.
+const TRANSIT_CONFIG = FEATURES.transit && universityConfig.transit?.gtfsUrl ? universityConfig.transit : null
+const transitFeed = TRANSIT_CONFIG
+  ? createTransitFeed({ gtfsUrl: TRANSIT_CONFIG.gtfsUrl, realtimeUrl: TRANSIT_CONFIG.realtimeUrl ?? null })
+  : null
+const transitPush = transitFeed
+  ? createTransitPushStore({
+    universityId: universityConfig.id,
+    dataDir: options.appIcons?.dataDir ?? resolveDataDir(),
+    feed: transitFeed,
+    // The contact push services ask for (Apple refuses localhost ones).
+    subject: process.env.VAPID_SUBJECT || 'https://github.com/l-ent-univ/tafac',
+  })
+  : null
+if (transitPush && options.transitPush?.start !== false) transitPush.start()
+app.locals.transitPush = transitPush
+
+const TRANSIT_MAX_QUERIES = 20
+
+// { placeId } | { lat, lon } | { campus } → [{ stopId, walkSeconds }], or
+// null when it names nothing this network knows.
+function resolveTransitPoint(network, point) {
+  if (!point || typeof point !== 'object') return null
+  if (typeof point.placeId === 'string') {
+    const place = network.places.get(point.placeId)
+    return place ? place.stopIds.map((stopId) => ({ stopId, walkSeconds: 0 })) : null
+  }
+  const campus = typeof point.campus === 'string' ? TRANSIT_CONFIG.campuses?.[point.campus] : null
+  const lat = campus ? campus.lat : Number(point.lat)
+  const lon = campus ? campus.lon : Number(point.lon)
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null
+  return stopsNear(network, { lat, lon })
+}
+
+// GET → the network as the client draws it: { name, attribution, timezone,
+//   validUntil, realtime, routes, places, lines, campuses }
+app.get('/__ent_auth/transit/network', async (req, res) => {
+  try {
+    if (!transitFeed) return res.status(404).json({ error: 'Bus network not enabled.' })
+    const network = await transitFeed.getNetwork()
+    res.setHeader('Cache-Control', 'private, max-age=3600')
+    res.status(200).json({
+      name: TRANSIT_CONFIG.name ?? network.agencyName,
+      attribution: TRANSIT_CONFIG.attribution ?? null,
+      timezone: network.timezone,
+      validUntil: network.validUntil,
+      realtime: Boolean(TRANSIT_CONFIG.realtimeUrl),
+      routes: [...network.routes.values()]
+        .filter((route) => network.lines.some((line) => line.routeId === route.id))
+        .sort((left, right) => left.sortOrder - right.sortOrder || left.shortName.localeCompare(right.shortName, 'fr', { numeric: true })),
+      places: [...network.places.values()].map((place) => ({ ...place, routeIds: [...network.routeIdsByPlace.get(place.id)] })),
+      lines: network.lines,
+      campuses: TRANSIT_CONFIG.campuses ?? {},
+      stopPlaces: Object.fromEntries([...network.stops.values()].map((stop) => [stop.id, stop.placeId])),
+    })
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// GET ?place=<placeId>&limit= → { departures, later, realtime }
+//   later: when nothing leaves within 3 h, the next departure within a
+//   day (the first bus of tomorrow), else null.
+app.get('/__ent_auth/transit/departures', async (req, res) => {
+  try {
+    if (!transitFeed) return res.status(404).json({ error: 'Bus network not enabled.' })
+    const [network, realtime] = await Promise.all([transitFeed.getNetwork(), transitFeed.getRealtime()])
+    const place = network.places.get(String(req.query.place ?? ''))
+    if (!place) return res.status(400).json({ error: 'Unknown stop.' })
+    const limit = Math.min(Math.max(Number(req.query.limit) || 6, 1), 20)
+    const fromMs = Date.now()
+    const departures = findDepartures(network, realtime, { stopIds: place.stopIds, fromMs, limit })
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(200).json({
+      departures,
+      later: departures.length ? null : findDepartures(network, realtime, { stopIds: place.stopIds, fromMs, limit: 1, horizonMs: 24 * 60 * 60 * 1000 })[0] ?? null,
+      realtime: Boolean(realtime),
+    })
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// POST { queries: [{ from, to, arriveBy? | departAt? | lastOfDay?, limit? }] }
+//   from/to: { placeId } | { lat, lon } | { campus: <establishment> }
+//   arriveBy/departAt: epoch ms; lastOfDay: 'YYYYMMDD'
+// → { results: [journeys | null], realtime }, in the order asked.
+app.post('/__ent_auth/transit/plan', async (req, res) => {
+  try {
+    if (!transitFeed) return res.status(404).json({ error: 'Bus network not enabled.' })
+    const queries = Array.isArray(req.body?.queries) ? req.body.queries : null
+    if (!queries || queries.length > TRANSIT_MAX_QUERIES) return res.status(400).json({ error: `Up to ${TRANSIT_MAX_QUERIES} queries.` })
+    const [network, realtime] = await Promise.all([transitFeed.getNetwork(), transitFeed.getRealtime()])
+    const results = queries.map((query) => {
+      const origins = resolveTransitPoint(network, query?.from)
+      const destinations = resolveTransitPoint(network, query?.to)
+      if (!origins || !destinations) return null
+      const arriveByMs = Number.isFinite(Number(query.arriveBy)) && query.arriveBy != null ? Number(query.arriveBy) : null
+      const departAtMs = Number.isFinite(Number(query.departAt)) && query.departAt != null ? Number(query.departAt) : null
+      const lastOfDayKey = /^\d{8}$/.test(String(query.lastOfDay ?? '')) ? String(query.lastOfDay) : null
+      if (arriveByMs == null && departAtMs == null && !lastOfDayKey) return null
+      return planJourneys(network, realtime, {
+        origins,
+        destinations,
+        arriveByMs,
+        departAtMs: arriveByMs == null ? departAtMs : null,
+        lastOfDayKey: arriveByMs == null && departAtMs == null ? lastOfDayKey : null,
+        limit: Math.min(Math.max(Number(query.limit) || 3, 1), 5),
+      })
+    })
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(200).json({ results, realtime: Boolean(realtime) })
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// GET → { publicKey }: the VAPID key a push subscription is made with.
+app.get('/__ent_auth/transit/push', async (req, res) => {
+  try {
+    if (!transitPush) return res.status(404).json({ error: 'Bus reminders not enabled.' })
+    res.status(200).json({ publicKey: await transitPush.getPublicKey() })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// PUT { subscription, reminders } → { ok, count }: replaces the reminders
+// of this subscription (an empty list removes it). Signed-in students only,
+// but nothing about the student is kept.
+app.put('/__ent_auth/transit/push', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    if (!transitPush) return res.status(404).json({ ok: false, error: 'Bus reminders not enabled.' })
+    if (!getSessionFromRequest(req)) return res.status(401).json({ ok: false, error: 'Not signed in.' })
+    const subscription = readSubscription(req.body?.subscription)
+    const reminders = readReminders(req.body?.reminders, Date.now())
+    if (!subscription || !reminders) return res.status(400).json({ ok: false, error: 'Invalid subscription or reminders.' })
+    if (!await transitPush.setReminders(subscription, reminders)) return res.status(503).json({ ok: false, error: 'Too many subscriptions.' })
+    res.status(200).json({ ok: true, count: reminders.length })
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+// DELETE { endpoint } → { ok }: forgets a subscription (reminders turned off).
+app.delete('/__ent_auth/transit/push', async (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store')
+    if (!transitPush) return res.status(404).json({ ok: false, error: 'Bus reminders not enabled.' })
+    if (typeof req.body?.endpoint !== 'string') return res.status(400).json({ ok: false, error: 'Missing endpoint.' })
+    await transitPush.remove(req.body.endpoint)
+    res.status(200).json({ ok: true })
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : String(error) })
   }
 })
 

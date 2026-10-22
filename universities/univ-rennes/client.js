@@ -20,6 +20,7 @@ import {
   moodleOrigin,
   planningServiceUrl,
   portalEntryPath,
+  transit,
   university,
 } from './shared.js'
 
@@ -83,6 +84,7 @@ export default {
 
   features,
   crous,
+  transit,
 
   planning: {
     serviceUrl: planningServiceUrl,
