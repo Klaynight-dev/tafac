@@ -1437,6 +1437,59 @@
   overflow: hidden;
 }
 
+/* ── "Dans tes mails" threads ──
+   The mails of one announcement unfold as the subjects above (0fr → 1fr,
+   hidden once shut), each one rising in after the one before. */
+
+.mail-thread-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 200ms ease,
+    visibility 0s linear 280ms;
+}
+
+.mail-thread-panel.is-open {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  opacity: 1;
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 200ms ease,
+    visibility 0s;
+}
+
+.mail-thread-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mail-thread-panel.is-open .mail-thread-item {
+  animation: mail-thread-item-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(60ms + var(--i, 0) * 45ms);
+}
+
+@keyframes mail-thread-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mail-thread-panel,
+  .mail-thread-panel.is-open {
+    transition: visibility 0s;
+  }
+
+  .mail-thread-panel.is-open .mail-thread-item {
+    animation: none;
+  }
+}
+
 /* The icon tile's UE wash: the grade cards' colours, a touch stronger on a
    small tile so the hue still reads. */
 .subject-tile-wash {

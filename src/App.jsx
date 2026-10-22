@@ -3060,7 +3060,7 @@ function App() {
             {activeRoute === 'dashboard' ? (
               <div className="flex flex-col gap-2 px-6 pt-3 empty:hidden max-md:px-3 4xl:pt-5">
                 <ServiceNotice />
-                {sessionState.authenticated ? <MailSignalsNotice establishment={establishment} /> : null}
+                {sessionState.authenticated ? <MailSignalsNotice establishment={establishment} selection={selectedTp} user={sessionState.user} onOpenPlanningDay={hasPlanningPage ? handleOpenPlanningDay : null} /> : null}
               </div>
             ) : (
               <div key={activeRoute} ref={scodocPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
