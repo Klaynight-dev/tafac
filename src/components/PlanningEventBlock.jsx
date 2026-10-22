@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react'
 import { accentStyle } from '../eventAccents'
 import { layoutEventBlock } from '../eventBlockLayout'
+import { SIGNAL_STYLES, signalChipText } from '../mailSignalStyles'
 import { durationText, formatTime } from '../planningDates'
 
 // Text widths, measured on a canvas in the cards' body font (Inter: the
@@ -65,10 +66,16 @@ function PlanningEventBlock({ event, accent, variant, stackFirst = false, width,
   const content = (
     <>
       <span className="latest-grade-wash planning-accent-fill" aria-hidden="true" />
-      {/* What the mails say about it (mailSignals): a mark in its corner. */}
+      {/* What the mails say about it (mailSignals): a chip in its bottom
+          corner, its word as the block has room ("Annulé", "Salle B204"). */}
       {event.notice ? (
-        <span className="absolute top-1.5 right-1.5 z-10 inline-flex size-5 items-center justify-center rounded-full bg-[#fff7e8] text-[#b76e00] shadow-xs dark:bg-[#2f2410]" title={event.notice.label} aria-hidden="true">
-          <Icon icon="carbon:warning-filled" className="size-3.5" />
+        <span
+          className={`absolute right-1.5 bottom-1.5 z-10 inline-flex max-w-[calc(100%-12px)] items-center gap-1 rounded-full px-1.5 py-[3px] font-body text-[11.5px] font-semibold leading-none shadow-xs ${SIGNAL_STYLES[event.notice.kind].tint}`}
+          title={event.notice.label}
+          aria-hidden="true"
+        >
+          <Icon icon={SIGNAL_STYLES[event.notice.kind].icon} className="size-3 shrink-0" />
+          {height >= 52 && width >= 96 ? <span className="truncate">{signalChipText(event.notice)}</span> : null}
         </span>
       ) : null}
       <span

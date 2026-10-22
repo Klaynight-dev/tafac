@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Icon } from '@iconify/react'
 import { accentStyle } from '../eventAccents'
+import { SIGNAL_STYLES } from '../mailSignalStyles'
 import { agendaDayText, durationText, formatTime, weekRangeText } from '../planningDates'
 import { isOngoing, listWeekDays } from '../planningEvents'
 import PlanningNote from './PlanningNote'
@@ -69,8 +70,8 @@ function PlanningListCard({ event, accent, ongoing, onOpen }) {
             </span>
           ) : null}
           {event.notice ? (
-            <span className="inline-flex min-w-0 items-center gap-1 font-body text-[13px] font-semibold leading-[1.35] text-[#b76e00]" aria-hidden="true">
-              <Icon icon="carbon:warning-filled" className="size-3.5 shrink-0" />
+            <span className={`inline-flex min-w-0 max-w-full items-center gap-1 justify-self-start rounded-full px-2 py-1 font-body text-[12.5px] font-semibold leading-none ${SIGNAL_STYLES[event.notice.kind].tint}`} aria-hidden="true">
+              <Icon icon={SIGNAL_STYLES[event.notice.kind].icon} className="size-3.5 shrink-0" />
               <span className="truncate">{event.notice.label}</span>
             </span>
           ) : null}
