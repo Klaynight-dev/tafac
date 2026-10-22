@@ -12,6 +12,10 @@ import { CARD_CLASSES, MUTED_FILL_CLASSES, PRESSABLE_ROW_CLASSES, ROW_CLASSES } 
 import { PrivacyContent } from './PrivacyModal'
 import { SlidingIndicator } from './SlidingIndicator'
 import Dropdown from './Dropdown'
+import { navigateTo } from '../appRoute'
+import { isTransitPageAvailable } from '../navItems'
+import { TRANSIT_NAME, getTransitCampus, placeName, updateTransitSettings, useTransitNetwork, useTransitSettings } from '../transitApi'
+import { disableReminders, enableReminders, isPushSupported } from '../transitPush'
 import LoadingDots from './LoadingDots'
 
 function buildSelectOptions(options, selectedOption) {
@@ -322,6 +326,97 @@ function LookaheadSetting({ days, options, onChange }) {
         ))}
       </div>
     </div>
+  )
+}
+
+const TRANSIT_MARGINS = [0, 5, 10, 15]
+
+// « Bus »: the student's stop (picked on the « Bus » page), how early to
+// reach class, and the push reminders (src/transitPush.js).
+function TransitSettings({ establishment, onOpenBusPage }) {
+  const settings = useTransitSettings()
+  const { network } = useTransitNetwork()
+  const [reminderState, setReminderState] = useState('idle')
+  const campus = getTransitCampus(establishment)
+  const homeName = placeName(network, settings.homePlaceId)
+
+  const handleReminders = async (on) => {
+    setReminderState('working')
+    try {
+      if (!on) {
+        await disableReminders()
+        setReminderState('idle')
+      } else {
+        setReminderState((await enableReminders()) === 'denied' ? 'denied' : 'idle')
+      }
+    } catch {
+      setReminderState('error')
+    }
+  }
+
+  let remindersDescription = settings.reminders ? 'Activés sur cet appareil' : 'Bus du matin, retour, retards et dernier bus'
+  if (!settings.homePlaceId) remindersDescription = 'Choisis d’abord ton arrêt'
+  if (reminderState === 'working') remindersDescription = 'Un instant…'
+  if (reminderState === 'denied') remindersDescription = 'Notifications refusées : autorise-les dans les réglages du navigateur'
+  if (reminderState === 'error') remindersDescription = 'Impossible de changer les rappels pour le moment'
+
+  return (
+    <>
+      <SettingsGroup title={`Bus ${TRANSIT_NAME}`}>
+        <button type="button" className={PRESSABLE_ROW_CLASSES} onClick={onOpenBusPage}>
+          <RowText icon="carbon:home" label="Ton arrêt" description={homeName ?? 'Pas encore choisi'} />
+          <span className="inline-flex shrink-0 items-center gap-1 font-body text-[14px] font-medium text-text-60">
+            {homeName ? 'Changer' : 'Choisir'}
+            <Icon icon="carbon:chevron-right" className="h-[14px] w-[14px]" aria-hidden="true" />
+          </span>
+        </button>
+        <div className="flex flex-col gap-[12px] px-4 pb-4 pt-[13px]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-body text-[14px] font-medium leading-[1.35] text-text-60">Arriver avant le cours</span>
+            <span className={`inline-flex items-center rounded-full ${MUTED_FILL_CLASSES} px-[10px] py-[4px] font-body text-[13px] font-semibold leading-none text-[var(--color-text)]`}>
+              {settings.marginMin ? `${settings.marginMin} min` : 'Pile'}
+            </span>
+          </div>
+          <StepSlider
+            options={TRANSIT_MARGINS}
+            value={settings.marginMin}
+            onChange={(value) => updateTransitSettings({ marginMin: value })}
+            ariaLabel="Minutes d’avance avant le cours"
+          />
+          <div className="relative h-[15px]" aria-hidden="true">
+            {TRANSIT_MARGINS.map((option, index) => (
+              <span
+                key={option}
+                className="absolute top-0 -translate-x-1/2 whitespace-nowrap font-body text-[12px] font-medium leading-none text-text-50"
+                style={{ left: `calc(${STEP_SLIDER_KNOB_PX / 2}px + (100% - ${STEP_SLIDER_KNOB_PX}px) * ${index / (TRANSIT_MARGINS.length - 1)})` }}
+              >
+                {option ? `${option} min` : 'Pile'}
+              </span>
+            ))}
+          </div>
+        </div>
+      </SettingsGroup>
+      <SettingsGroup
+        title="Rappels"
+        footer={isPushSupported()
+          ? `Seuls l’heure et le bus de chaque rappel partent sur le serveur, jamais ton nom ni ton planning. La marche jusqu’à ${campus?.label ?? 'ton campus'} est déjà comptée.`
+          : 'Ce navigateur ne reçoit pas de notifications ici. Sur iPhone, ajoute l’app à l’écran d’accueil puis ouvre-la depuis là.'}
+      >
+        {isPushSupported() ? (
+          <label className={`${ROW_CLASSES} ${settings.homePlaceId && reminderState !== 'working' ? 'cursor-pointer' : 'opacity-60'}`}>
+            <RowText icon="carbon:notification" label="Rappels sur ton téléphone" description={remindersDescription} />
+            <Switch
+              checked={settings.reminders}
+              onChange={(on) => { if (settings.homePlaceId && reminderState !== 'working') void handleReminders(on) }}
+            />
+          </label>
+        ) : (
+          <div className={ROW_CLASSES}>
+            <RowText icon="carbon:notification-off" label="Rappels sur ton téléphone" description="Indisponibles sur ce navigateur" />
+          </div>
+        )}
+      </SettingsGroup>
+    </>
   )
 }
 
@@ -642,6 +737,7 @@ function AccountModal({
     { id: 'planning', label: 'Planning', icon: 'carbon:calendar' },
     canToggleWidgets ? { id: 'dashboard', label: 'Tableau de bord', icon: 'carbon:dashboard' } : null,
     hasAppearance ? { id: 'appearance', label: 'Apparence', icon: 'carbon:image' } : null,
+    isTransitPageAvailable(establishment) ? { id: 'bus', label: 'Bus', icon: 'carbon:bus' } : null,
     hasPrivacy ? { id: 'privacy', label: 'Confidentialité', icon: 'carbon:locked' } : null,
     { id: 'about', label: 'À propos', icon: 'carbon:information' },
   ].filter(Boolean)
@@ -932,6 +1028,9 @@ function AccountModal({
             </SettingsGroup>
           </>
         )
+
+      case 'bus':
+        return <TransitSettings establishment={establishment} onOpenBusPage={() => { onClose(); navigateTo('bus', { source: 'settings' }) }} />
 
       case 'privacy':
         return (
