@@ -118,6 +118,8 @@ export default defineConfig({
       includeAssets: ['icon.png', 'apple-touch-icon.png'],
       workbox: {
         navigateFallbackDenylist: [/^\/__ent_auth/, /^\/__ent_proxy/],
+        // Bus reminders: push and notification clicks (public/transit-sw.js).
+        importScripts: ['transit-sw.js'],
       },
       manifest: {
         name: branding.appName,
