@@ -43,6 +43,7 @@ import { createPlanningPortalApiClient } from '../planningPortalApi.js'
 import { SchoolCertificateUnavailableError, buildDemoCertificatePdf, openCertificateDownload } from './schoolCertificate.js'
 import { createPlanningRpcClient } from '../planningRpc.js'
 import { createCrousFeed } from './crousFeed.js'
+import { createLinkPreviewer } from './linkPreview.js'
 import {
   DEMO_ACCOUNT,
   DEMO_GRADES_DEPARTMENT_MESSAGE,
@@ -3963,6 +3964,17 @@ app.post('/__ent_auth/mail/flag', async (req, res) => {
   } catch (error) {
     return sendServiceError(res, error)
   }
+})
+
+// A link's preview in a mail (linkPreview.js): signed-in students only.
+const getLinkPreview = createLinkPreviewer()
+app.get('/__ent_auth/link-preview', async (req, res) => {
+  if (!getSessionFromRequest(req)) {
+    return res.status(401).json({ authenticated: false, preview: null })
+  }
+  const preview = await getLinkPreview(req.query.url)
+  res.setHeader('Cache-Control', 'private, max-age=3600')
+  return res.status(200).json({ preview })
 })
 
 // 6g. Move message to trash
