@@ -126,7 +126,7 @@ export default function TeacherCompareModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[26px] border border-border dark:border-border bg-white dark:bg-brand shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[26px] border border-border bg-widget-bg shadow-2xl">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2.5">
@@ -327,7 +327,7 @@ export default function TeacherCompareModal({
                     <select
                       value={selectedCourseTitle}
                       onChange={(e) => setSelectedCourseTitle(e.target.value)}
-                      className="max-w-full sm:max-w-[280px] truncate rounded-lg border border-border bg-muted-fill dark:bg-brand px-2 py-1 text-[12px] font-medium text-text"
+                      className="max-w-full sm:max-w-[280px] truncate rounded-lg border border-border bg-muted-fill px-2 py-1 text-[12px] font-medium text-text"
                     >
                       {studentCourseTitles.map((t) => (
                         <option key={t} value={t}>{t}</option>
@@ -352,7 +352,7 @@ export default function TeacherCompareModal({
                     {selectedTeacher && (
                       <a
                         href={`mailto:${selectedTeacher.email || ''}?subject=${encodeURIComponent(`Demande de déplacement de cours – ${selectedCourseTitle || 'Planning'} (${groupLabel})`)}&body=${encodeURIComponent(generatedMessage)}`}
-                        className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted-fill dark:bg-brand py-2 font-body text-[13px] font-semibold text-text hover:bg-muted-fill dark:hover:bg-brand-hover transition-colors no-underline"
+                        className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted-fill py-2 font-body text-[13px] font-semibold text-text hover:bg-muted-fill dark:hover:bg-brand-hover transition-colors no-underline"
                       >
                         <Icon icon="carbon:email" className="size-4 text-brand" />
                         <span>Ouvrir dans mon mail</span>
