@@ -59,8 +59,8 @@ export default {
   // Optional outage banner (dashboard + login page); remove once the
   // service is back.
   serviceNotice: {
-    title: "L'université a coupé l'accès à Moodle et à la messagerie hors campus",
-    detail: "Décision de la DSI de l'Université de Rennes suite à une faille de sécurité mondiale, sans lien avec Tafac. Ils restent accessibles depuis les salles de TD/TP ou le Wi-Fi de l'université (eduroam, univ-rennes) en attendant le rétablissement",
+    title: "L'université a coupé l'accès à Moodle hors campus",
+    detail: "Décision de la DSI de l'Université de Rennes suite à une faille de sécurité mondiale, sans lien avec Tafac. Moodle reste accessible depuis les salles de TD/TP ou le Wi-Fi de l'université (eduroam, univ-rennes) en attendant le rétablissement",
   },
 
   // Optional help links (login page + account modal); omit an entry to hide it.
