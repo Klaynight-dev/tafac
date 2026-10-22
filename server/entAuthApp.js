@@ -1924,13 +1924,10 @@ function clearRateLimitEntry(store, key) {
   store.delete(key)
 }
 
-function isLocalRequester(req) {
-  const ip = getLoginRequesterIp(req)
-  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost'
-}
-
 function getActiveLoginRateLimit(req, username) {
-  if (!IS_PRODUCTION || isLocalRequester(req)) {
+  // Off in development; in production a local address is the reverse proxy,
+  // so it is limited like any other.
+  if (!IS_PRODUCTION) {
     return null
   }
 
@@ -1951,7 +1948,9 @@ function getActiveLoginRateLimit(req, username) {
 }
 
 function recordLoginFailure(req, username) {
-  if (!IS_PRODUCTION || isLocalRequester(req)) {
+  // Off in development; in production a local address is the reverse proxy,
+  // so it is limited like any other.
+  if (!IS_PRODUCTION) {
     return null
   }
 
