@@ -18,6 +18,18 @@ const ROUTE_PATHS = {
 
 const ROUTE_CHANGE_EVENT = 'tafac:route-change'
 
+// How the current page was reached, for the pages' anonymous page_viewed
+// (src/gradesAnalytics.js, src/planningAnalytics.js): the source given to
+// navigateTo, or 'history' for back/forward and the first load.
+let lastNavigationSource = 'history'
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => { lastNavigationSource = 'history' })
+}
+
+export function getLastNavigationSource() {
+  return lastNavigationSource
+}
+
 export function getRouteFromPath(pathname) {
   const path = String(pathname ?? '/').replace(/\/+$/, '') || '/'
   if (path === '/messagerie') return 'mail'
@@ -52,11 +64,13 @@ export function scrollAppToTop({ smooth = false } = {}) {
 
 // `replace`: swap the current history entry (used to drop an unavailable
 // /notes without leaving a dead entry behind).
-export function navigateTo(route, { replace = false } = {}) {
+export function navigateTo(route, { replace = false, source = 'other' } = {}) {
   const path = ROUTE_PATHS[route] ?? ROUTE_PATHS.dashboard
   if (window.location.pathname === path) {
     return
   }
+
+  lastNavigationSource = source
 
   const url = `${path}${window.location.search}`
   if (replace) {

@@ -5,6 +5,7 @@ import { openChangelog, useChangelog } from '../changelogStore'
 import { getPillIds } from '../changelogState'
 import { downloadSchoolCertificate, getCachedSchoolCertificateStatus, getSchoolCertificateStatus } from '../entApi'
 import { useSlidingIndicator } from '../useSlidingIndicator'
+import { usePlanningExport } from '../usePlanningExport'
 import { AboutContent, AboutTeam } from './AboutModal'
 import SettingsGroup, { RowText } from './SettingsGroup'
 import { CARD_CLASSES, MUTED_FILL_CLASSES, PRESSABLE_ROW_CLASSES, ROW_CLASSES } from '../settingsStyles'
@@ -383,6 +384,38 @@ function SchoolCertificateGroup() {
   )
 }
 
+// The planning's .ics export (usePlanningExport), as the certificate's
+// download: the row is the button, dots while it's asked, and why when
+// there's nothing to export or it fails. None without a group.
+const EXPORT_DESCRIPTIONS = {
+  idle: 'Fichier .ics · Google Agenda, Apple Calendrier, Outlook',
+  loading: 'Préparation…',
+  empty: 'Aucun cours à exporter',
+  error: 'Export indisponible pour le moment',
+}
+
+function PlanningExportGroup({ selection }) {
+  const { state, run } = usePlanningExport(selection, { from: 'settings' })
+  if (!selection) return null
+  const busy = state === 'loading'
+  return (
+    <SettingsGroup title="Agenda" footer="Contient les cours des 60 prochains jours">
+      <button
+        type="button"
+        className={`${ROW_CLASSES} w-full border-0 bg-transparent text-left cursor-pointer transition-colors duration-[120ms] hover:bg-[#f8f7f3] disabled:cursor-wait dark:hover:bg-[var(--color-bg-subtle)]`}
+        onClick={() => void run()}
+        disabled={busy}
+        aria-busy={busy || undefined}
+      >
+        <RowText icon="carbon:calendar-add" label="Exporter vers un agenda" description={EXPORT_DESCRIPTIONS[state] ?? EXPORT_DESCRIPTIONS.idle} />
+        {busy
+          ? <LoadingDots label={null} className="w-4 shrink-0 text-text-60" />
+          : <Icon icon="carbon:download" className="h-4 w-4 shrink-0 text-text-60" aria-hidden="true" />}
+      </button>
+    </SettingsGroup>
+  )
+}
+
 // « Nouveautés » (À propos): the whole changelog, pill or not. The list
 // opens above Réglages and closes back to it. Its dot follows the pill's.
 function ChangelogGroup() {
@@ -561,6 +594,9 @@ function AccountModal({
   onCustomBackgroundReset,
   showAppDescriptions = false,
   onShowAppDescriptionsChange,
+  showPlanningWeekend = false,
+  onShowPlanningWeekendChange = null,
+  planningSelection = null,
   anonymousAnalytics = true,
   onAnonymousAnalyticsChange = null,
   establishment = null,
@@ -814,6 +850,20 @@ function AccountModal({
                 {planningState.errorMessage}
               </p>
             ) : null}
+
+            {typeof onShowPlanningWeekendChange === 'function' ? (
+              <SettingsGroup title="Semaine">
+                <SwitchRow
+                  icon="carbon:calendar"
+                  label="Week-end"
+                  description="Afficher le week-end dans l’emploi du temps"
+                  checked={showPlanningWeekend}
+                  onChange={onShowPlanningWeekendChange}
+                />
+              </SettingsGroup>
+            ) : null}
+
+            <PlanningExportGroup selection={planningSelection} />
 
             {canConfigureLookahead && !lookaheadInDashboard ? (
               <SettingsGroup title="Prochain cours">

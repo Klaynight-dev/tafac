@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { trackGradesAction } from '../analytics'
 import { findEvaluation } from '../gradeDetail'
 import { GradeDetailContext } from '../gradeDetailContext'
 import GradeDetailModal from './GradeDetailModal'
@@ -45,8 +46,12 @@ function GradeDetailProvider({ report, semesterId, subjectIcon = () => null, chi
     }
   }, [])
 
-  const open = useCallback(({ moduleCode, evaluationId, isNew = false }) => {
+  // `from`: where the row was ('latest', 'ue_view', 'subjects',
+  // 'dashboard'), for the anonymous analytics. Forward reopening a sheet
+  // (popstate below) isn't a new opening.
+  const open = useCallback(({ moduleCode, evaluationId, isNew = false, from = null }) => {
     const id = String(evaluationId)
+    trackGradesAction('grade_detail_opened', { from })
     setRequest({ moduleCode, evaluationId: id, isNew })
     try {
       window.history.pushState({ ...(window.history.state ?? {}), [HISTORY_KEY]: { moduleCode: moduleCode ?? null, evaluationId: id } }, '')

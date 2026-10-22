@@ -2,6 +2,7 @@ import universityConfig from '@university'
 import { GRADES_UNAVAILABLE_MESSAGE } from './gradeFeatureState'
 import { buildAbsenceReport, evaluationTypeLabel, listGradesSemesters, summarizeAverage } from './gradesReport'
 import { readDistributionCounts } from './evaluationDistribution'
+import { pickAdeGroupForAlias } from './adeGroupMatch'
 import { buildParcoursTpAliases } from './scodocParcoursGroups'
 import { clearOfflineCache } from './offlineStorage'
 
@@ -194,7 +195,13 @@ async function parseJsonPayload(response) {
         ? data
         : `Request failed with status ${response.status}.`
 
-    throw createHttpError(errorMessage, response.status)
+    const error = createHttpError(errorMessage, response.status)
+    // Seconds until the login rate limit lifts (429), for the message.
+    const retryAfterSeconds = Number(response.headers.get('Retry-After'))
+    if (retryAfterSeconds > 0) {
+      error.retryAfterSeconds = retryAfterSeconds
+    }
+    throw error
   }
 
   return data
@@ -1414,7 +1421,27 @@ export function detectScodocGroupSelection(gradesData = null) {
     tpLabel: tpAliases[0] ?? null,
     tdAliases,
     tpAliases,
+    // The student's programme ("BUT MMI", "MMI"), to tell one programme's
+    // "3B3" from another's in the planning (findAdeGroupForScodoc).
+    programHints: [releve?.formation?.acronyme, releve?.dept_acronym ?? releve?.etudiant?.dept_acronym]
+      .filter((value) => typeof value === 'string' && value.trim()),
   }
+}
+
+// A planning account never set up has no group to start the onboarding
+// from: its ScoDoc group (detectScodocGroupSelection), searched in the
+// planning, stands in for it (getAdeTree's `fallback`). Null when it can't
+// be told for sure.
+export async function findAdeGroupForScodoc(selection) {
+  for (const alias of selection?.tpAliases ?? []) {
+    const { results } = await searchAde(alias)
+    const match = pickAdeGroupForAlias(results, alias, selection.programHints)
+    if (match) {
+      return match
+    }
+  }
+
+  return null
 }
 
 function resolveGradesReleve(data) {
@@ -1589,8 +1616,13 @@ export async function getAdeStatus() {
   return parseJsonPayload(response)
 }
 
-export async function getAdeTree(etabsVets = '') {
-  const params = etabsVets ? `?etabsVets=${encodeURIComponent(etabsVets)}` : ''
+// `fallback`: the group standing in for the account's own when it has none
+// (findAdeGroupForScodoc).
+export async function getAdeTree(etabsVets = '', { fallback = '' } = {}) {
+  const query = new URLSearchParams()
+  if (etabsVets) query.set('etabsVets', etabsVets)
+  if (fallback) query.set('fallback', fallback)
+  const params = query.size ? `?${query}` : ''
   const response = await fetch(`${ENT_AUTH_PREFIX}/ade/tree${params}`, {
     credentials: 'same-origin',
   })

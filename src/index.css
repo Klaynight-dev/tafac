@@ -258,12 +258,15 @@ img {
   --color-row-hover: var(--color-bg-subtle);
 }
 
+/* Sideways overflow cut off, with clip rather than hidden: a hidden overflow
+   makes a scroll container that never scrolls, and position: sticky would
+   stick to it instead of the window (the planning's header on a phone). */
 html,
 body,
 #root {
   min-height: 100%;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {

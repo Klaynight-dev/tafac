@@ -1,8 +1,9 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '@iconify/react'
-import { pickInkOn } from '../colorContrast'
+import { pickInkOn, shadeHex } from '../colorContrast'
 import { formatUeCode } from '../gradesSubjects'
+import { describeRevealForAnalytics } from '../gradesAnalytics'
 import { addCustomEvaluations } from '../gradeSimulation'
 import { readSemesterUes } from '../semesterUes'
 import { useUeColor } from '../useUeColor'
@@ -73,7 +74,7 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
   // the total, between events.
   const [drag, setDrag] = useState(null)
   const dragRef = useRef(null)
-  const svgRef = useRef(null)
+  const dialRef = useRef(null)
   const count = ues.length
   const segments = useMemo(() => {
     const step = FULL_TURN / Math.max(ues.length, 1)
@@ -83,6 +84,8 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
       return {
         ...ue,
         ink: pickInkOn(ue.color),
+        // Its shadows' colour (UeBadge's shadeHex 0.55).
+        shade: shadeHex(ue.color, 0.55),
         path: ues.length === 1
           ? buildSegmentPath(0, FULL_TURN - 0.0001, 0, DIAL_OUTER, DIAL_INNER)
           : buildSegmentPath(start, end, DIAL_GAP, DIAL_OUTER, DIAL_INNER),
@@ -101,7 +104,7 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
   // angle (0 at 12 o'clock, clockwise); let go, it settles on the nearest
   // UE. Under a few degrees it's a tap, not a drag.
   const readAngle = (event) => {
-    const box = svgRef.current.getBoundingClientRect()
+    const box = dialRef.current.getBoundingClientRect()
     const dx = event.clientX - (box.left + box.width / 2)
     const dy = event.clientY - (box.top + box.height / 2)
     return (Math.atan2(dx, -dy) * 180) / Math.PI
@@ -152,38 +155,34 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
       {/* Cut at the sheet's edges (the ribbons' shadows fall past the dial's
           sides), with room above for its top edge. */}
       <div className="overflow-hidden pt-2">
-      <div className="relative mx-auto aspect-[100/36] min-h-0 w-[min(560px,88%)]">
-        <svg
-          ref={svgRef}
-          viewBox="0 0 120 120"
-          className={`ue-dial block h-auto w-full touch-none select-none overflow-visible ${count > 1 ? (drag != null ? 'cursor-grabbing is-dragging' : 'cursor-grab') : ''}`}
+      <div className="@container relative mx-auto aspect-[100/36] min-h-0 w-[min(560px,88%)]">
+        <div
+          ref={dialRef}
+          className={`ue-dial relative aspect-square w-full touch-none select-none ${count > 1 ? (drag != null ? 'cursor-grabbing is-dragging' : 'cursor-grab') : ''}`}
           aria-hidden="true"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
           onPointerCancel={handlePointerEnd}
         >
-          <defs>
-            {/* The ribbon's shadows, cast by the dial as it stands (the
-                filter sits outside the turning group, so they always fall
-                down and to the left), each in a dark shade of its UE's
-                colour (UeBadge's shadeHex 0.55). */}
-            <filter id={`${id}-shadow`} x="-40%" y="-30%" width="160%" height="170%" colorInterpolationFilters="sRGB">
-              <feColorMatrix in="SourceGraphic" type="matrix" values="0.55 0 0 0 0  0 0.55 0 0 0  0 0 0.55 0 0  0 0 0 1 0" result="shade" />
-              {SHADOWS.map(([dx, dy, blur, opacity], index) => (
-                <Fragment key={index}>
-                  <feGaussianBlur in="shade" stdDeviation={blur} />
-                  <feOffset dx={dx} dy={dy} />
-                  <feComponentTransfer result={`shadow${index}`}>
-                    <feFuncA type="linear" slope={opacity} />
-                  </feComponentTransfer>
-                </Fragment>
+        {/* The ribbon's shadows, cast by the dial as it stands: always down
+            and to the left, each in a dark shade of its UE's colour. Not an
+            SVG filter around the turning ribbons (WebKit would blur them
+            again on the CPU at every frame of a turn): a blur doesn't care
+            which way the ring is turned, so each shadow is its own copy of
+            the ring, blurred then turned (by the compositor), and only
+            then offset. */}
+        {SHADOWS.map(([dx, dy, blur, opacity], index) => (
+          <div key={index} className="ue-dial-shadow absolute inset-0" style={{ '--dx': dx, '--dy': dy, '--blur': blur, opacity }}>
+            <svg viewBox="0 0 120 120" className="ue-dial-turn block size-full overflow-visible" style={turnStyle}>
+              {segments.map((segment) => (
+                <path key={segment.code} opacity={segment.code === hiddenCode ? 0 : undefined} d={segment.path} fill={segment.shade} stroke={segment.shade} strokeWidth={0.5} strokeLinejoin="round" />
               ))}
-              <feMerge>
-                {SHADOWS.map((_, index) => <feMergeNode key={index} in={`shadow${SHADOWS.length - 1 - index}`} />)}
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            </svg>
+          </div>
+        ))}
+        <svg viewBox="0 0 120 120" className="ue-dial-turn absolute inset-0 block size-full overflow-visible" style={turnStyle}>
+          <defs>
             {/* The ribbon's lit edge: black (no light) at the inner edge,
                 grey at the outer one, added to the colour; round, so it
                 stays on the outer edge as the dial turns. */}
@@ -200,34 +199,26 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
               </Fragment>
             ))}
           </defs>
-          <g filter={`url(#${id}-shadow)`}>
-            <g className="ue-dial-turn" style={turnStyle}>
-              {segments.map((segment, index) => (
-                <g key={segment.code} opacity={segment.code === hiddenCode ? 0 : undefined}>
-                  <path data-ue={segment.code} d={segment.path} fill={segment.color} stroke={segment.color} strokeWidth={0.5} strokeLinejoin="round" />
-                  <path
-                    d={segment.path}
-                    fill="none"
-                    stroke={`url(#${id}-edge)`}
-                    strokeWidth={0.5}
-                    clipPath={`url(#${id}-clip${index})`}
-                    style={{ mixBlendMode: 'plus-lighter' }}
-                  />
-                </g>
-              ))}
-            </g>
-          </g>
-          {/* The codes over the shadows, turning with the ribbons. */}
-          <g className="ue-dial-turn" style={turnStyle}>
-            {segments.map((segment, index) => (
-              <text key={segment.code} opacity={segment.code === hiddenCode ? 0 : undefined} fill={segment.ink} fontSize="8.5" fontWeight="600" letterSpacing="0.15" className="font-display">
+          {segments.map((segment, index) => (
+            <g key={segment.code} opacity={segment.code === hiddenCode ? 0 : undefined}>
+              <path data-ue={segment.code} d={segment.path} fill={segment.color} stroke={segment.color} strokeWidth={0.5} strokeLinejoin="round" />
+              <path
+                d={segment.path}
+                fill="none"
+                stroke={`url(#${id}-edge)`}
+                strokeWidth={0.5}
+                clipPath={`url(#${id}-clip${index})`}
+                style={{ mixBlendMode: 'plus-lighter' }}
+              />
+              <text fill={segment.ink} fontSize="8.5" fontWeight="600" letterSpacing="0.15" className="font-display">
                 <textPath href={`#${id}-arc${index}`} startOffset="50%" textAnchor="middle" dominantBaseline="central">
                   {formatUeCode(segment.code)}
                 </textPath>
               </text>
-            ))}
-          </g>
+            </g>
+          ))}
         </svg>
+        </div>
       </div>
       </div>
     </div>
@@ -239,8 +230,9 @@ function UeDial({ ues, turn, onTurn, leaving = false, hiddenCode = null, onLeft 
 // (GradeSimulatorUe), then what they would do (GradeSimulatorReveal). The
 // grade detail sheet's shell (GradeDetailModal):
 // centred card on wide screens, bottom sheet on phones, focus kept inside, Escape and the
-// backdrop close it.
-function GradeSimulatorModal({ report = null, releve = null, config = null, semester = null, subjectIcon = () => null, onClose }) {
+// backdrop close it. `onStep(step, details)`: the steps taken in between
+// opening and closing, for the anonymous analytics (GradesPage's).
+function GradeSimulatorModal({ report = null, releve = null, config = null, semester = null, subjectIcon = () => null, onStep = () => {}, onClose }) {
   const dialogRef = useRef(null)
   const titleId = useId()
   const semesterLabel = semester?.number != null ? `Semestre ${semester.number}` : null
@@ -314,6 +306,7 @@ function GradeSimulatorModal({ report = null, releve = null, config = null, seme
     flyFromRef.current = segment?.getBoundingClientRect() ?? null
     setLockedHeight(dialogRef.current?.getBoundingClientRect().height ?? null)
     setPicked(activeUe)
+    onStep('ue_picked')
   }
 
   // The "poof": the badge starts where the dial's segment was, at its size,
@@ -351,6 +344,14 @@ function GradeSimulatorModal({ report = null, releve = null, config = null, seme
     heightFromRef.current = dialogRef.current?.getBoundingClientRect().height ?? null
     returnRef.current = { from }
     setReveal(null)
+    onStep('back_to_edit')
+  }
+  // What the reveal shows, as the analytics may know it: which way the UE
+  // went, how many grades were changed (bucketed), whether some were added
+  // by hand (with a grade typed in). Never a grade nor the UE.
+  const reportReveal = (outcome) => {
+    const addedGradeCount = Object.values(customs).flat().filter((custom) => overrides[custom.id] != null).length
+    onStep('reveal_shown', describeRevealForAnalytics(outcome, { editCount, addedGradeCount }))
   }
 
   useLayoutEffect(() => {
@@ -495,6 +496,7 @@ function GradeSimulatorModal({ report = null, releve = null, config = null, seme
             overrides={overrides}
             flyFrom={reveal.flyFrom}
             onEdit={hideReveal}
+            onShown={reportReveal}
             onClose={onClose}
           />
         ) : null}

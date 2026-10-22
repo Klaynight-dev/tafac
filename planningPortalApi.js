@@ -3,6 +3,11 @@ const PORTAL_TREE_TTL_MS = 30 * 60 * 1000
 const PORTAL_CALENDAR_TTL_MS = 60 * 60 * 1000
 
 const portalSessionCache = new Map()
+// Sign-ins under way, by session: the planning asks several weeks at once,
+// and sign-ins running side by side on one portal session step on each
+// other (ADE gives the access token to one of them, the others get none).
+// The others wait for that one and share its context.
+const portalSignIns = new Map()
 const portalTreeCache = new Map()
 const portalCalendarCache = new Map()
 
@@ -607,6 +612,21 @@ export function createPlanningPortalApiClient({
       }
     }
 
+    const pending = cacheScope ? portalSignIns.get(cacheScope) : null
+    if (pending) {
+      return pending
+    }
+
+    const signIn = signInToPortal(jar, cacheScope)
+    if (cacheScope) {
+      portalSignIns.set(cacheScope, signIn)
+      const settle = () => portalSignIns.delete(cacheScope)
+      signIn.then(settle, settle)
+    }
+    return signIn
+  }
+
+  async function signInToPortal(jar, cacheScope) {
     let token = ''
     let finalUrl = portalUrl
 
@@ -752,8 +772,13 @@ export function createPlanningPortalApiClient({
     }
   }
 
+  // `fallbackResourceId`: a group the client found for the student (from
+  // ScoDoc) standing in for the account's own resource when the account has
+  // none (its planning never set up), so the tree and its default selection
+  // come back as for a set-up account. Ignored otherwise.
   async function fetchPortalTree(jar, {
     requestedResourceId = '',
+    fallbackResourceId = '',
     cacheScope = null,
     groupHints = [],
   } = {}) {
@@ -771,7 +796,12 @@ export function createPlanningPortalApiClient({
       cache = 'miss'
     }
 
-    const resources = getAccountResources(context)
+    const ownResources = getAccountResources(context)
+    const fallbackId = String(fallbackResourceId ?? '').trim()
+    const fallbackNode = ownResources.length === 0 && fallbackId
+      ? findPortalTreePath(cachedTree, fallbackId)?.at(-1) ?? null
+      : null
+    const resources = fallbackNode ? [normalizePortalResource(fallbackNode)] : ownResources
     const requestedId = String(requestedResourceId ?? '').trim()
     const requestedPath = requestedId ? findPortalTreePath(cachedTree, requestedId) ?? [] : []
     let accountResource = resources.find(({ id }) => id === requestedId) ?? resources[0] ?? null
@@ -976,6 +1006,23 @@ export function createPlanningPortalApiClient({
     }
   }
 
+  // A call on a session signed in earlier that fails (that session gone on
+  // ADE's side before our 25 minutes are up) signs in again and is tried
+  // once more.
+  function retryOnStaleSession(fetchFromPortal) {
+    return async (jar, options = {}) => {
+      const cacheScope = options.cacheScope ?? null
+      const signedInBefore = getFreshCacheEntry(portalSessionCache, cacheScope, PORTAL_SESSION_TTL_MS) !== null
+      try {
+        return await fetchFromPortal(jar, options)
+      } catch (error) {
+        if (!signedInBefore) throw error
+        portalSessionCache.delete(cacheScope)
+        return fetchFromPortal(jar, options)
+      }
+    }
+  }
+
   function clearPortalCaches(cacheScope = null) {
     if (!cacheScope) {
       return
@@ -989,10 +1036,10 @@ export function createPlanningPortalApiClient({
   return {
     authenticatePortal,
     clearPortalCaches,
-    fetchPortalCalendar,
-    fetchPortalEvents,
+    fetchPortalCalendar: retryOnStaleSession(fetchPortalCalendar),
+    fetchPortalEvents: retryOnStaleSession(fetchPortalEvents),
     fetchPortalStatus,
-    fetchPortalTree,
+    fetchPortalTree: retryOnStaleSession(fetchPortalTree),
     listPortalClassrooms,
     listPortalInstructors,
     searchPortalTree,

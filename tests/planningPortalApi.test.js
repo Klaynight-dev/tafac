@@ -9,9 +9,11 @@ function jsonResponse(payload, status = 200) {
   })
 }
 
-function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = false, law = false } = {}) {
+function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = false, law = false, noResources = false, sessionExpiresAfter = null } = {}) {
   const requests = []
   let accessTokenRequestCount = 0
+  let signInCount = 0
+  let eventsRequestCount = 0
   let casFollowCount = 0
   let treeRequestCount = 0
   const fetchWithJar = async (url, _jar, options = {}) => {
@@ -30,21 +32,27 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     }
 
     if (url.endsWith('/RestApi/portal/ssologin')) {
+      signInCount += 1
       return jsonResponse({
         data: {
           authData: {
             projectId: 1,
             accessToken: 'fixture-api-token',
             refreshToken: 'fixture-refresh-token',
-            resources: law
-              ? [{ id: 605, name: 'TP 04B' }]
-              : [{ id: 14961, name: 'BUT MMI 2' }],
+            resources: noResources
+              ? []
+              : law
+                ? [{ id: 605, name: 'TP 04B' }]
+                : [{ id: 14961, name: 'BUT MMI 2' }],
           },
         },
       })
     }
 
     if (url.includes('/RestApi/portal/refreshtoken?')) {
+      if (sessionExpiresAfter !== null) {
+        return jsonResponse({ error: 'session expired' }, 401)
+      }
       return jsonResponse({
         data: {
           accessToken: 'fixture-api-token-refreshed',
@@ -139,6 +147,12 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     }
 
     if (url.includes('/RestApi/portal/projects/1/resourcesEventsPortal/')) {
+      eventsRequestCount += 1
+      // The portal session ends on ADE's side after that many calls: the
+      // next one is refused until a new sign-in.
+      if (sessionExpiresAfter !== null && eventsRequestCount === sessionExpiresAfter + 1) {
+        return jsonResponse({ error: 'expired' }, 401)
+      }
       return jsonResponse({
         data: [{
           id: 14961,
@@ -182,6 +196,7 @@ function createFixtureClient({ firstTokenEmpty = false, treeUnauthorizedOnce = f
     client,
     requests,
     getAccessTokenRequestCount: () => accessTokenRequestCount,
+    getSignInCount: () => signInCount,
     getCasFollowCount: () => casFollowCount,
     getTreeRequestCount: () => treeRequestCount,
   }
@@ -300,6 +315,38 @@ test('refreshes the API bearer and retries one unauthorized REST request', async
   assert.equal(refreshRequest.options.headers.Authorization, undefined)
 })
 
+test('weeks asked at once share one portal sign-in', async () => {
+  const { client, getSignInCount, getAccessTokenRequestCount } = createFixtureClient()
+  const weeks = ['2026-09-07', '2026-09-14', '2026-09-21']
+
+  const results = await Promise.all(weeks.map((date) => (
+    client.fetchPortalEvents({}, { date, lookaheadDays: 7, resourceIds: ['14961'], cacheScope: 'portal-fixture-together' })
+  )))
+
+  assert.equal(results.length, 3)
+  assert.ok(results.every((result) => result.complete))
+  assert.equal(getSignInCount(), 1)
+  assert.equal(getAccessTokenRequestCount(), 1)
+})
+
+test('signs in again when a cached portal session is gone on ADE’s side', async () => {
+  const { client, getSignInCount } = createFixtureClient({ sessionExpiresAfter: 1 })
+  const ask = () => client.fetchPortalEvents({}, { date: '2026-09-07', lookaheadDays: 7, resourceIds: ['14961'], cacheScope: 'portal-fixture-expired' })
+
+  await ask()
+  const result = await ask()
+
+  assert.equal(result.events.length, 1)
+  assert.equal(getSignInCount(), 2)
+})
+
+test('does not sign in twice when a fresh sign-in fails', async () => {
+  const { client, getSignInCount } = createFixtureClient({ sessionExpiresAfter: 0 })
+
+  await assert.rejects(client.fetchPortalEvents({}, { date: '2026-09-07', resourceIds: ['14961'], cacheScope: 'portal-fixture-fresh-fail' }))
+  assert.equal(getSignInCount(), 1)
+})
+
 test('maps a non-BUT path to generic level, TD and TP selections', async () => {
   const { client } = createFixtureClient({ law: true })
   const cacheScope = 'portal-fixture-law'
@@ -327,4 +374,28 @@ test('lists the rooms of the "Salles" branch with the folders above them', async
     ['703', 'A102', 'Lannion › IUT Bât. A'],
     ['704', 'Amphi Lannion', 'Lannion'],
   ])
+})
+
+test('lets a found group stand in for an account without one', async () => {
+  const { client } = createFixtureClient({ noResources: true })
+
+  const bare = await client.fetchPortalTree({}, { cacheScope: 'portal-fixture-none' })
+  assert.equal(bare.defaultSelection, null)
+  assert.equal(bare.currentResourceId, null)
+
+  const found = await client.fetchPortalTree({}, { fallbackResourceId: '14962', cacheScope: 'portal-fixture-none' })
+  assert.equal(found.defaultSelection.resourceId, '14962')
+  assert.equal(found.defaultSelection.yearLabel, 'MMI A2')
+  assert.equal(found.defaultSelection.tpLabel, '2B2-Dev MMI')
+  assert.deepEqual(found.selectionPathIds, ['100', '200', '300', '400', '14962'])
+
+  // Not in the tree: as without it.
+  const unknown = await client.fetchPortalTree({}, { fallbackResourceId: '999', cacheScope: 'portal-fixture-none' })
+  assert.equal(unknown.defaultSelection, null)
+})
+
+test('keeps the account’s own group over a fallback', async () => {
+  const { client } = createFixtureClient()
+  const tree = await client.fetchPortalTree({}, { fallbackResourceId: '14962', cacheScope: 'portal-fixture-own' })
+  assert.equal(tree.defaultSelection.resourceId, '14961')
 })

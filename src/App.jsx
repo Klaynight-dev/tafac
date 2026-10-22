@@ -17,6 +17,7 @@ import PwaInstallPrompt from './components/PwaInstallPrompt'
 import OnboardingPage from './components/OnboardingPage'
 import PwaUpdateManager from './components/PwaUpdateManager'
 import UpdateNotice from './components/UpdateNotice'
+import ServiceNotice from './components/ServiceNotice'
 import WelcomeFromLent from './components/WelcomeFromLent'
 import OfflineBanner from './components/OfflineBanner'
 import { settingsTransfer } from './settingsTransferBoot'
@@ -33,6 +34,7 @@ import {
   getStoredEstablishment,
   getStoredHiddenWidgets,
   getStoredShowAppDescriptions,
+  getStoredShowPlanningWeekend,
   getStoredShowWallpaper,
   getStoredTpSelection,
   persistAdeLookaheadDays,
@@ -40,19 +42,20 @@ import {
   persistEstablishment,
   persistHiddenWidgets,
   persistShowAppDescriptions,
+  persistShowPlanningWeekend,
   persistShowWallpaper,
   persistTpSelection,
 } from './profileStorage'
 import WidgetContainer from './components/WidgetContainer'
 import GradesPage from './components/GradesPage'
+import PlanningPage from './components/PlanningPage'
 import LoadingDots from './components/LoadingDots'
 import { listHeroImages, resolveHeroImage } from './heroImage'
 import { getStoredTheme, persistTheme, watchTheme } from './theme'
 import MobileTabBar from './components/MobileTabBar'
 import { getMobileTabItems, isCrousPageAvailable, isGradesPageAvailable, isMailPageAvailable, isMoodlePageAvailable, isPlanningPageAvailable } from './navItems'
-import { navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
+import { getLastNavigationSource, navigateTo, scrollAppToTop, useAppRoute } from './appRoute'
 import AbsencesPage from './components/AbsencesPage'
-import PlanningPage from './components/PlanningPage'
 import MailPage from './components/MailPage'
 import MoodlePage from './components/MoodlePage'
 import CrousPage from './components/CrousPage'
@@ -75,6 +78,7 @@ import {
   clearAdeTimetableCache,
   clearGradesCache,
   detectScodocGroupSelection,
+  findAdeGroupForScodoc,
   getAccountInfo,
   getAdeAlerts,
   getAdeCalendarMetadata,
@@ -676,6 +680,15 @@ function getErrorMessage(error) {
 }
 
 function getFrenchAuthErrorMessage(error, context = 'login') {
+  // The server's 429 says "Too many login attempts", which matched none of
+  // the checks below and showed as wrong credentials.
+  if (error?.status === 429) {
+    const minutes = Math.ceil((error.retryAfterSeconds ?? 0) / 60)
+    return minutes > 0
+      ? `Trop de tentatives de connexion, réessaie dans ${minutes} min`
+      : 'Trop de tentatives de connexion. Réessaie dans quelques instants'
+  }
+
   const rawMessage = getErrorMessage(error).trim()
   const normalizedMessage = rawMessage.toLowerCase()
   const mentionsUsername = normalizedMessage.includes('username') || normalizedMessage.includes('identifiant')
@@ -1267,6 +1280,7 @@ function App() {
   const [showWallpaper, setShowWallpaper] = useState(() => getStoredShowWallpaper())
   const [theme, setTheme] = useState(() => getStoredTheme())
   const [showAppDescriptions, setShowAppDescriptions] = useState(() => getStoredShowAppDescriptions())
+  const [showPlanningWeekend, setShowPlanningWeekend] = useState(() => getStoredShowPlanningWeekend())
   const [anonymousAnalytics, setAnonymousAnalytics] = useState(() => getStoredAnonymousAnalytics())
   const isAnalyticsAvailable = useAnalyticsAvailable()
   // Lookahead actually fed to the next-class widget. Re-synced only while the
@@ -1595,6 +1609,7 @@ function App() {
     setCustomBackground(getStoredCustomBackground(sessionState.user))
     setShowWallpaper(getStoredShowWallpaper(sessionState.user))
     setShowAppDescriptions(getStoredShowAppDescriptions(sessionState.user))
+    setShowPlanningWeekend(getStoredShowPlanningWeekend(sessionState.user))
     // Applied to the analytics module right away (not in an effect) so the
     // first dashboard events already honour this user's choice.
     const storedAnonymousAnalytics = getStoredAnonymousAnalytics(sessionState.user)
@@ -1691,6 +1706,15 @@ function App() {
         const forceTpChoice = debugForceTpChoiceRef.current
         debugForceTpChoiceRef.current = false
 
+        // Planning never set up on the account (no group of its own): its
+        // ScoDoc group, found in the planning, stands in for it.
+        if (!treePayload?.defaultSelection?.resourceId && scodocGroupSelection?.tpAliases?.length) {
+          const fallbackGroup = await findAdeGroupForScodoc(scodocGroupSelection).catch(() => null)
+          if (fallbackGroup) {
+            treeResponse = await getAdeTree('', { fallback: fallbackGroup.id })
+            treePayload = treeResponse?.tree
+          }
+        }
         const resolvedDefault = treePayload?.defaultSelection?.resourceId
           ? await resolveDefaultSelectionTp(treePayload.defaultSelection, {
             tdAliases: scodocGroupSelection?.tdAliases ?? [],
@@ -2164,14 +2188,25 @@ function App() {
     ? deferredRoute
     : 'dashboard'
   const hasGradesPage = gradesPageAvailable
+  // The in-app planning page: the planning service's links open it instead.
+  const hasPlanningPage = planningPageAvailable
+  // How the page shown was reached, for « Mes notes »'s and the planning's
+  // page_viewed (src/gradesAnalytics.js, src/planningAnalytics.js).
+  const arrivalSource = getLastNavigationSource()
   // « Nouveautés » about « Mes notes » only reach students who have it: a
   // school with the page and a relevé confirmed BUT (not while unknown, so
-  // the pill doesn't come and go).
+  // the pill doesn't come and go). Those about the Planning page, students
+  // signed in at a school with it.
   const hasConfirmedGradesPage = hasGradesPage && gradesFormation === 'BUT'
+  const hasConfirmedPlanningPage = hasPlanningPage && sessionState.authenticated
   useEffect(() => {
-    setChangelogAudience(hasConfirmedGradesPage ? ['grades-page'] : [])
-  }, [hasConfirmedGradesPage])
+    setChangelogAudience([
+      ...(hasConfirmedGradesPage ? ['grades-page'] : []),
+      ...(hasConfirmedPlanningPage ? ['planning-page'] : []),
+    ])
+  }, [hasConfirmedGradesPage, hasConfirmedPlanningPage])
   const isGradesPage = activeRoute === 'grades'
+  const isPlanningPage = activeRoute === 'planning'
   // Being on « Mes notes » is having seen its launch, however the student
   // got there (tab, card, "Dernière note", app list, a reload on the page):
   // the dashboard card and the tab's « Nouveau » go. After the audience
@@ -2179,6 +2214,10 @@ function App() {
   useEffect(() => {
     if (isGradesPage && hasConfirmedGradesPage) markChangelogEntrySeen('mes-notes')
   }, [isGradesPage, hasConfirmedGradesPage])
+  // Likewise for the Planning's launch.
+  useEffect(() => {
+    if (isPlanningPage && hasConfirmedPlanningPage) markChangelogEntrySeen('planning')
+  }, [isPlanningPage, hasConfirmedPlanningPage])
   // The in-app pages sit on the plain background, like with the wallpaper
   // off: their top is the tinted band (AppPage, « Mes notes »).
   const isWallpaperShown = showWallpaper && activeRoute === 'dashboard'
@@ -2236,15 +2275,29 @@ function App() {
     heroObserverRef.current = observer
   }, [])
 
-  // The dashboard's "Dernière note": "Mes notes", opened on that grade.
+  // The dashboard's "Dernière note" (or the sidebar's, `source`): "Mes
+  // notes", opened on that grade.
   const [pendingGradeRequest, setPendingGradeRequest] = useState(null)
-  const handleOpenLatestGrade = useCallback((grade) => {
+  const handleOpenLatestGrade = useCallback((grade, source = 'dashboard_card') => {
     setPendingGradeRequest({ evaluationId: grade.id, moduleCode: grade.resource })
-    navigateTo('grades')
+    navigateTo('grades', { source })
   }, [])
+  const handleOpenSidebarGrade = useCallback((grade) => handleOpenLatestGrade(grade, 'sidebar_card'), [handleOpenLatestGrade])
   const clearPendingGradeRequest = useCallback(() => setPendingGradeRequest(null), [])
-  // The grade service's app in the app lists: "Mes notes" rather than ScoDoc.
-  const handleOpenGradesPage = useCallback(() => navigateTo('grades'), [])
+  // The grade service's app in the app lists ('tile': "Mes notes" rather
+  // than ScoDoc) and the launch card ('launch_card') say which they are.
+  const handleOpenGradesPage = useCallback((source = 'tile') => navigateTo('grades', { source }), [])
+  // The planning service's app in the app lists ('tile': the planning page
+  // rather than the service) and its launch card ('launch_card').
+  const handleOpenPlanningPage = useCallback((source = 'tile') => navigateTo('planning', { source }), [])
+  // The dashboard's "Prochain cours": the planning page, opened on that
+  // class's day (today without one).
+  const [pendingPlanningDay, setPendingPlanningDay] = useState(null)
+  const handleOpenPlanningDay = useCallback((day) => {
+    setPendingPlanningDay(day ?? null)
+    navigateTo('planning', { source: 'dashboard_card' })
+  }, [])
+  const clearPendingPlanningDay = useCallback(() => setPendingPlanningDay(null), [])
 
   const handleWidgetVisibilityChange = useCallback((widgetId, visible) => {
     track('setting_changed', { setting: 'widget_visibility', value: visible ? 'on' : 'off', widget: widgetId })
@@ -2269,6 +2322,11 @@ function App() {
     icon: widget.icon,
     visible: !hiddenWidgets.includes(widget.id),
   })), [establishment, hiddenWidgets])
+
+  const handleShowPlanningWeekendChange = useCallback((show) => {
+    persistShowPlanningWeekend(show, sessionState.user)
+    setShowPlanningWeekend(show)
+  }, [sessionState.user])
 
   const handleShowAppDescriptionsChange = useCallback((show) => {
     persistShowAppDescriptions(show, sessionState.user)
@@ -2900,7 +2958,7 @@ function App() {
   const simpleLoadingDots = <LoadingDots className="text-text-muted" />
 
   return (
-    <main className="relative min-h-screen flex flex-col bg-bg overflow-x-hidden">
+    <main className="relative min-h-screen flex flex-col bg-bg overflow-x-clip">
       {shouldHoldInitialRender ? (
         <div className="flex-1 min-h-0 bg-bg" aria-hidden="true" />
       ) : isProfileSwitching ? (
@@ -2950,6 +3008,7 @@ function App() {
             showChangelogPill={showChangelogPill}
             establishment={establishment}
             gradesSupported={gradesSupported}
+            onOpenLatestGrade={universityConfig.features?.sidebarLatestGrade === true && sessionState.authenticated && hasGradesPage ? handleOpenSidebarGrade : null}
           />
           <div ref={dashboardColumnRef} data-app-scroll-root className={`app-column relative isolate flex flex-col flex-1 min-w-0 4xl:h-screen 4xl:overflow-y-auto 4xl:pl-[calc(var(--sidebar-width,280px)+12px)] ${hasMobileTabBar ? 'max-4xl:pb-[calc(env(safe-area-inset-bottom)+84px)]' : ''}`}>
             {/* Hero image behind the header and widget cards, fading into the solid background. */}
@@ -2997,13 +3056,17 @@ function App() {
                 </div>
               </div>
             ) : null}
-            {activeRoute === 'dashboard' ? null : (
+            {activeRoute === 'dashboard' ? (
+              <div className="px-6 pt-3 max-md:px-3 4xl:pt-5">
+                <ServiceNotice />
+              </div>
+            ) : (
               <div key={activeRoute} ref={scodocPageRef} className="flex-1 min-h-0 4xl:flex-none 4xl:min-h-0">
                 <PageErrorBoundary>
-                  {activeRoute === 'grades' ? <GradesPage user={sessionState.user} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} /> : null}
+                  {activeRoute === 'grades' ? <GradesPage user={sessionState.user} arrivalSource={arrivalSource} initialGradeRequest={pendingGradeRequest} onInitialGradeRequestHandled={clearPendingGradeRequest} /> : null}
                   {activeRoute === 'absences' ? <AbsencesPage /> : null}
                   {activeRoute === 'planning' ? (
-                    <PlanningPage selection={selectedTp} sessionUser={sessionState.user} onOpenAccount={handleOpenAccountModal} />
+                    <PlanningPage selection={selectedTp} user={sessionState.user} showWeekend={showPlanningWeekend} onOpenAccount={handleOpenAccountModal} initialDay={pendingPlanningDay} onInitialDayHandled={clearPendingPlanningDay} arrivalSource={arrivalSource} />
                   ) : null}
                   {activeRoute === 'mail' ? (
                     <MailPage />
@@ -3033,6 +3096,8 @@ function App() {
                 onDismissGreeting={() => handleWidgetVisibilityChange('greeting', false)}
                 onOpenGrade={hasGradesPage ? handleOpenLatestGrade : null}
                 onOpenGradesPage={hasGradesPage ? handleOpenGradesPage : null}
+                onOpenPlanningPage={hasPlanningPage ? handleOpenPlanningPage : null}
+                onOpenPlanningDay={hasPlanningPage ? handleOpenPlanningDay : null}
                 showAppDescriptions={showAppDescriptions}
               />
             </div>
@@ -3081,6 +3146,9 @@ function App() {
         onCustomBackgroundReset={handleCustomBackgroundReset}
         showAppDescriptions={showAppDescriptions}
         onShowAppDescriptionsChange={handleShowAppDescriptionsChange}
+        showPlanningWeekend={showPlanningWeekend}
+        onShowPlanningWeekendChange={handleShowPlanningWeekendChange}
+        planningSelection={selectedTp}
         anonymousAnalytics={anonymousAnalytics}
         onAnonymousAnalyticsChange={isAnalyticsAvailable ? handleAnonymousAnalyticsChange : null}
         establishment={establishment}
@@ -3301,6 +3369,19 @@ function App() {
                 disabled={debugState.loading}
               >
                 Nouveautés : rejouer « Mes notes »
+              </button>
+              {/* Likewise for the Planning's launch. */}
+              <button
+                type="button"
+                className="appearance-none border border-border rounded-[12px] bg-bg text-text py-[0.7rem] px-[0.9rem] font-inherit font-semibold leading-[1.1] disabled:opacity-45 disabled:cursor-wait"
+                onClick={() => void runDebugAction('Nouveautés : rejouer « Planning »', () => (
+                  replayChangelogEntry('planning')
+                    ? { replayed: true }
+                    : { replayed: false, note: 'L’entrée ne s’applique pas ici : pas de page Planning, ou pas connecté.' }
+                ))}
+                disabled={debugState.loading}
+              >
+                Nouveautés : rejouer « Planning »
               </button>
               <button
                 type="button"

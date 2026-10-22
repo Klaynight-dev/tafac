@@ -4,6 +4,7 @@ import universityConfig from '@university'
 import AvailableApplications from './AvailableApplications'
 import GradesLaunchCard from './GradesLaunchCard'
 import GreetingCard from './GreetingCard'
+import PlanningLaunchCard from './PlanningLaunchCard'
 import WidgetDeadlines from './WidgetDeadlines'
 import WidgetLatestGrade from './WidgetLatestGrade'
 import WidgetAbsences from './WidgetAbsences'
@@ -68,6 +69,8 @@ function WidgetContainer({
   gradesSupported = true,
   onOpenGrade = null,
   onOpenGradesPage = null,
+  onOpenPlanningPage = null,
+  onOpenPlanningDay = null,
 }) {
   const displayName = userName?.trim() || ' '
   const [, setWeatherState] = useState(INITIAL_WEATHER_STATE)
@@ -275,6 +278,7 @@ function WidgetContainer({
               selection={selectedPlanningSelection}
               sessionUser={sessionUser}
               lookaheadDays={nextClassLookaheadDays}
+              onOpenPlanning={onOpenPlanningDay}
             />
           </div>
         ) : null}
@@ -316,8 +320,11 @@ function WidgetContainer({
       </div>
 
       <div>
-        {/* « Mes notes » just launched: a compact card under the widgets,
-            out of the band, until it's seen (renders nothing otherwise). */}
+        {/* A page just launched (the Planning, « Mes notes »): a compact
+            card under the widgets, out of the band, until it's seen. One at
+            a time, the newest first: the others render nothing
+            (LaunchCard). */}
+        <PlanningLaunchCard onOpen={onOpenPlanningPage} />
         <GradesLaunchCard onOpen={onOpenGradesPage} />
         <div id="sidebar-section-applications">
           <AvailableApplications
@@ -326,6 +333,7 @@ function WidgetContainer({
             favoritesPortalTarget={favoritesPortalTarget}
             showDescriptions={showAppDescriptions}
             onOpenGradesPage={onOpenGradesPage}
+            onOpenPlanningPage={onOpenPlanningPage}
           />
         </div>
       </div>

@@ -11,11 +11,6 @@ import {
 
 // Main navigation, shared by the desktop sidebar and the mobile tab bar.
 
-const PLANNING_SERVICE_URL = universityConfig.planning?.serviceUrl ?? null
-const PLANNING_HREF = PLANNING_SERVICE_URL
-  ? `${ENT_AUTH_PREFIX}/launch?url=${encodeURIComponent(PLANNING_SERVICE_URL)}`
-  : null
-
 const MOODLE_ORIGIN = universityConfig.origins?.moodle ?? null
 const MOODLE_HREF = universityConfig.features?.moodle && MOODLE_ORIGIN
   ? `${ENT_AUTH_PREFIX}/launch?url=${encodeURIComponent(`${MOODLE_ORIGIN.replace(/\/$/, '')}/my/`)}`
@@ -65,7 +60,7 @@ export function isGradesPageAvailable(establishment) {
 // Whether /planning can show the in-app timetable (otherwise it falls back
 // to the dashboard).
 export function isPlanningPageAvailable() {
-  return Boolean(universityConfig.features?.planning && PLANNING_HREF)
+  return Boolean(universityConfig.features?.planning)
 }
 
 // Whether /mail can show the in-app webmail (otherwise it falls back
@@ -101,8 +96,10 @@ export function buildNavItems(establishment, { gradesSupported = true } = {}) {
     ...(gradesNavItem ? [gradesNavItem] : []),
     // Same ScoDoc data as the grades, so only alongside a live grades page.
     ...(gradesNavItem?.route ? [{ id: 'absences', label: 'Absences', icon: 'carbon:event-schedule', route: 'absences' }] : []),
+    // The in-app planning page (PlanningPage), launched by its own
+    // « Nouveautés » entry (`announcedBy`, as « Mes notes »).
     ...(isPlanningPageAvailable()
-      ? [{ id: 'planning', label: 'Planning', icon: 'carbon:calendar', route: 'planning' }]
+      ? [{ id: 'planning', label: 'Planning', icon: 'carbon:calendar', route: 'planning', announcedBy: 'planning' }]
       : []),
     ...(isMailPageAvailable()
       ? [{ id: 'mail', label: 'Messagerie', shortLabel: 'Mail', icon: 'carbon:email', route: 'mail' }]
@@ -131,7 +128,7 @@ export function openNavItemLink(item, source) {
 
   track('app_opened', { app: item.id, source })
   if (item.route) {
-    navigateTo(item.route)
+    navigateTo(item.route, { source: source === 'sidebar' ? 'nav' : source })
     return
   }
 

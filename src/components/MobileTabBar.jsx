@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon, iconLoaded, loadIcons } from '@iconify/react'
+import { track } from '../analytics'
 import { navigateTo, scrollAppToTop, useAppRoute } from '../appRoute'
 import { prefetchGradesPage } from '../entApi'
 import { useChangelog } from '../changelogStore'
@@ -87,6 +88,9 @@ function MobileTabBar({ establishment, gradesSupported = true }) {
     }
 
     event.preventDefault()
+    // Anonymous analytics: the tab's « Nouveau » dot was showing
+    // (`launch`: its page, as in the sidebar).
+    if (item.announcedBy && unseenIds.includes(item.announcedBy)) track('launch_card', { action: 'tab_marker', launch: item.route })
     openNavItemLink(item, 'tabbar')
   }
 

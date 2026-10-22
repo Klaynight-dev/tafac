@@ -18,14 +18,16 @@ const { branding } = await loadSharedConfig(universityId)
 
 // Dev/preview backend: the same Express app the production server mounts
 // (server/entAuthApp.js). Unmatched requests fall through to Vite.
-// POSTHOG_*, SESSION_SECRET* and DATA_DIR may come from the shell or from
-// .env / .env.local (shell wins). Without SESSION_SECRET the backend uses a
-// random per-process key: sessions then don't survive a dev-server restart.
-// Without DATA_DIR, automatic app icons are remembered in ./data.
+// POSTHOG_*, ANALYTICS_*, SESSION_SECRET* and DATA_DIR may come from the shell
+// or from .env / .env.local (shell wins). Without SESSION_SECRET the backend
+// uses a random per-process key: sessions then don't survive a dev-server
+// restart. Without DATA_DIR, automatic app icons are remembered in ./data.
+// No PostHog from the dev server unless POSTHOG_IN_DEV=1: what's tried here,
+// often with a real account, stays out of the real numbers.
 function mountEntAuthApp(server) {
-  const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), ['POSTHOG_', 'SESSION_SECRET', 'DATA_DIR'])
+  const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), ['POSTHOG_', 'ANALYTICS_', 'SESSION_SECRET', 'DATA_DIR'])
   const entAuthApp = createEntAuthApp(universityServerConfig, {
-    analytics: readAnalyticsConfig(env),
+    analytics: env.POSTHOG_IN_DEV === '1' ? readAnalyticsConfig(env) : { projectKey: null },
     appIcons: { dataDir: resolveDataDir(env) },
     session: {
       secret: env.SESSION_SECRET,
@@ -72,16 +74,20 @@ const entDevAuthPlugin = {
     mountEntAuthApp(server)
   },
   // index.html carries %LENT_*% placeholders so titles/SEO follow the
-  // configured university in both dev and build.
-  transformIndexHtml(html) {
+  // configured university in both dev and build. Its __PUBLIC_ORIGIN__ stays
+  // in the build, for the server to fill in per request (server.js); the dev
+  // server leaves the links relative.
+  transformIndexHtml(html, context) {
     const replacements = {
       LENT_APP_NAME: branding.appName,
       LENT_SEO_TITLE: branding.seoTitle,
       LENT_SEO_DESCRIPTION: branding.seoDescription,
       LENT_REPO_URL: branding.about?.repoUrl ?? '',
+      LENT_ALTERNATE_NAMES_JSON: JSON.stringify(branding.alternateNames ?? []),
     }
 
-    return html.replace(/%(LENT_[A-Z_]+)%/g, (match, token) => replacements[token] ?? match)
+    const filled = html.replace(/%(LENT_[A-Z_]+)%/g, (match, token) => replacements[token] ?? match)
+    return context?.server ? filled.replaceAll('__PUBLIC_ORIGIN__', '') : filled
   },
 }
 
@@ -117,6 +123,9 @@ export default defineConfig({
         name: branding.appName,
         short_name: branding.appName,
         description: branding.pwaDescription ?? branding.seoDescription,
+        lang: 'fr',
+        id: '/',
+        categories: ['education'],
         theme_color: '#FCFBF8',
         background_color: '#FCFBF8',
         display: 'standalone',

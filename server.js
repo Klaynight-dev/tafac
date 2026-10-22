@@ -11,6 +11,7 @@
 // (shared.js). Unmatched hosts fall back to the UNIVERSITY default.
 import './server/patchNodeWarnings.js'
 import express from 'express'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { shutdownAllAnalytics } from './server/analytics.js'
@@ -34,6 +35,15 @@ function getPublicOrigin(req) {
   const host = forwardedHost || req.get('host') || `localhost:${PORT}`
 
   return `${protocol}://${host}`
+}
+
+// The public origin as it may go into the page: http(s) and a plain host
+// name (and port), nothing else, since X-Forwarded-Host comes from the
+// request; anything odd leaves the page's links relative.
+const SAFE_ORIGIN = /^https?:\/\/[a-z0-9.-]+(:\d{1,5})?$/i
+function getSafePublicOrigin(req) {
+  const origin = getPublicOrigin(req)
+  return SAFE_ORIGIN.test(origin) ? origin : ''
 }
 
 function getRequestHost(req) {
@@ -78,15 +88,27 @@ function createTenantApp(universityConfig, distDir) {
 </urlset>`)
   })
 
-  function sendAppShell(req, res) {
-    const canonicalUrl = new URL('/', getPublicOrigin(req)).toString()
+  // The built page, read once; its __PUBLIC_ORIGIN__ (canonical, link
+  // previews, structured data) becomes this request's address, so link
+  // previews, which don't run the app, get absolute URLs on every tenant.
+  let appShell = null
+  function sendAppShell(req, res, next) {
+    const origin = getSafePublicOrigin(req)
 
+    try {
+      appShell ??= readFileSync(path.join(distDir, 'index.html'), 'utf8')
+    } catch (error) {
+      next(error)
+      return
+    }
     res.setHeader('Content-Language', 'fr')
-    res.setHeader('Link', `<${canonicalUrl}>; rel="canonical"`)
-    res.sendFile(path.join(distDir, 'index.html'))
+    if (origin) res.setHeader('Link', `<${origin}/>; rel="canonical"`)
+    res.type('html').send(appShell.replaceAll('__PUBLIC_ORIGIN__', origin))
   }
 
   app.get('/', sendAppShell)
+  // The page under its file name would come out unfilled: the home page.
+  app.get('/index.html', (req, res) => res.redirect(301, '/'))
 
   // Serve the built static files
   app.use(express.static(distDir))

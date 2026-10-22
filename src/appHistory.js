@@ -3,7 +3,7 @@
 // full page is a history entry. What the entry shows lives in its state
 // (`tafac`), the URL doesn't change (its fragment belongs to the settings
 // transfer link). A reload keeps the entry's state, so it lands where it was.
-const PAGES = new Set(['dashboard', 'grades'])
+const PAGES = new Set(['dashboard', 'grades', 'planning'])
 
 export function readHistoryNav(state = globalThis.history?.state) {
   const nav = state?.tafac

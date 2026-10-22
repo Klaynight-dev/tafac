@@ -16,7 +16,7 @@ export const branding = {
   seoDescription: "Client alternatif non officiel à l'ENT de Mon Université.",
   logoAlt: 'Mon Université',
   sidebarLogoAlt: "Tafac — Mon Université",
-  loginFooterLine: "Client alternatif à l'ENT de Mon Université",
+  loginFooterLine: "Projet étudiant non officiel, non affilié à Mon Université",
   about: {
     intro: 'est un client alternatif aux services numériques de Mon Université.',
     disclaimer: 'Client non officiel, indépendant et non affilié à Mon Université.',

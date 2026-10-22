@@ -13,6 +13,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { ENT_AUTH_PREFIX } from './entApi'
 import { getStoredAnonymousAnalytics } from './profileStorage'
 import { toFormationSlug } from './formationSlug'
+import { createNavigationReporter } from './planningAnalytics'
 
 const ANALYTICS_ENDPOINT = `${ENT_AUTH_PREFIX}/analytics`
 const SIMPLE_ANALYTICS_SCRIPT = 'https://scripts.simpleanalyticscdn.com/latest.js'
@@ -243,6 +244,91 @@ export function useWidgetLoadReport(widget, outcome) {
   }, [widget, status, errorKind])
 }
 
+// « Mes notes », once per arrival on the page (GradesPage's mount; refs
+// survive StrictMode's second effect run): page_viewed with how the student
+// got there (`source`, see src/gradesAnalytics.js), then grades_loaded when
+// `outcome` (describeGradesLoad) first settles for the semester it opens on.
+// Later semester switches and background refreshes are never reported.
+export function useGradesPageReport(source, outcome) {
+  const startedAtRef = useRef(null)
+  const reportedRef = useRef({ view: false, load: false })
+  const status = outcome?.status ?? null
+  const errorKind = outcome?.errorKind ?? null
+
+  useEffect(() => {
+    if (startedAtRef.current === null) startedAtRef.current = performance.now()
+    const reported = reportedRef.current
+    if (!reported.view) {
+      reported.view = true
+      track('page_viewed', { page: 'grades', source })
+    }
+    if (!status || reported.load) return
+
+    reported.load = true
+    track('grades_loaded', {
+      status,
+      duration_bucket: getDurationBucket(performance.now() - startedAtRef.current),
+      ...(status === 'error' ? { error_kind: errorKind ?? 'other' } : null),
+    })
+  }, [source, status, errorKind])
+}
+
+// One thing done on « Mes notes » (grades_action): `action` and, for a
+// grade's detail sheet, where it was opened `from`.
+export function trackGradesAction(action, { from = null } = {}) {
+  track('grades_action', { action, ...(from ? { from } : null) })
+}
+
+// The Planning page, once per arrival (PlanningPage's mount; refs survive
+// StrictMode's second effect run): page_viewed with how the student got
+// there (`source`) and the view it opens in (`view`, see
+// src/planningAnalytics.js), then planning_loaded when `outcome`
+// (describePlanningLoad) first settles for the week it opens on. Later
+// weeks, retries and background refreshes are never reported.
+export function usePlanningPageReport(source, view, outcome) {
+  const startedAtRef = useRef(null)
+  const reportedRef = useRef({ view: false, load: false })
+  const status = outcome?.status ?? null
+  const errorKind = outcome?.errorKind ?? null
+
+  useEffect(() => {
+    if (startedAtRef.current === null) startedAtRef.current = performance.now()
+    const reported = reportedRef.current
+    if (!reported.view) {
+      reported.view = true
+      track('page_viewed', { page: 'planning', source, ...(view ? { view } : null) })
+    }
+    if (!status || reported.load) return
+
+    reported.load = true
+    track('planning_loaded', {
+      status,
+      duration_bucket: getDurationBucket(performance.now() - startedAtRef.current),
+      ...(status === 'unavailable' ? { error_kind: errorKind ?? 'other' } : null),
+    })
+  }, [source, view, status, errorKind])
+}
+
+// One thing done on the Planning page (planning_action): `action` and its
+// own properties (`view`, `from`, `result`, see server/analyticsSchema.js).
+export function trackPlanningAction(action, properties = {}) {
+  track('planning_action', { action, ...properties })
+}
+
+// Steps through the planning's days or weeks (day_changed, week_changed),
+// one event per burst of steps (src/planningAnalytics.js): `via` says how
+// ('arrow', 'keyboard', 'swipe', 'strip', 'pill'). Flushed when the page
+// goes (flushPlanningNavigation) and when the tab is hidden.
+const planningNavigation = createNavigationReporter(trackPlanningAction)
+
+export function trackPlanningNavigation(action, via) {
+  planningNavigation.report(action, via)
+}
+
+export function flushPlanningNavigation() {
+  planningNavigation.flush()
+}
+
 // Application ids (portal fname or local service id) as a short slug.
 export function toAppSlug(value) {
   return String(value ?? '')
@@ -253,8 +339,13 @@ export function toAppSlug(value) {
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', flushAnalytics)
+  // A planning burst still open goes in the last batch.
+  const flushOnLeave = () => {
+    planningNavigation.flush()
+    flushAnalytics()
+  }
+  window.addEventListener('pagehide', flushOnLeave)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushAnalytics()
+    if (document.visibilityState === 'hidden') flushOnLeave()
   })
 }

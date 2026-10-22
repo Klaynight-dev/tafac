@@ -79,6 +79,18 @@ import {
   searchDemoAdeTree,
 } from '../src/demoAccount.js'
 import { findReleveEvaluation, normalizeDistributionAnswer } from '../src/evaluationDistribution.js'
+
+const DEFAULT_TRUST_PROXY = 'loopback, linklocal, uniquelocal'
+
+function resolveTrustProxy(value) {
+  const setting = String(value ?? '').trim()
+  if (!setting) return DEFAULT_TRUST_PROXY
+  if (setting === 'true') return true
+  if (setting === 'false') return false
+  if (/^\d+$/.test(setting)) return Number(setting)
+  return setting
+}
+
 // options.analytics: { projectKey, host } — defaults to POSTHOG_PROJECT_KEY /
 // POSTHOG_HOST from the environment (analytics are off without a key).
 // options.session: { secret, previousSecrets, production } — defaults to
@@ -87,8 +99,15 @@ import { findReleveEvaluation, normalizeDistributionAnswer } from '../src/evalua
 // Vite mount always passes false; tests inject a secret here.
 // options.appIcons: { dataDir } — defaults to DATA_DIR, else ./data (see
 // server/appIcons.js).
+// options.trustProxy — Express 'trust proxy' value, defaults to TRUST_PROXY,
+// else local and private peers.
 export function createEntAuthApp(universityConfig, options = {}) {
 const app = express()
+// Behind a reverse proxy (Caddy in deploy/), req.ip is the proxy's address
+// for every student, which turns the per-IP login limit into one limit for
+// the whole site. X-Forwarded-For is trusted from local and private peers
+// only (loopback, Docker network); TRUST_PROXY overrides it (Express syntax).
+app.set('trust proxy', resolveTrustProxy(options.trustProxy ?? process.env.TRUST_PROXY))
 
 // Automatic tile icons, remembered per university, drawn in the university's
 // icon style and colour mode (server/appIcons.js, config → appIcons).
@@ -228,10 +247,14 @@ const MOODLE_CONTENTS_CACHE_TTL_MS = 5 * 60 * 1000
 // Signed-in Moodle contexts are reused for this long (and dropped earlier if
 // Moodle rejects them), so a widget refresh doesn't replay the SAML chain.
 const MOODLE_CONTEXT_TTL_MS = 60 * 60 * 1000
+// Failed logins within the window before a short block. Enough room for a
+// forgotten password, while still keeping brute force (and the university's
+// own CAS lockout) away; the per-IP count is higher because students on
+// campus Wi-Fi share an address.
 const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
-const LOGIN_RATE_LIMIT_BLOCK_MS = 15 * 60 * 1000
-const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP = 10
-const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_USERNAME = 5
+const LOGIN_RATE_LIMIT_BLOCK_MS = 5 * 60 * 1000
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP = 30
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_USERNAME = 8
 const runtimeSessions = new Map()
 const runtimeGradesCache = new Map()
 // sessionId → Map(semesterId → { cachedAt, data }): relevés of the other
@@ -2173,7 +2196,7 @@ app.post('/__ent_auth/analytics', (req, res) => {
 
     try {
       const session = getSessionFromRequest(req)
-      analytics.ingest(req.body, session ? { id: session.id, demo: isDemoSession(session) } : null)
+      analytics.ingest(req.body, session ? { id: session.id, demo: isDemoSession(session), user: session.user } : null)
     } catch {
       // Analytics must never break the app.
     }
@@ -6262,6 +6285,7 @@ app.get('/__ent_auth/ade/tree', async (req, res) => {
       const cacheScope = getPlanningCacheScope(entSession)
       let tree = await fetchPortalTree(entSession.jar, {
         requestedResourceId: requestedTreeId,
+        fallbackResourceId: String(req.query.fallback ?? ''),
         cacheScope,
       })
       let campusGroups = null

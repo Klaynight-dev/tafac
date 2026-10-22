@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   getGrades,
   getGradesDepartmentMessage,
+  getRequestErrorKind,
   getSemesterGrades,
   peekGrades,
   peekSemesterGrades,
@@ -10,6 +11,18 @@ import {
 import { getReleveDepartment, htmlToPlainText, listGradesSemesters } from './gradesReport'
 import { getOfflineCache, setOfflineCache } from './offlineStorage'
 import { describeLoadError } from './scodocPageUtils'
+
+// A failed load, as the page shows it (`error`, a message) and as the
+// anonymous analytics count it: its category (`errorKind`) and whether the
+// server found no ScoDoc relevé at all (`unavailable`), never the message.
+function describeFailure(data, error) {
+  return {
+    status: 'error',
+    error: describeLoadError(data, error),
+    errorKind: error ? getRequestErrorKind(error) : data?.errorKind ?? null,
+    unavailable: Boolean(data?.unavailable),
+  }
+}
 
 // The semester picked on one ScoDoc page stays picked on the other.
 let sharedSelectedSemesterId = null
@@ -60,7 +73,7 @@ export function useScodocReleve() {
             } else {
               setBase((current) => (current.status === 'ok'
                 ? { ...current, fromCache: false }
-                : { status: 'error', payload: null, error: describeLoadError(data, null), fromCache: false }))
+                : { ...describeFailure(data, null), payload: null, fromCache: false }))
             }
           })
           return
@@ -77,7 +90,7 @@ export function useScodocReleve() {
           } else {
             setBase((current) => (current.status === 'ok'
               ? { ...current, fromCache: false }
-              : { status: 'error', payload: null, error: describeLoadError(null, error), fromCache: false }))
+              : { ...describeFailure(null, error), payload: null, fromCache: false }))
           }
         })
       })
@@ -123,11 +136,11 @@ export function useScodocReleve() {
         const ok = data?.authenticated && data.grades && !data.error
         setSemesterPayloads((current) => ({
           ...current,
-          [activeId]: ok ? { status: 'ok', payload: data.grades } : { status: 'error', error: describeLoadError(data, null) },
+          [activeId]: ok ? { status: 'ok', payload: data.grades } : describeFailure(data, null),
         }))
       })
       .catch((error) => {
-        setSemesterPayloads((current) => ({ ...current, [activeId]: { status: 'error', error: describeLoadError(null, error) } }))
+        setSemesterPayloads((current) => ({ ...current, [activeId]: describeFailure(null, error) }))
       })
   }, [activeId, basePayload, cachedSemester, newestId, semesterPayloads])
 

@@ -164,6 +164,48 @@
     0 2px 8px rgb(0 0 0 / 0.3);
 }
 
+/* A sheet's close button (a grade's, a class's), of the tab bar's glass. */
+.glass-close-button {
+  border: 1px solid rgb(255 255 255 / 0.7);
+  background-color: rgb(252 251 248 / 0.45);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.08));
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    inset 0 -1px 0 rgb(52 18 0 / 0.04),
+    0 6px 16px -6px rgb(52 18 0 / 0.22),
+    0 1px 4px rgb(52 18 0 / 0.08);
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 100ms ease-out;
+}
+
+.glass-close-button:active {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) {
+  .glass-close-button:hover {
+    background-color: rgb(255 255 255 / 0.6);
+  }
+}
+
+:where([data-theme="dark"]) .glass-close-button {
+  border-color: rgb(255 255 255 / 0.12);
+  background-color: rgb(28 28 28 / 0.45);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.02));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 6px 16px -6px rgb(0 0 0 / 0.6),
+    0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+@media (hover: hover) {
+  :where([data-theme="dark"]) .glass-close-button:hover {
+    background-color: rgb(255 255 255 / 0.12);
+  }
+}
+
 :where([data-theme="dark"]) .mobile-tab-bar-item:active {
   background-color: rgb(255 255 255 / 0.1);
 }
@@ -741,20 +783,6 @@
     1px 0 0 0 rgba(255, 255, 255, 0.04);
 }
 
-/* ── Login field depth (matches widget-card ring) ── */
-
-.login-field {
-  --ring-color: rgba(0, 0, 0, 0.08);
-  box-shadow:
-    0 4px 10px -3px rgba(0, 0, 0, 0.07),
-    0 0 0 1px var(--ring-color);
-}
-
-:where([data-theme="dark"]) .login-field {
-  --ring-color: rgba(0, 0, 0, 0.88);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
 /* ── Weather gradient inner (uses inline CSS variable) ── */
 
 .weather-widget-inner {
@@ -915,11 +943,22 @@
    The UE ring, large and cut by the sheet's bottom edge: the arrows turn it
    to bring a UE to the top. Its segments are UE ribbons (UeBadge). */
 .ue-dial-turn {
-  transform-box: view-box;
-  transform-origin: 60px 60px;
   transform: rotate(var(--dial-rotation, 0deg));
   transition: transform 800ms var(--dial-spring);
   animation: ue-dial-spin-in 1000ms var(--dial-spring) backwards;
+  /* Its own layer, turned by the compositor: nothing repainted. */
+  will-change: transform;
+  isolation: isolate;
+}
+
+/* A shadow layer: offset as the dial stands, its ring blurred before it's
+   turned. --dx, --dy, --blur in the dial's 120-unit box. */
+.ue-dial-shadow {
+  transform: translate(calc(var(--dx) * 100% / 120), calc(var(--dy) * 100% / 120));
+}
+
+.ue-dial-shadow > .ue-dial-turn {
+  filter: blur(calc(var(--blur) * 100cqw / 120));
 }
 
 /* Under the hand: it follows the pointer, no easing. */
@@ -933,7 +972,7 @@
 .ue-dial,
 .ue-picked,
 .ue-reveal,
-.grades-launch {
+.launch-card {
   --dial-spring: linear(0.000, 0.034, 0.124, 0.249, 0.394, 0.544, 0.688, 0.817, 0.928, 1.016, 1.083, 1.128, 1.153, 1.163, 1.159, 1.146, 1.127, 1.103, 1.079, 1.055, 1.034, 1.015, 1.000, 0.988, 0.980, 0.976, 0.974, 0.974, 0.976, 0.979, 0.982, 0.986, 0.990, 0.994, 0.997, 1.000, 1.002, 1.003, 1.004, 1.004, 1);
   --fly-spring: linear(0.000, 0.027, 0.096, 0.189, 0.294, 0.401, 0.505, 0.600, 0.685, 0.759, 0.822, 0.873, 0.915, 0.947, 0.972, 0.990, 1.003, 1.011, 1.016, 1.019, 1.020, 1.019, 1.018, 1.016, 1.014, 1.012, 1.010, 1.008, 1.006, 1.005, 1.004, 1.003, 1.002, 1.001, 1.001, 1.000, 1.000, 1.000, 1.000, 1.000, 1);
 }
@@ -1660,23 +1699,14 @@
 
 /* ── Next class widget gradient + transition ── */
 
-.next-class-widget,
-.course-card-widget {
+.next-class-widget {
   opacity: 1;
   transform: none;
   background-color: var(--color-widget-bg);
-  background-image: var(--class-gradient, none);
-  background-repeat: no-repeat;
   --widget-delay: 70ms;
 }
 
-:where([data-theme="dark"]) .next-class-widget,
-:where([data-theme="dark"]) .course-card-widget {
-  background-image: var(--class-gradient-dark, none);
-}
-
-.next-class-widget:hover,
-.course-card-widget:hover {
+.next-class-widget:hover {
   background-color: var(--color-bg-subtle);
 }
 
@@ -1707,8 +1737,7 @@
 .absences-widget:hover .grade-corner-arrow,
 .average-grade-widget:hover .grade-corner-arrow,
 .next-class-widget:hover .grade-corner-arrow,
-.greeting-card-widget:hover .grade-corner-arrow,
-.course-card-widget:hover .grade-corner-arrow {
+.greeting-card-widget:hover .grade-corner-arrow {
   opacity: 0.45;
 }
 
@@ -2110,37 +2139,134 @@
   }
 }
 
-/* ── « Mes notes » launch card (src/components/GradesLaunchCard.jsx) ──
-   A compact widget card under the dashboard's widgets while the launch is
+/* ── Launch cards (src/components/LaunchCard.jsx) ──
+   A compact widget card under the dashboard's widgets while a launch is
    unseen. Its stage is a light sky blue (the « Nouveautés » blue, washed
-   out) under the simulator's dial and springs (--dial-spring,
-   --fly-spring above), the dial's top half standing on the stage's floor,
-   so it looks like what it opens.
+   out) under the page's own drawing and the simulator's springs
+   (--dial-spring, --fly-spring above), the page's icon standing on the
+   stage's floor, so it looks like what it opens.
    The beats, from mount:
      0      the card rises in
-     120ms  the dial swings in from a quarter turn back, its ribbons
-            fanning out of the centre one after the other
+     120ms  the drawing comes in, piece by piece
      160ms  the words rise in, then the button (--delay)
-     760ms  the page's icon pops up in the dial's hollow, a ring ripples out
-     1150ms a shimmer sweeps over the ribbons as the dial springs one UE on
+     760ms  the page's icon pops up on the floor, a ring ripples out
+     1150ms the drawing's last move (below, per card)
      1900ms the button's arrow nudges twice
-   Reduced motion: the final frame, as is (the dial already turned). */
+   Reduced motion: the final frame, as is. */
 
-.grades-launch {
-  animation: grades-launch-in 640ms var(--fly-spring) backwards;
+.launch-card {
+  animation: launch-card-in 640ms var(--fly-spring) backwards;
 }
 
-.grades-launch-stage {
+.launch-card-stage {
   background:
     radial-gradient(120% 95% at 50% 100%, #f3f8ff 0%, #e2edfc 55%, #d2e3f9 100%);
   box-shadow: inset 0 0 0 1px rgb(26 115 232 / 0.1);
 }
 
-:where([data-theme="dark"]) .grades-launch-stage {
+:where([data-theme="dark"]) .launch-card-stage {
   background:
     radial-gradient(120% 95% at 50% 100%, #2b3d58 0%, #213149 55%, #1a273a 100%);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
 }
+
+/* The page's icon on the card's own surface. */
+.launch-card-hub {
+  background-color: #ffffff;
+  color: var(--color-text);
+  box-shadow: 0 1px 2px rgb(21 54 99 / 0.2), 0 6px 14px -6px rgb(21 54 99 / 0.45);
+  animation: launch-card-pop 620ms var(--dial-spring) 760ms backwards;
+}
+
+:where([data-theme="dark"]) .launch-card-hub {
+  background-color: #1c1c1c;
+  color: var(--color-text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 14px -6px rgb(0 0 0 / 0.7);
+}
+
+.launch-card-ripple {
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: ue-reveal-ripple 1000ms cubic-bezier(0.2, 0.8, 0.2, 1) 860ms;
+}
+
+.launch-card-rise {
+  animation: ue-reveal-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--delay, 0ms) backwards;
+}
+
+.launch-card-cta-arrow {
+  animation: launch-card-nudge 900ms ease-in-out 1900ms;
+}
+
+/* Between the widgets' band and the apps (the dashboard's grid gap
+   above it, a little tighter); closing, the card fades back, then its room
+   folds up so the apps slide into place rather than jump. */
+.launch-card-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin: -12px 0 28px;
+  transition: grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1) 180ms, margin 300ms cubic-bezier(0.4, 0, 0.2, 1) 180ms;
+}
+
+.launch-card-slot.is-leaving {
+  grid-template-rows: 0fr;
+  margin: 0;
+}
+
+.launch-card-slot.is-leaving > div {
+  overflow: hidden;
+}
+
+.launch-card-slot.is-leaving .launch-card {
+  animation: launch-card-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@media (width < 768px) {
+  .launch-card-slot {
+    margin: -12px 0 20px;
+  }
+}
+
+@keyframes launch-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@keyframes launch-card-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* `transform` only: the centring is Tailwind's `translate`, left alone. */
+@keyframes launch-card-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+@keyframes launch-card-nudge {
+  0%,
+  50%,
+  100% {
+    transform: none;
+  }
+
+  25%,
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* « Mes notes » (GradesLaunchCard): the simulator's dial, its top half
+   standing on the floor. It swings in from a quarter turn back, its
+   ribbons fanning out of the centre one after the other; at 1150ms a
+   shimmer sweeps over the ribbons as the dial springs one UE on (the
+   final frame has it turned). */
 
 .grades-launch-turn {
   transform-box: view-box;
@@ -2162,82 +2288,11 @@
   animation: grades-launch-ribbon-in 720ms var(--fly-spring) calc(140ms + var(--i, 0) * 70ms) backwards;
 }
 
-/* The hollow: the page's icon on the card's own surface. */
-.grades-launch-hub {
-  background-color: #ffffff;
-  color: var(--color-text);
-  box-shadow: 0 1px 2px rgb(21 54 99 / 0.2), 0 6px 14px -6px rgb(21 54 99 / 0.45);
-  animation: grades-launch-pop 620ms var(--dial-spring) 760ms backwards;
-}
-
-:where([data-theme="dark"]) .grades-launch-hub {
-  background-color: #1c1c1c;
-  color: var(--color-text);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 14px -6px rgb(0 0 0 / 0.7);
-}
-
-.grades-launch-ripple {
-  border: 2px solid currentColor;
-  opacity: 0;
-  animation: ue-reveal-ripple 1000ms cubic-bezier(0.2, 0.8, 0.2, 1) 860ms;
-}
-
 .grades-launch-shimmer {
   opacity: 0;
   stroke-dasharray: 0.22 2;
   stroke-dashoffset: 0.22;
   animation: grades-launch-shimmer 1200ms cubic-bezier(0.45, 0, 0.3, 1) 1150ms;
-}
-
-.grades-launch-rise {
-  animation: ue-reveal-rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--delay, 0ms) backwards;
-}
-
-.grades-launch-cta-arrow {
-  animation: grades-launch-nudge 900ms ease-in-out 1900ms;
-}
-
-/* Between the widgets' band and the apps (the dashboard's grid gap
-   above it, a little tighter); closing, the card fades back, then its room
-   folds up so the apps slide into place rather than jump. */
-.grades-launch-slot {
-  display: grid;
-  grid-template-rows: 1fr;
-  margin: -12px 0 28px;
-  transition: grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1) 180ms, margin 300ms cubic-bezier(0.4, 0, 0.2, 1) 180ms;
-}
-
-.grades-launch-slot.is-leaving {
-  grid-template-rows: 0fr;
-  margin: 0;
-}
-
-.grades-launch-slot.is-leaving > div {
-  overflow: hidden;
-}
-
-.grades-launch-slot.is-leaving .grades-launch {
-  animation: grades-launch-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-
-@media (width < 768px) {
-  .grades-launch-slot {
-    margin: -12px 0 20px;
-  }
-}
-
-@keyframes grades-launch-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.97);
-  }
-}
-
-@keyframes grades-launch-out {
-  to {
-    opacity: 0;
-    transform: scale(0.97);
-  }
 }
 
 @keyframes grades-launch-step {
@@ -2271,38 +2326,71 @@
   }
 }
 
-/* `transform` only: the centring is Tailwind's `translate`, left alone. */
-@keyframes grades-launch-pop {
+/* The Planning (PlanningLaunchCard): a few days of the page's grid, its
+   classes (.planning-accent-fill, .latest-grade-wash as on the page's
+   blocks) dropping into place one after the other; at 1150ms the "now"
+   line draws across today in the brand colour, faint over the rest of the
+   week, as on the page (.planning-now-line). */
+
+.planning-launch-hour {
+  background: var(--color-border);
+}
+
+.planning-launch-block {
+  border-color: var(--color-border);
+  box-shadow: 0 1px 2px rgb(21 54 99 / 0.12);
+  animation: planning-launch-block-in 720ms var(--fly-spring) calc(140ms + var(--i, 0) * 70ms) backwards;
+}
+
+:where([data-theme="dark"]) .planning-launch-block {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+/* The title, as a line. */
+.planning-launch-title {
+  background: var(--color-text);
+  opacity: 0.5;
+}
+
+.planning-launch-now {
+  z-index: 1;
+  background: var(--color-brand);
+  transform-origin: left center;
+  animation: planning-launch-now 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 1150ms backwards;
+}
+
+.planning-launch-now.is-faint {
+  opacity: 0.25;
+}
+
+.planning-launch-now-dot {
+  background: var(--color-brand);
+}
+
+@keyframes planning-launch-block-in {
   from {
     opacity: 0;
-    transform: scale(0.3);
+    transform: translateY(-8px) scale(0.85);
   }
 }
 
-@keyframes grades-launch-nudge {
-  0%,
-  50%,
-  100% {
-    transform: none;
-  }
-
-  25%,
-  75% {
-    transform: translateX(4px);
+@keyframes planning-launch-now {
+  from {
+    transform: scaleX(0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .grades-launch,
-  .grades-launch :is(.grades-launch-turn, .grades-launch-step, .grades-launch-ribbon, .grades-launch-hub, .grades-launch-rise, .grades-launch-cta-arrow) {
+  .launch-card,
+  .launch-card :is(.launch-card-hub, .launch-card-rise, .launch-card-cta-arrow, .grades-launch-turn, .grades-launch-step, .grades-launch-ribbon, .planning-launch-block, .planning-launch-now) {
     animation: none;
   }
 
-  .grades-launch :is(.grades-launch-ripple, .grades-launch-shimmer) {
+  .launch-card :is(.launch-card-ripple, .grades-launch-shimmer) {
     display: none;
   }
 
-  .grades-launch-slot {
+  .launch-card-slot {
     transition: none;
   }
 }
@@ -3323,16 +3411,809 @@ html[data-tour-active] [data-tour="favorite-star"] {
   }
 }
 
-/* ── Mes notes · phone ──
-   Below md (640px, the Tailwind breakpoint): the band's tint also runs up
-   behind the top bar (logo, account buttons), so the coloured top starts at
-   the top of the screen rather than under the logo. Everything in the page
-   column above the shown page's band takes its colour (the top bar, an
-   update notice…); the hidden page kept mounted doesn't count, and a page
-   without its band (a UE open full page) leaves the bar plain. */
+/* ── Mes notes · phones and tablets ──
+   Below 4xl (1024px, where the sidebar takes over from the top bar): the
+   band's tint also runs up behind the top bar (logo, account buttons), so
+   the coloured top starts at the top of the screen rather than under the
+   logo. Everything in the page column above the shown page's band takes its
+   colour (the top bar, an update notice…); the hidden page kept mounted
+   doesn't count, and a page without its band (a UE open full page) leaves
+   the bar plain. */
 
-@media (width < 640px) {
+@media (width < 1024px) {
   .dashboard-no-wallpaper .app-column > :has(~ :not([hidden]) .page-top-band) {
     background: var(--page-top-band);
+  }
+}
+
+/* ── Planning page (PlanningPage) ──
+   The iOS app's planning screen, laid out as it is (HourGridView,
+   EventBlock) and drawn in the site's style: Mes notes' title band, the
+   brand colour for the selection and now, the widget cards and their
+   colour wash for the classes. */
+
+/* The header and the hours share one centred column; from the sidebar's
+   breakpoint (the week's), the page's whole width, as Mes notes'. */
+.planning-column {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+@media (width >= 1024px) {
+  .planning-column {
+    max-width: none;
+  }
+}
+
+/* The page's top stays on top as the hours scroll under it. The band is
+   its own layer behind (clipped to its height, see .page-top-band), so the
+   month's calendar can hang out of it. */
+.planning-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.planning-page .planning-top > .page-top-band {
+  position: absolute;
+  inset: 0;
+}
+
+.planning-letters,
+.planning-pills {
+  display: flex;
+  justify-content: space-between;
+  padding-inline: 5px;
+}
+
+.planning-letters {
+  height: 18px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.planning-letters > span {
+  width: 35px;
+  text-align: center;
+}
+
+/* The week strip, grown by 12px on every side so the pills keep their
+   shadow and bounce inside the pager's clip. */
+.planning-strip {
+  margin: -6px -12px -12px;
+}
+
+.planning-strip .swipe-pager-page {
+  padding: 12px;
+}
+
+.planning-pills {
+  position: relative;
+  height: 35px;
+}
+
+/* A day: a chip on the band, as the semester chip on a phone. */
+.planning-pill {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-widget-bg);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: color 250ms ease, background-color 250ms ease, border-color 250ms ease, transform 100ms ease-out;
+}
+
+@media (hover: hover) {
+  .planning-pill:not(.is-selected, .is-filled):hover {
+    background: var(--color-bg-subtle);
+  }
+}
+
+.planning-pill:active {
+  transform: scale(0.96);
+}
+
+.planning-pill:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.planning-pill.is-selected {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-bg);
+}
+
+/* Today: a dot under its number (in the page's colour once selected). */
+.planning-pill.is-today::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.planning-pill.is-today:not(.is-selected) {
+  border-color: var(--color-border-input);
+}
+
+/* The week's days over their columns (wide screens): the weekday over the
+   date's pill, the whole header a button opening the day. */
+.planning-week-heads {
+  display: grid;
+}
+
+.planning-week-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.planning-week-head:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.planning-week-weekday {
+  height: 18px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+@media (hover: hover) {
+  .planning-week-head:hover .planning-pill:not(.is-filled) {
+    background: var(--color-bg-subtle);
+  }
+
+  .planning-week-head:hover .planning-week-weekday {
+    color: var(--color-text);
+  }
+}
+
+.planning-week-head:active .planning-pill {
+  transform: scale(0.96);
+}
+
+/* The selected day, filled as the strip's capsule. */
+.planning-pill.is-filled {
+  border-color: transparent;
+  background: var(--color-brand);
+  box-shadow: 0 4px 12px -4px var(--color-shadow);
+  color: var(--color-bg);
+}
+
+.planning-pill.is-today.is-filled {
+  border-color: transparent;
+}
+
+/* The selected days' capsule: fades in where a new day is picked, grows
+   when the view changes (a spring). */
+.planning-selection {
+  position: absolute;
+  top: 0;
+  height: 35px;
+  margin-left: 5px;
+  border-radius: 999px;
+  background: var(--color-brand);
+  box-shadow: 0 4px 12px -4px var(--color-shadow);
+  animation: planning-fade-in 250ms ease-out;
+  transition: width 450ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+@keyframes planning-fade-in {
+  from { opacity: 0; }
+}
+
+/* The month's calendar, in the menu panel's rows' colours (Dropdown). */
+.planning-picker-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-brand);
+  cursor: pointer;
+}
+
+.planning-picker-arrow:hover {
+  background: var(--color-context-hover);
+}
+
+.planning-picker-day {
+  position: relative;
+  justify-self: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.planning-picker-day:hover {
+  background: var(--color-context-hover);
+}
+
+.planning-picker-day.is-today {
+  font-weight: 700;
+}
+
+.planning-picker-day.is-today::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.planning-picker-day.is-selected {
+  background: var(--color-brand);
+  color: var(--color-bg);
+}
+
+/* Pages swiped sideways (SwipePager): the page and its neighbours in a row,
+   clipped (the strip's pages are padded for their pills' shadows). */
+.swipe-pager {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.swipe-pager-track {
+  display: flex;
+  will-change: transform;
+}
+
+.swipe-pager-page {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+/* A new view settles in from slightly larger. */
+.planning-pager {
+  animation: planning-view-in 500ms cubic-bezier(0.25, 1.15, 0.5, 1);
+}
+
+@keyframes planning-view-in {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+
+/* A day keeps its cards' shadows to itself: the neighbour's don't bleed in
+   at the edge. */
+.planning-pager .swipe-pager-page {
+  clip-path: inset(-40px 0);
+}
+
+.planning-page-day {
+  position: relative;
+}
+
+/* The hours: labels centred on hairlines (no half hours). */
+.planning-grid {
+  position: absolute;
+  inset: 0;
+  transition: opacity 250ms ease;
+}
+
+.planning-grid.is-bare {
+  opacity: 0;
+}
+
+.planning-hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  height: 10px;
+}
+
+.planning-hour-label {
+  flex: none;
+  width: 50px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.planning-hour-line,
+.planning-day-divider {
+  background: var(--color-border);
+}
+
+.planning-hour-line {
+  flex: 1;
+  height: 1px;
+}
+
+.planning-day-divider {
+  position: absolute;
+  width: 1px;
+}
+
+/* A class: a widget card (its no-wallpaper surface, border and shadow)
+   under its course's wash (.latest-grade-wash). It doesn't rise in like
+   the dashboard's cards; pressed, it settles. */
+.planning-block {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  transition: transform 320ms cubic-bezier(0.25, 1.2, 0.5, 1), background-color 150ms ease;
+  will-change: auto;
+}
+
+button.planning-block {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  button.planning-block:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+button.planning-block:active {
+  transform: scale(0.975);
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+.planning-block:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* The course's colour, set inline in both themes (--accent, --accent-dark,
+   eventAccents.js): an inline variable wins over any stylesheet, so the
+   theme picks through its own one. */
+.planning-accent-fill {
+  background: var(--accent);
+}
+
+:where([data-theme="dark"]) .planning-accent-fill {
+  background: var(--accent-dark);
+}
+
+.planning-bar {
+  position: absolute;
+  border-radius: 999px;
+}
+
+.planning-block-info {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.planning-block-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.planning-block-meta {
+  display: flex;
+  min-width: 0;
+}
+
+.planning-block-meta--row {
+  align-items: center;
+}
+
+.planning-block-meta--stacked {
+  flex-direction: column;
+}
+
+.planning-block-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+
+.planning-block-meta--row .planning-block-label:last-child {
+  flex: 1;
+}
+
+.planning-block-symbol {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.planning-block-label-text {
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planning-block-divider {
+  flex: none;
+  width: 1px;
+  background: var(--color-border);
+}
+
+/* Now: a "Maint." pill over the hours and a line across today, in the
+   brand colour (as the grade sheet's "you" marker). */
+.planning-now {
+  position: absolute;
+  left: 0;
+  z-index: 2;
+  height: 22px;
+  pointer-events: none;
+}
+
+.planning-now-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--color-brand);
+  color: var(--color-bg);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.planning-now-line {
+  position: absolute;
+  top: 10.5px;
+  right: 0;
+  height: 1px;
+  background: var(--color-brand);
+}
+
+/* The week's line over the days before today, faint. */
+.planning-now-line.is-faint {
+  right: auto;
+  opacity: 0.25;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planning-pager,
+  .planning-selection,
+  .planning-note {
+    animation: none;
+  }
+
+  .planning-selection,
+  .planning-block {
+    transition: none;
+  }
+}
+
+/* The rows of a class's sheet (PlanningEventSheet): one card, the rows
+   parted by a hairline from the text's edge, as the iOS GroupCard. */
+.planning-row + .planning-row .planning-row-text,
+li + li > .planning-row .planning-row-text {
+  border-top: 1px solid var(--color-border);
+}
+
+@media (hover: hover) {
+  .planning-row.is-link:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+.planning-row.is-link:active {
+  background-color: var(--color-bg-subtle);
+}
+
+/* ── Planning states (PlanningNote) ──
+   What a day or a page without classes says: no class, on its way, ADE
+   not answering, no group chosen. */
+
+/* In full (a page without any class): as the pages' empty states, the
+   icon in a soft disc over the title, why, and the way out. */
+.planning-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  animation: planning-fade-in 250ms ease-out;
+}
+
+.planning-note:focus {
+  outline: none;
+}
+
+.planning-note.is-full {
+  gap: 10px;
+  padding-inline: 8px;
+}
+
+.planning-note-disc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  background: var(--color-brand-subtle);
+  color: var(--color-text);
+}
+
+.planning-note-action:focus-visible,
+.planning-note-link:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.planning-note-action:active {
+  transform: scale(0.98);
+}
+
+/* A column's, beside days with classes: muted, at 10:30, its way out a
+   small link under it. */
+.planning-note.is-compact {
+  gap: 2px;
+  min-height: 36px;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.planning-note-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* In a week's narrow column, the icon over the text. */
+.planning-note.is-stacked {
+  font-size: 13px;
+}
+
+.planning-note.is-stacked .planning-note-line {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.planning-note-link {
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-brand);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .planning-note-link:hover {
+    background: var(--color-bg-subtle);
+  }
+}
+
+/* Planning list view
+   The week as an agenda (PlanningListView): each day's heading over its
+   classes' cards, in the grid's blocks' look. In the pager, its pages are
+   grown by 12px on the sides (as the week strip) so the cards keep their
+   shadows, and only the page in view sets the height: a long week next
+   door leaves no blank under a short one (it shows as it slides in). */
+.planning-pager.is-list {
+  margin-inline: -12px;
+}
+
+.planning-pager.is-list .swipe-pager-track {
+  align-items: flex-start;
+}
+
+.planning-pager.is-list .swipe-pager-page {
+  padding-inline: 12px;
+  clip-path: inset(-40px 0 -100vh);
+}
+
+.planning-pager.is-list .swipe-pager-page[inert] {
+  height: 0;
+}
+
+.planning-list {
+  display: grid;
+  gap: 24px;
+  padding-bottom: 28px;
+}
+
+/* A day: its heading over its cards; on a wide screen, in a column left
+   of them, as an agenda's. */
+.planning-list-day {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (width >= 1024px) {
+  .planning-list {
+    gap: 28px;
+  }
+
+  .planning-list-day {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+
+.planning-list-bar {
+  flex: none;
+  width: 6px;
+  border-radius: 999px;
+}
+
+/* Pressed, a card settles, as a block does. */
+.planning-list-card {
+  transition: transform 320ms cubic-bezier(0.25, 1.2, 0.5, 1), background-color 150ms ease;
+  will-change: auto;
+}
+
+@media (hover: hover) {
+  .planning-list-card:hover {
+    background-color: var(--color-bg-subtle);
+  }
+}
+
+.planning-list-card:active {
+  transform: scale(0.985);
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+.planning-list-card:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Today or the picked day without a class: a line in the grid's notes'
+   words and colour. A week without any: its note (PlanningNote), centred. */
+.planning-list-free {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.planning-list-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+}
+
+@media (width >= 1024px) {
+  .planning-list-free {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planning-list-card {
+    transition: none;
+  }
+}
+
+/* ── A class's sheet (PlanningEventSheet) ──
+   Its cards (the class's block, its rows) are widget cards, which are glass
+   unless the page has no wallpaper; the sheet sits in a portal, outside the
+   page, on its own plain colour: solid cards there, as on the page, with a
+   warm hairline (the sheet is lighter than the page) so they stand out. */
+.planning-sheet .widget-card {
+  --color-widget-bg: #ffffff;
+  --color-bg-subtle: #f8f7f3;
+  border-color: rgb(52 18 0 / 0.1);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 3px rgb(52 18 0 / 0.06), 0 10px 28px -14px rgb(52 18 0 / 0.16);
+}
+
+:where([data-theme="dark"]) .planning-sheet .widget-card {
+  --color-widget-bg: #1c1c1c;
+  --color-bg-subtle: #242424;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+/* The planning's export button (PlanningExportButton): its word hidden at
+   rest, sliding out beside the icon on hover or keyboard focus. */
+.planning-export-label {
+  display: inline-block;
+  overflow: hidden;
+  max-width: 0;
+  margin-left: 0;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), margin-left 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease-out;
+}
+
+@media (hover: hover) {
+  .group:hover > .planning-export-label {
+    max-width: 6rem;
+    margin-left: 6px;
+    opacity: 1;
+  }
+}
+
+.group:focus-visible > .planning-export-label {
+  max-width: 6rem;
+  margin-left: 6px;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planning-export-label {
+    transition: none;
   }
 }
