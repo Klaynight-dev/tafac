@@ -215,6 +215,10 @@ export default function FreeRoomsModal({ isOpen, onClose, events = [] }) {
                 options={buildingOptions}
                 value={activeBuilding}
                 onChange={handleBuildingChange}
+                // The building alone on the button ("Bâtiment 05 - INFO"):
+                // the whole ADE path doesn't fit; the menu keeps it.
+                triggerLabel={activeBuilding ? `${activeBuilding.split(' › ').at(-1)} (${buildingRooms.length})` : null}
+                className="max-w-full"
                 triggerClassName={`${INLINE_BUTTON} max-w-full`}
               />
             ) : null}
