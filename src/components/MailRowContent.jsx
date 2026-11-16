@@ -7,8 +7,9 @@ import { getSenderLabel } from './widgetListUtils'
 // name (`sender`, from `person`: the sender, or a sent mail's recipient),
 // their domain when it isn't the university's (`senderDomain`), the
 // replied/forwarded/flag marks and the time (`timeLabel`); then the subject,
-// the thread's size and the unread dot; then the first lines.
-function MailRowContent({ message, person, sender, senderDomain = null, timeLabel = '' }) {
+// the thread's size and the unread dot; then the first lines. `photo`: the
+// person's picture, shown in place of the letter badge when there is one.
+function MailRowContent({ message, person, sender, senderDomain = null, timeLabel = '', photo = null }) {
   const email = person?.email?.trim() || null
   const subject = message.subject?.trim() || '(Sans objet)'
   const snippet = message.snippet?.trim() || ''
@@ -19,13 +20,17 @@ function MailRowContent({ message, person, sender, senderDomain = null, timeLabe
     <>
       <span className="flex items-center justify-between gap-3 min-w-0">
         <span className="flex items-center gap-2 min-w-0">
-          <span
-            className={`inline-flex size-6 shrink-0 items-center justify-center rounded-[6px] text-[13px] font-semibold leading-none ${badgeStyle ? 'app-icon--auto' : 'bg-bg-muted text-text-muted'}`}
-            style={badgeStyle ?? undefined}
-            aria-hidden="true"
-          >
-            {getSenderInitial(getSenderLabel(person))}
-          </span>
+          {photo ? (
+            <img src={photo} alt="" className="size-6 shrink-0 rounded-[6px] object-cover" aria-hidden="true" />
+          ) : (
+            <span
+              className={`inline-flex size-6 shrink-0 items-center justify-center rounded-[6px] text-[13px] font-semibold leading-none ${badgeStyle ? 'app-icon--auto' : 'bg-bg-muted text-text-muted'}`}
+              style={badgeStyle ?? undefined}
+              aria-hidden="true"
+            >
+              {getSenderInitial(getSenderLabel(person))}
+            </span>
+          )}
           <span className={`min-w-0 truncate text-[13px] leading-[1.3] font-semibold ${unread ? 'text-text-70' : 'text-text-muted'}`}>{sender}</span>
           {senderDomain ? (
             <span className="-ml-[3px] max-w-[55%] shrink-0 truncate text-[12px] leading-[1.3] font-medium text-text-muted" aria-hidden="true">{senderDomain}</span>

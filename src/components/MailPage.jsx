@@ -481,9 +481,12 @@ function MailListPlaceholder() {
 // thread preloaded, MailPage). `swipeActions`: { leading, trailing }, the
 // actions a finger swipes out (SwipeableRow); a long press opens the
 // right-click menu.
-function MailListItem({ message, fallbackHref, now, onOpen, onContextMenu, onHover, swipeActions = null, showRecipient = false, selected = false, joinTop = false, joinBottom = false, transition = 'present', onSettled }) {
+function MailListItem({ message, fallbackHref, now, onOpen, onContextMenu, onHover, swipeActions = null, showRecipient = false, selected = false, joinTop = false, joinBottom = false, transition = 'present', onSettled, own = null }) {
   const href = message.href || fallbackHref
   const person = showRecipient && message.to ? message.to : message.from
+  // The student's own photo on the mails they are the person of.
+  const ownEmail = own?.email?.trim().toLowerCase()
+  const photo = own?.photo && ownEmail && person?.email?.trim().toLowerCase() === ownEmail ? own.photo : null
   const sender = showRecipient && message.to ? `À ${getSenderLabel(person)}` : getSenderLabel(person)
   // A sender outside the university's domains: their domain after the name
   // (mailSender.js), so a name borrowed from the university stands out.
@@ -495,7 +498,7 @@ function MailListItem({ message, fallbackHref, now, onOpen, onContextMenu, onHov
   const unread = Boolean(message.unread)
   const ariaLabel = `${unread ? 'Non lu, ' : ''}${sender}${senderDomain ? ` ${senderDomain}` : ''} : ${subject}${timeLabel ? `, ${timeLabel}` : ''}`
 
-  const content = <MailRowContent message={message} person={person} sender={sender} senderDomain={senderDomain} timeLabel={timeLabel} />
+  const content = <MailRowContent message={message} person={person} sender={sender} senderDomain={senderDomain} timeLabel={timeLabel} photo={photo} />
 
   const row = {
     className: `${ROW_CLASSES} ${transition === 'enter' ? 'mail-row-enter' : transition === 'exit' ? 'mail-row-exit' : ''}`,
@@ -2023,6 +2026,7 @@ function MailPage({ onReaderOpenChange, sender = null, composeRequest = null, on
                 joinTop={rowSelected[index] && rowSelected[index - 1]}
                 joinBottom={rowSelected[index] && rowSelected[index + 1]}
                 transition={transition}
+                own={sender}
                 onSettled={() => onListEntrySettled(key)}
               />
             ))}

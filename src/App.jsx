@@ -2953,6 +2953,7 @@ function App() {
   const mailSender = {
     name: mailSenderName,
     email: accountDisplayInfo.email,
+    photo: profilePhotoSrc,
     signature: {
       name: mailSenderName,
       // The CAS login, where the university shows it (mail.signature.showLogin):
